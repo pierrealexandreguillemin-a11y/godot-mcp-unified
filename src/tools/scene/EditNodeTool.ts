@@ -3,7 +3,7 @@
  * Edits properties of existing nodes in Godot scenes
  */
 
-import { ToolDefinition, ToolResponse } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs, EditNodeArgs } from '../../server/types';
 import {
   prepareToolArgs,
   validateBasicArgs,
@@ -43,10 +43,10 @@ export const editNodeDefinition: ToolDefinition = {
   },
 };
 
-export const handleEditNode = async (args: any): Promise<ToolResponse> => {
-  args = prepareToolArgs(args);
+export const handleEditNode = async (args: BaseToolArgs): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(args, [
+  const validationError = validateBasicArgs(preparedArgs, [
     'projectPath',
     'scenePath',
     'nodePath',
@@ -58,12 +58,14 @@ export const handleEditNode = async (args: any): Promise<ToolResponse> => {
     ]);
   }
 
-  const projectValidationError = validateProjectPath(args.projectPath);
+  const typedArgs = preparedArgs as EditNodeArgs;
+
+  const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const sceneValidationError = validateScenePath(args.projectPath, args.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
   if (sceneValidationError) {
     return sceneValidationError;
   }
@@ -78,20 +80,20 @@ export const handleEditNode = async (args: any): Promise<ToolResponse> => {
       ]);
     }
 
-    logDebug(`Editing node ${args.nodePath} in scene: ${args.scenePath}`);
+    logDebug(`Editing node ${typedArgs.nodePath} in scene: ${typedArgs.scenePath}`);
 
     // Prepare parameters for the operation
-    const params: any = {
-      scenePath: args.scenePath,
-      nodePath: args.nodePath,
-      properties: args.properties,
+    const params: BaseToolArgs = {
+      scenePath: typedArgs.scenePath,
+      nodePath: typedArgs.nodePath,
+      properties: typedArgs.properties,
     };
 
     // Execute the operation
     const { stdout, stderr } = await executeOperation(
       'edit_node',
       params,
-      args.projectPath,
+      typedArgs.projectPath,
       godotPath,
     );
 
@@ -103,7 +105,7 @@ export const handleEditNode = async (args: any): Promise<ToolResponse> => {
       ]);
     }
 
-    return createSuccessResponse(`Node edited successfully: ${args.nodePath}\n\nOutput: ${stdout}`);
+    return createSuccessResponse(`Node edited successfully: ${typedArgs.nodePath}\n\nOutput: ${stdout}`);
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return createErrorResponse(`Failed to edit node: ${errorMessage}`, [

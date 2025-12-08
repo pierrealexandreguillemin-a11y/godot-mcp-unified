@@ -3,7 +3,7 @@
  * Updates UID references in a Godot project by resaving resources (for Godot 4.4+)
  */
 
-import { ToolDefinition, ToolResponse } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs, UpdateProjectUidsArgs } from '../../server/types';
 import {
   prepareToolArgs,
   validateBasicArgs,
@@ -14,10 +14,6 @@ import { createErrorResponse } from '../../utils/ErrorHandler';
 import { detectGodotPath } from '../../core/PathManager';
 import { executeOperation, getGodotVersion, isGodot44OrLater } from '../../core/GodotExecutor';
 import { logDebug } from '../../utils/Logger';
-
-export interface UpdateProjectUidsArgs {
-  projectPath: string;
-}
 
 export const updateProjectUidsDefinition: ToolDefinition = {
   name: 'update_project_uids',
@@ -37,19 +33,21 @@ export const updateProjectUidsDefinition: ToolDefinition = {
 /**
  * Handle the update_project_uids tool
  */
-export const handleUpdateProjectUids = async (args: any): Promise<ToolResponse> => {
+export const handleUpdateProjectUids = async (args: BaseToolArgs): Promise<ToolResponse> => {
   // Validate and normalize arguments
-  args = prepareToolArgs(args);
+  const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(args, ['projectPath']);
+  const validationError = validateBasicArgs(preparedArgs, ['projectPath']);
   if (validationError) {
     return createErrorResponse(validationError, [
       'Provide a valid path to a Godot project directory',
     ]);
   }
 
+  const typedArgs = preparedArgs as UpdateProjectUidsArgs;
+
   // Validate project path
-  const projectValidation = validateProjectPath(args.projectPath);
+  const projectValidation = validateProjectPath(typedArgs.projectPath);
   if (projectValidation) {
     return projectValidation;
   }
@@ -76,18 +74,18 @@ export const handleUpdateProjectUids = async (args: any): Promise<ToolResponse> 
       );
     }
 
-    logDebug(`Updating project UIDs for: ${args.projectPath}`);
+    logDebug(`Updating project UIDs for: ${typedArgs.projectPath}`);
 
     // Prepare parameters for the operation
     const params = {
-      projectPath: args.projectPath,
+      projectPath: typedArgs.projectPath,
     };
 
     // Execute the operation
     const { stdout, stderr } = await executeOperation(
       'resave_resources',
       params,
-      args.projectPath,
+      typedArgs.projectPath,
       godotPath,
     );
 

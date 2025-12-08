@@ -11,12 +11,7 @@ import { isGodotProject } from '../../utils/FileUtils';
 import { detectGodotPath } from '../../core/PathManager';
 import { getActiveProcess, setActiveProcess } from '../../core/ProcessManager';
 import { logDebug } from '../../utils/Logger';
-import { ToolResponse, ToolDefinition } from '../../server/types';
-
-export interface RunProjectArgs {
-  projectPath: string;
-  scene?: string;
-}
+import { ToolResponse, ToolDefinition, BaseToolArgs, RunProjectArgs } from '../../server/types';
 
 export const runProjectDefinition: ToolDefinition = {
   name: 'run_project',
@@ -40,21 +35,23 @@ export const runProjectDefinition: ToolDefinition = {
 /**
  * Handle the run_project tool
  */
-export const handleRunProject = async (args: any): Promise<ToolResponse> => {
+export const handleRunProject = async (args: BaseToolArgs): Promise<ToolResponse> => {
   // Validate and normalize arguments
-  args = prepareToolArgs(args);
+  const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(args, ['projectPath']);
+  const validationError = validateBasicArgs(preparedArgs, ['projectPath']);
   if (validationError) {
     return createErrorResponse(validationError, [
       'Provide a valid path to a Godot project directory',
     ]);
   }
 
+  const typedArgs = preparedArgs as RunProjectArgs;
+
   try {
     // Validate project
-    if (!isGodotProject(args.projectPath)) {
-      return createErrorResponse(`Not a valid Godot project: ${args.projectPath}`, [
+    if (!isGodotProject(typedArgs.projectPath)) {
+      return createErrorResponse(`Not a valid Godot project: ${typedArgs.projectPath}`, [
         'Ensure the path points to a directory containing a project.godot file',
         'Use list_projects to find valid Godot projects',
       ]);
@@ -76,13 +73,13 @@ export const handleRunProject = async (args: any): Promise<ToolResponse> => {
       activeProcess.process.kill();
     }
 
-    const cmdArgs = ['-d', '--path', args.projectPath];
-    if (args.scene) {
-      logDebug(`Adding scene parameter: ${args.scene}`);
-      cmdArgs.push(args.scene);
+    const cmdArgs: string[] = ['-d', '--path', typedArgs.projectPath];
+    if (typedArgs.scene) {
+      logDebug(`Adding scene parameter: ${typedArgs.scene}`);
+      cmdArgs.push(typedArgs.scene);
     }
 
-    logDebug(`Running Godot project: ${args.projectPath}`);
+    logDebug(`Running Godot project: ${typedArgs.projectPath}`);
     const process = spawn(godotPath, cmdArgs, { stdio: 'pipe' });
     const output: string[] = [];
     const errors: string[] = [];

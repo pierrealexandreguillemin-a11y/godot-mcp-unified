@@ -3,7 +3,7 @@
  * Lists all GDScript files in a Godot project
  */
 
-import { ToolDefinition, ToolResponse } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs, ListScriptsArgs } from '../../server/types';
 import {
   prepareToolArgs,
   validateBasicArgs,
@@ -70,37 +70,39 @@ const findScripts = (basePath: string, currentPath: string, scripts: ScriptInfo[
   }
 };
 
-export const handleListScripts = async (args: any): Promise<ToolResponse> => {
-  args = prepareToolArgs(args);
+export const handleListScripts = async (args: BaseToolArgs): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(args, ['projectPath']);
+  const validationError = validateBasicArgs(preparedArgs, ['projectPath']);
   if (validationError) {
     return createErrorResponse(validationError, [
       'Provide a valid path to a Godot project directory',
     ]);
   }
 
-  const projectValidationError = validateProjectPath(args.projectPath);
+  const typedArgs = preparedArgs as ListScriptsArgs;
+
+  const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {
     return projectValidationError;
   }
 
   try {
-    const searchPath = args.directory
-      ? join(args.projectPath, args.directory)
-      : args.projectPath;
+    const searchPath = typedArgs.directory
+      ? join(typedArgs.projectPath, typedArgs.directory)
+      : typedArgs.projectPath;
 
     logDebug(`Listing scripts in: ${searchPath}`);
 
     const scripts: ScriptInfo[] = [];
-    findScripts(args.projectPath, searchPath, scripts);
+    findScripts(typedArgs.projectPath, searchPath, scripts);
 
     // Sort by path
     scripts.sort((a, b) => a.path.localeCompare(b.path));
 
     return createJsonResponse({
-      projectPath: args.projectPath,
-      directory: args.directory || '/',
+      projectPath: typedArgs.projectPath,
+      directory: typedArgs.directory || '/',
       count: scripts.length,
       scripts: scripts,
     });

@@ -3,7 +3,7 @@
  * Creates new scenes in Godot projects
  */
 
-import { ToolDefinition, ToolResponse } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs, CreateSceneArgs } from '../../server/types';
 import {
   prepareToolArgs,
   validateBasicArgs,
@@ -38,17 +38,19 @@ export const createSceneDefinition: ToolDefinition = {
   },
 };
 
-export const handleCreateScene = async (args: any): Promise<ToolResponse> => {
-  args = prepareToolArgs(args);
+export const handleCreateScene = async (args: BaseToolArgs): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(args, ['projectPath', 'scenePath']);
+  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'scenePath']);
   if (validationError) {
     return createErrorResponse(validationError, [
       'Provide valid paths for both the project and the scene',
     ]);
   }
 
-  const projectValidationError = validateProjectPath(args.projectPath);
+  const typedArgs = preparedArgs as CreateSceneArgs;
+
+  const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {
     return projectValidationError;
   }
@@ -63,19 +65,19 @@ export const handleCreateScene = async (args: any): Promise<ToolResponse> => {
       ]);
     }
 
-    logDebug(`Creating scene: ${args.scenePath} in project: ${args.projectPath}`);
+    logDebug(`Creating scene: ${typedArgs.scenePath} in project: ${typedArgs.projectPath}`);
 
     // Prepare parameters for the operation
     const params = {
-      scenePath: args.scenePath,
-      rootNodeType: args.rootNodeType || 'Node2D',
+      scenePath: typedArgs.scenePath,
+      rootNodeType: typedArgs.rootNodeType || 'Node2D',
     };
 
     // Execute the operation
     const { stdout, stderr } = await executeOperation(
       'create_scene',
       params,
-      args.projectPath,
+      typedArgs.projectPath,
       godotPath,
     );
 
@@ -88,7 +90,7 @@ export const handleCreateScene = async (args: any): Promise<ToolResponse> => {
     }
 
     return createSuccessResponse(
-      `Scene created successfully: ${args.scenePath}\n\nOutput: ${stdout}`,
+      `Scene created successfully: ${typedArgs.scenePath}\n\nOutput: ${stdout}`,
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

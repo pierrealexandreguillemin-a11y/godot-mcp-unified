@@ -233,6 +233,18 @@ export interface ScriptError {
   type: 'error' | 'warning';
 }
 
+/**
+ * Error type for exec/execAsync failures
+ * Contains stdout/stderr from the failed command
+ */
+export interface ExecError extends Error {
+  stdout?: string;
+  stderr?: string;
+  code?: number;
+  killed?: boolean;
+  signal?: string;
+}
+
 export interface ScriptValidationResult {
   projectPath: string;
   scriptPath: string;

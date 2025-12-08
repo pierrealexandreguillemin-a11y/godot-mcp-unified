@@ -3,7 +3,7 @@
  * Creates or updates a GDScript file
  */
 
-import { ToolDefinition, ToolResponse } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs, WriteScriptArgs } from '../../server/types';
 import {
   prepareToolArgs,
   validateBasicArgs,
@@ -42,33 +42,36 @@ export const writeScriptDefinition: ToolDefinition = {
   },
 };
 
-export const handleWriteScript = async (args: any): Promise<ToolResponse> => {
-  args = prepareToolArgs(args);
+export const handleWriteScript = async (args: BaseToolArgs): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(args, ['projectPath', 'scriptPath', 'content']);
+  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'scriptPath', 'content']);
   if (validationError) {
     return createErrorResponse(validationError, [
       'Provide projectPath, scriptPath, and content',
     ]);
   }
 
-  const projectValidationError = validateProjectPath(args.projectPath);
+  // Cast to specific type after validation
+  const typedArgs = preparedArgs as WriteScriptArgs;
+
+  const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {
     return projectValidationError;
   }
 
   try {
     // Ensure script path ends with .gd
-    let scriptPath = args.scriptPath;
+    let scriptPath = typedArgs.scriptPath;
     if (!scriptPath.endsWith('.gd')) {
       scriptPath += '.gd';
     }
 
-    const fullPath = join(args.projectPath, scriptPath);
+    const fullPath = join(typedArgs.projectPath, scriptPath);
     const fileExists = existsSync(fullPath);
 
     // Check overwrite permission
-    if (fileExists && args.overwrite === false) {
+    if (fileExists && typedArgs.overwrite === false) {
       return createErrorResponse(`Script already exists: ${scriptPath}`, [
         'Set overwrite: true to replace the existing file',
         'Use a different script path',
@@ -84,10 +87,10 @@ export const handleWriteScript = async (args: any): Promise<ToolResponse> => {
     }
 
     // Write the script
-    writeFileSync(fullPath, args.content, 'utf-8');
+    writeFileSync(fullPath, typedArgs.content, 'utf-8');
 
     const action = fileExists ? 'updated' : 'created';
-    const lines = args.content.split('\n').length;
+    const lines = typedArgs.content.split('\n').length;
 
     return createSuccessResponse(
       `Script ${action} successfully: ${scriptPath}\n` +

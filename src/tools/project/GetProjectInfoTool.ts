@@ -3,7 +3,7 @@
  * Retrieves metadata about a Godot project
  */
 
-import { ToolDefinition, ToolResponse } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs, GetProjectInfoArgs } from '../../server/types';
 import { prepareToolArgs, validateBasicArgs, validateProjectPath } from '../BaseToolHandler';
 import { createErrorResponse } from '../../utils/ErrorHandler';
 import { getProjectStructure } from '../../utils/FileUtils';
@@ -31,17 +31,19 @@ export const getProjectInfoDefinition: ToolDefinition = {
   },
 };
 
-export const handleGetProjectInfo = async (args: any): Promise<ToolResponse> => {
-  args = prepareToolArgs(args);
+export const handleGetProjectInfo = async (args: BaseToolArgs): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(args, ['projectPath']);
+  const validationError = validateBasicArgs(preparedArgs, ['projectPath']);
   if (validationError) {
     return createErrorResponse(validationError, [
       'Provide a valid path to a Godot project directory',
     ]);
   }
 
-  const projectValidationError = validateProjectPath(args.projectPath);
+  const typedArgs = preparedArgs as GetProjectInfoArgs;
+
+  const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {
     return projectValidationError;
   }
@@ -56,19 +58,19 @@ export const handleGetProjectInfo = async (args: any): Promise<ToolResponse> => 
       ]);
     }
 
-    logDebug(`Getting project info for: ${args.projectPath}`);
+    logDebug(`Getting project info for: ${typedArgs.projectPath}`);
 
     // Get Godot version
     const execOptions = { timeout: 10000 }; // 10 second timeout
     const { stdout } = await execAsync(`"${godotPath}" --version`, execOptions);
 
     // Get project structure using the utility
-    const projectStructure = getProjectStructure(args.projectPath);
+    const projectStructure = getProjectStructure(typedArgs.projectPath);
 
     // Extract project name from project.godot file
-    let projectName = basename(args.projectPath);
+    let projectName = basename(typedArgs.projectPath);
     try {
-      const projectFile = join(args.projectPath, 'project.godot');
+      const projectFile = join(typedArgs.projectPath, 'project.godot');
       const projectFileContent = readFileSync(projectFile, 'utf8');
       const configNameMatch = projectFileContent.match(/config\/name="([^"]+)"/);
       if (configNameMatch && configNameMatch[1]) {
@@ -82,7 +84,7 @@ export const handleGetProjectInfo = async (args: any): Promise<ToolResponse> => 
 
     const projectInfo = {
       name: projectName,
-      path: args.projectPath,
+      path: typedArgs.projectPath,
       godotVersion: stdout.trim(),
       structure: projectStructure,
     };

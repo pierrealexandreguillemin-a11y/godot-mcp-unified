@@ -3,7 +3,7 @@
  * Removes nodes from existing scenes in Godot projects
  */
 
-import { ToolDefinition, ToolResponse } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs, RemoveNodeArgs } from '../../server/types';
 import {
   prepareToolArgs,
   validateBasicArgs,
@@ -39,20 +39,22 @@ export const removeNodeDefinition: ToolDefinition = {
   },
 };
 
-export const handleRemoveNode = async (args: any): Promise<ToolResponse> => {
-  args = prepareToolArgs(args);
+export const handleRemoveNode = async (args: BaseToolArgs): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(args, ['projectPath', 'scenePath', 'nodePath']);
+  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'scenePath', 'nodePath']);
   if (validationError) {
     return createErrorResponse(validationError, ['Provide projectPath, scenePath, and nodePath']);
   }
 
-  const projectValidationError = validateProjectPath(args.projectPath);
+  const typedArgs = preparedArgs as RemoveNodeArgs;
+
+  const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const sceneValidationError = validateScenePath(args.projectPath, args.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
   if (sceneValidationError) {
     return sceneValidationError;
   }
@@ -67,19 +69,19 @@ export const handleRemoveNode = async (args: any): Promise<ToolResponse> => {
       ]);
     }
 
-    logDebug(`Removing node ${args.nodePath} from scene: ${args.scenePath}`);
+    logDebug(`Removing node ${typedArgs.nodePath} from scene: ${typedArgs.scenePath}`);
 
     // Prepare parameters for the operation
-    const params: any = {
-      scenePath: args.scenePath,
-      nodePath: args.nodePath,
+    const params: BaseToolArgs = {
+      scenePath: typedArgs.scenePath,
+      nodePath: typedArgs.nodePath,
     };
 
     // Execute the operation
     const { stdout, stderr } = await executeOperation(
       'remove_node',
       params,
-      args.projectPath,
+      typedArgs.projectPath,
       godotPath,
     );
 
@@ -92,7 +94,7 @@ export const handleRemoveNode = async (args: any): Promise<ToolResponse> => {
     }
 
     return createSuccessResponse(
-      `Node removed successfully: ${args.nodePath}\n\nOutput: ${stdout}`,
+      `Node removed successfully: ${typedArgs.nodePath}\n\nOutput: ${stdout}`,
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

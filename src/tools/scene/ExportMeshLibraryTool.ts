@@ -3,7 +3,7 @@
  * Exports 3D scenes as MeshLibrary resources for GridMap usage
  */
 
-import { ToolDefinition, ToolResponse } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs, ExportMeshLibraryArgs } from '../../server/types';
 import {
   prepareToolArgs,
   validateBasicArgs,
@@ -46,20 +46,22 @@ export const exportMeshLibraryDefinition: ToolDefinition = {
   },
 };
 
-export const handleExportMeshLibrary = async (args: any): Promise<ToolResponse> => {
-  args = prepareToolArgs(args);
+export const handleExportMeshLibrary = async (args: BaseToolArgs): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(args, ['projectPath', 'scenePath', 'outputPath']);
+  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'scenePath', 'outputPath']);
   if (validationError) {
     return createErrorResponse(validationError, ['Provide projectPath, scenePath, and outputPath']);
   }
 
-  const projectValidationError = validateProjectPath(args.projectPath);
+  const typedArgs = preparedArgs as ExportMeshLibraryArgs;
+
+  const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const sceneValidationError = validateScenePath(args.projectPath, args.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
   if (sceneValidationError) {
     return sceneValidationError;
   }
@@ -74,24 +76,25 @@ export const handleExportMeshLibrary = async (args: any): Promise<ToolResponse> 
       ]);
     }
 
-    logDebug(`Exporting MeshLibrary from scene: ${args.scenePath} to ${args.outputPath}`);
+    logDebug(`Exporting MeshLibrary from scene: ${typedArgs.scenePath} to ${typedArgs.outputPath}`);
 
     // Prepare parameters for the operation
-    const params: any = {
-      scenePath: args.scenePath,
-      outputPath: args.outputPath,
+    const params: BaseToolArgs = {
+      scenePath: typedArgs.scenePath,
+      outputPath: typedArgs.outputPath,
     };
 
     // Add optional parameters
-    if (args.meshItemNames && Array.isArray(args.meshItemNames)) {
-      params.meshItemNames = args.meshItemNames;
+    const meshItemNames = (typedArgs as BaseToolArgs).meshItemNames;
+    if (meshItemNames && Array.isArray(meshItemNames)) {
+      params.meshItemNames = meshItemNames;
     }
 
     // Execute the operation
     const { stdout, stderr } = await executeOperation(
       'export_mesh_library',
       params,
-      args.projectPath,
+      typedArgs.projectPath,
       godotPath,
     );
 
@@ -104,7 +107,7 @@ export const handleExportMeshLibrary = async (args: any): Promise<ToolResponse> 
     }
 
     return createSuccessResponse(
-      `MeshLibrary exported successfully: ${args.outputPath}\n\nOutput: ${stdout}`,
+      `MeshLibrary exported successfully: ${typedArgs.outputPath}\n\nOutput: ${stdout}`,
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

@@ -3,7 +3,7 @@
  * Validates GDScript files and returns compilation errors
  */
 
-import { ToolDefinition, ToolResponse } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs, ExecError, GetScriptErrorsArgs } from '../../server/types';
 import {
   prepareToolArgs,
   validateBasicArgs,
@@ -92,17 +92,19 @@ const parseGodotOutput = (output: string): ScriptError[] => {
   return errors;
 };
 
-export const handleGetScriptErrors = async (args: any): Promise<ToolResponse> => {
-  args = prepareToolArgs(args);
+export const handleGetScriptErrors = async (args: BaseToolArgs): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(args, ['projectPath']);
+  const validationError = validateBasicArgs(preparedArgs, ['projectPath']);
   if (validationError) {
     return createErrorResponse(validationError, [
       'Provide a valid path to a Godot project directory',
     ]);
   }
 
-  const projectValidationError = validateProjectPath(args.projectPath);
+  const typedArgs = preparedArgs as GetScriptErrorsArgs;
+
+  const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {
     return projectValidationError;
   }
@@ -116,13 +118,13 @@ export const handleGetScriptErrors = async (args: any): Promise<ToolResponse> =>
       ]);
     }
 
-    logDebug(`Checking script errors in: ${args.projectPath}`);
+    logDebug(`Checking script errors in: ${typedArgs.projectPath}`);
 
     // Run Godot in headless mode to check for script errors
     // The --check-only flag validates scripts without running
     // --headless runs without GUI
     // --quit exits after initialization
-    const cmd = `"${godotPath}" --path "${args.projectPath}" --headless --check-only --quit 2>&1`;
+    const cmd = `"${godotPath}" --path "${typedArgs.projectPath}" --headless --check-only --quit 2>&1`;
 
     let stdout = '';
     let stderr = '';
@@ -134,10 +136,11 @@ export const handleGetScriptErrors = async (args: any): Promise<ToolResponse> =>
       });
       stdout = result.stdout || '';
       stderr = result.stderr || '';
-    } catch (execError: any) {
+    } catch (execError: unknown) {
       // Godot returns non-zero exit code if there are errors
-      stdout = execError.stdout || '';
-      stderr = execError.stderr || '';
+      const err = execError as ExecError;
+      stdout = err.stdout || '';
+      stderr = err.stderr || '';
     }
 
     const combinedOutput = stdout + '\n' + stderr;
@@ -145,8 +148,8 @@ export const handleGetScriptErrors = async (args: any): Promise<ToolResponse> =>
 
     // Filter by specific script if provided
     let filteredErrors = errors;
-    if (args.scriptPath) {
-      const scriptName = args.scriptPath.replace(/\\/g, '/');
+    if (typedArgs.scriptPath) {
+      const scriptName = typedArgs.scriptPath.replace(/\\/g, '/');
       filteredErrors = errors.filter(e =>
         e.file.includes(scriptName) || e.file === scriptName
       );
@@ -156,8 +159,8 @@ export const handleGetScriptErrors = async (args: any): Promise<ToolResponse> =>
     const warningCount = filteredErrors.filter(e => e.type === 'warning').length;
 
     return createJsonResponse({
-      projectPath: args.projectPath,
-      scriptPath: args.scriptPath || '(all scripts)',
+      projectPath: typedArgs.projectPath,
+      scriptPath: typedArgs.scriptPath || '(all scripts)',
       errorCount,
       warningCount,
       valid: errorCount === 0,

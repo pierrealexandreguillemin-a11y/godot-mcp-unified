@@ -3,7 +3,7 @@
  * Attaches a GDScript to a node in a scene
  */
 
-import { ToolDefinition, ToolResponse } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs, AttachScriptArgs } from '../../server/types';
 import {
   prepareToolArgs,
   validateBasicArgs,
@@ -43,46 +43,48 @@ export const attachScriptDefinition: ToolDefinition = {
   },
 };
 
-export const handleAttachScript = async (args: any): Promise<ToolResponse> => {
-  args = prepareToolArgs(args);
+export const handleAttachScript = async (args: BaseToolArgs): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(args, ['projectPath', 'scenePath', 'nodePath', 'scriptPath']);
+  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'scenePath', 'nodePath', 'scriptPath']);
   if (validationError) {
     return createErrorResponse(validationError, [
       'Provide projectPath, scenePath, nodePath, and scriptPath',
     ]);
   }
 
-  const projectValidationError = validateProjectPath(args.projectPath);
+  const typedArgs = preparedArgs as AttachScriptArgs;
+
+  const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const sceneValidationError = validateScenePath(args.projectPath, args.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
   if (sceneValidationError) {
     return sceneValidationError;
   }
 
   try {
-    const scriptFullPath = join(args.projectPath, args.scriptPath);
+    const scriptFullPath = join(typedArgs.projectPath, typedArgs.scriptPath);
 
     // Verify script exists
     if (!existsSync(scriptFullPath)) {
-      return createErrorResponse(`Script file not found: ${args.scriptPath}`, [
+      return createErrorResponse(`Script file not found: ${typedArgs.scriptPath}`, [
         'Use write_script to create the script first',
         'Check the script path is correct',
       ]);
     }
 
-    const sceneFullPath = join(args.projectPath, args.scenePath);
+    const sceneFullPath = join(typedArgs.projectPath, typedArgs.scenePath);
 
-    logDebug(`Attaching script ${args.scriptPath} to node ${args.nodePath} in scene ${args.scenePath}`);
+    logDebug(`Attaching script ${typedArgs.scriptPath} to node ${typedArgs.nodePath} in scene ${typedArgs.scenePath}`);
 
     // Read the scene file
     let sceneContent = readFileSync(sceneFullPath, 'utf-8');
 
     // Convert script path to res:// format
-    const resScriptPath = `res://${args.scriptPath.replace(/\\/g, '/')}`;
+    const resScriptPath = `res://${typedArgs.scriptPath.replace(/\\/g, '/')}`;
 
     // Check if script is already loaded as external resource
     const extResourceRegex = /\[ext_resource[^\]]*path="([^"]*)"[^\]]*type="Script"[^\]]*id="([^"]*)"/g;
@@ -121,7 +123,7 @@ export const handleAttachScript = async (args: any): Promise<ToolResponse> => {
 
     // Now attach script to the node
     // For root node (nodePath is "." or empty)
-    const isRootNode = args.nodePath === '.' || args.nodePath === '';
+    const isRootNode = typedArgs.nodePath === '.' || typedArgs.nodePath === '';
 
     if (isRootNode) {
       // Find the root node definition [node name="..." type="..."]
@@ -146,7 +148,7 @@ export const handleAttachScript = async (args: any): Promise<ToolResponse> => {
       }
     } else {
       // Find the specific node by path
-      const nodeName = args.nodePath.split('/').pop();
+      const nodeName = typedArgs.nodePath.split('/').pop();
       const nodeRegex = new RegExp(
         `(\\[node name="${nodeName}"[^\\]]*)(\\])`,
         'g'
@@ -168,7 +170,7 @@ export const handleAttachScript = async (args: any): Promise<ToolResponse> => {
       });
 
       if (!found) {
-        return createErrorResponse(`Node not found in scene: ${args.nodePath}`, [
+        return createErrorResponse(`Node not found in scene: ${typedArgs.nodePath}`, [
           'Check the node path is correct',
           'Use "." for the root node',
         ]);
@@ -180,9 +182,9 @@ export const handleAttachScript = async (args: any): Promise<ToolResponse> => {
 
     return createSuccessResponse(
       `Script attached successfully!\n` +
-      `Scene: ${args.scenePath}\n` +
-      `Node: ${args.nodePath || '(root)'}\n` +
-      `Script: ${args.scriptPath}`
+      `Scene: ${typedArgs.scenePath}\n` +
+      `Node: ${typedArgs.nodePath || '(root)'}\n` +
+      `Script: ${typedArgs.scriptPath}`
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

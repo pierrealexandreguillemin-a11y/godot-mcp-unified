@@ -3,7 +3,7 @@
  * Reads the content of a GDScript file
  */
 
-import { ToolDefinition, ToolResponse } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs, ReadScriptArgs } from '../../server/types';
 import {
   prepareToolArgs,
   validateBasicArgs,
@@ -33,34 +33,36 @@ export const readScriptDefinition: ToolDefinition = {
   },
 };
 
-export const handleReadScript = async (args: any): Promise<ToolResponse> => {
-  args = prepareToolArgs(args);
+export const handleReadScript = async (args: BaseToolArgs): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(args, ['projectPath', 'scriptPath']);
+  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'scriptPath']);
   if (validationError) {
     return createErrorResponse(validationError, [
       'Provide both projectPath and scriptPath',
     ]);
   }
 
-  const projectValidationError = validateProjectPath(args.projectPath);
+  const typedArgs = preparedArgs as ReadScriptArgs;
+
+  const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {
     return projectValidationError;
   }
 
   try {
-    const fullPath = join(args.projectPath, args.scriptPath);
+    const fullPath = join(typedArgs.projectPath, typedArgs.scriptPath);
 
     logDebug(`Reading script: ${fullPath}`);
 
     if (!existsSync(fullPath)) {
-      return createErrorResponse(`Script file not found: ${args.scriptPath}`, [
+      return createErrorResponse(`Script file not found: ${typedArgs.scriptPath}`, [
         'Use list_scripts to find available scripts',
         'Check the script path is correct',
       ]);
     }
 
-    if (!args.scriptPath.endsWith('.gd')) {
+    if (!typedArgs.scriptPath.endsWith('.gd')) {
       return createErrorResponse('File is not a GDScript file (.gd)', [
         'Provide a path to a .gd file',
       ]);
@@ -73,7 +75,7 @@ export const handleReadScript = async (args: any): Promise<ToolResponse> => {
       content: [
         {
           type: 'text',
-          text: `# Script: ${args.scriptPath}\n# Lines: ${lines}\n\n${content}`,
+          text: `# Script: ${typedArgs.scriptPath}\n# Lines: ${lines}\n\n${content}`,
         },
       ],
     };

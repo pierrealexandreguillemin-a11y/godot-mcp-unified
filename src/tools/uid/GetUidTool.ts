@@ -6,7 +6,7 @@
 import { promisify } from 'util';
 import { exec } from 'child_process';
 
-import { ToolDefinition, ToolResponse } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs, GetUidArgs } from '../../server/types';
 import {
   prepareToolArgs,
   validateBasicArgs,
@@ -53,20 +53,22 @@ export const getUidDefinition: ToolDefinition = {
   },
 };
 
-export const handleGetUid = async (args: any): Promise<ToolResponse> => {
-  args = prepareToolArgs(args);
+export const handleGetUid = async (args: BaseToolArgs): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(args, ['projectPath', 'filePath']);
+  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'filePath']);
   if (validationError) {
     return createErrorResponse(validationError, ['Provide projectPath and filePath']);
   }
 
-  const projectValidationError = validateProjectPath(args.projectPath);
+  const typedArgs = preparedArgs as GetUidArgs;
+
+  const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const fileValidationError = validateFilePath(args.projectPath, args.filePath);
+  const fileValidationError = validateFilePath(typedArgs.projectPath, typedArgs.filePath);
   if (fileValidationError) {
     return fileValidationError;
   }
@@ -95,18 +97,18 @@ export const handleGetUid = async (args: any): Promise<ToolResponse> => {
       );
     }
 
-    logDebug(`Getting UID for file: ${args.filePath} in project: ${args.projectPath}`);
+    logDebug(`Getting UID for file: ${typedArgs.filePath} in project: ${typedArgs.projectPath}`);
 
     // Prepare parameters for the operation
     const params = {
-      filePath: args.filePath,
+      filePath: typedArgs.filePath,
     };
 
     // Execute the operation
     const { stdout, stderr } = await executeOperation(
       'get_uid',
       params,
-      args.projectPath,
+      typedArgs.projectPath,
       godotPath,
     );
 
@@ -117,7 +119,7 @@ export const handleGetUid = async (args: any): Promise<ToolResponse> => {
       ]);
     }
 
-    return createSuccessResponse(`UID for ${args.filePath}: ${stdout.trim()}`);
+    return createSuccessResponse(`UID for ${typedArgs.filePath}: ${stdout.trim()}`);
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return createErrorResponse(`Failed to get UID: ${errorMessage}`, [

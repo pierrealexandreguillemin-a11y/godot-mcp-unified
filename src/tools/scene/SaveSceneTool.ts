@@ -3,7 +3,7 @@
  * Saves scenes with options for creating variants
  */
 
-import { ToolDefinition, ToolResponse } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs, SaveSceneArgs } from '../../server/types';
 import {
   prepareToolArgs,
   validateBasicArgs,
@@ -39,20 +39,22 @@ export const saveSceneDefinition: ToolDefinition = {
   },
 };
 
-export const handleSaveScene = async (args: any): Promise<ToolResponse> => {
-  args = prepareToolArgs(args);
+export const handleSaveScene = async (args: BaseToolArgs): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(args, ['projectPath', 'scenePath']);
+  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'scenePath']);
   if (validationError) {
     return createErrorResponse(validationError, ['Provide projectPath and scenePath']);
   }
 
-  const projectValidationError = validateProjectPath(args.projectPath);
+  const typedArgs = preparedArgs as SaveSceneArgs;
+
+  const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const sceneValidationError = validateScenePath(args.projectPath, args.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
   if (sceneValidationError) {
     return sceneValidationError;
   }
@@ -67,23 +69,23 @@ export const handleSaveScene = async (args: any): Promise<ToolResponse> => {
       ]);
     }
 
-    const isVariant = Boolean(args.newPath);
-    logDebug(`Saving scene: ${args.scenePath}${isVariant ? ` as variant: ${args.newPath}` : ''}`);
+    const isVariant = Boolean(typedArgs.newPath);
+    logDebug(`Saving scene: ${typedArgs.scenePath}${isVariant ? ` as variant: ${typedArgs.newPath}` : ''}`);
 
     // Prepare parameters for the operation
-    const params: any = {
-      scenePath: args.scenePath,
+    const params: BaseToolArgs = {
+      scenePath: typedArgs.scenePath,
     };
 
-    if (args.newPath) {
-      params.newPath = args.newPath;
+    if (typedArgs.newPath) {
+      params.newPath = typedArgs.newPath;
     }
 
     // Execute the operation
     const { stdout, stderr } = await executeOperation(
       'save_scene',
       params,
-      args.projectPath,
+      typedArgs.projectPath,
       godotPath,
     );
 
@@ -95,7 +97,7 @@ export const handleSaveScene = async (args: any): Promise<ToolResponse> => {
       ]);
     }
 
-    const savedPath = args.newPath || args.scenePath;
+    const savedPath = typedArgs.newPath || typedArgs.scenePath;
     return createSuccessResponse(`Scene saved successfully: ${savedPath}\n\nOutput: ${stdout}`);
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

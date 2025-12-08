@@ -3,7 +3,7 @@
  * Adds nodes to existing scenes in Godot projects
  */
 
-import { ToolDefinition, ToolResponse } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs, AddNodeArgs } from '../../server/types';
 import {
   prepareToolArgs,
   validateBasicArgs,
@@ -51,10 +51,10 @@ export const addNodeDefinition: ToolDefinition = {
   },
 };
 
-export const handleAddNode = async (args: any): Promise<ToolResponse> => {
-  args = prepareToolArgs(args);
+export const handleAddNode = async (args: BaseToolArgs): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(args, [
+  const validationError = validateBasicArgs(preparedArgs, [
     'projectPath',
     'scenePath',
     'nodeType',
@@ -66,12 +66,14 @@ export const handleAddNode = async (args: any): Promise<ToolResponse> => {
     ]);
   }
 
-  const projectValidationError = validateProjectPath(args.projectPath);
+  const typedArgs = preparedArgs as AddNodeArgs;
+
+  const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const sceneValidationError = validateScenePath(args.projectPath, args.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
   if (sceneValidationError) {
     return sceneValidationError;
   }
@@ -86,29 +88,29 @@ export const handleAddNode = async (args: any): Promise<ToolResponse> => {
       ]);
     }
 
-    logDebug(`Adding node ${args.nodeName} (${args.nodeType}) to scene: ${args.scenePath}`);
+    logDebug(`Adding node ${typedArgs.nodeName} (${typedArgs.nodeType}) to scene: ${typedArgs.scenePath}`);
 
     // Prepare parameters for the operation
-    const params: any = {
-      scenePath: args.scenePath,
-      nodeType: args.nodeType,
-      nodeName: args.nodeName,
+    const params: BaseToolArgs = {
+      scenePath: typedArgs.scenePath,
+      nodeType: typedArgs.nodeType,
+      nodeName: typedArgs.nodeName,
     };
 
     // Add optional parameters
-    if (args.parentNodePath) {
-      params.parentNodePath = args.parentNodePath;
+    if (typedArgs.parentNodePath) {
+      params.parentNodePath = typedArgs.parentNodePath;
     }
 
-    if (args.properties) {
-      params.properties = args.properties;
+    if (typedArgs.properties) {
+      params.properties = typedArgs.properties;
     }
 
     // Execute the operation
     const { stdout, stderr } = await executeOperation(
       'add_node',
       params,
-      args.projectPath,
+      typedArgs.projectPath,
       godotPath,
     );
 
@@ -121,7 +123,7 @@ export const handleAddNode = async (args: any): Promise<ToolResponse> => {
     }
 
     return createSuccessResponse(
-      `Node added successfully: ${args.nodeName} (${args.nodeType})\n\nOutput: ${stdout}`,
+      `Node added successfully: ${typedArgs.nodeName} (${typedArgs.nodeType})\n\nOutput: ${stdout}`,
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

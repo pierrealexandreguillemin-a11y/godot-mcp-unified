@@ -3,7 +3,7 @@
  * Launches the Godot editor for a specific project
  */
 
-import { ToolDefinition, ToolResponse } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs, LaunchEditorArgs } from '../../server/types';
 import {
   prepareToolArgs,
   validateBasicArgs,
@@ -29,17 +29,19 @@ export const launchEditorDefinition: ToolDefinition = {
   },
 };
 
-export const handleLaunchEditor = async (args: any): Promise<ToolResponse> => {
-  args = prepareToolArgs(args);
+export const handleLaunchEditor = async (args: BaseToolArgs): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(args, ['projectPath']);
+  const validationError = validateBasicArgs(preparedArgs, ['projectPath']);
   if (validationError) {
     return createErrorResponse(validationError, [
       'Provide a valid path to a Godot project directory',
     ]);
   }
 
-  const projectValidationError = validateProjectPath(args.projectPath);
+  const typedArgs = preparedArgs as LaunchEditorArgs;
+
+  const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {
     return projectValidationError;
   }
@@ -53,10 +55,10 @@ export const handleLaunchEditor = async (args: any): Promise<ToolResponse> => {
       ]);
     }
 
-    launchGodotEditor(godotPath, args.projectPath);
+    launchGodotEditor(godotPath, typedArgs.projectPath);
 
     return createSuccessResponse(
-      `Godot editor launched successfully for project at ${args.projectPath}.`,
+      `Godot editor launched successfully for project at ${typedArgs.projectPath}.`,
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

@@ -5,7 +5,7 @@
 
 import { existsSync } from 'fs';
 
-import { ToolDefinition, ToolResponse } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs, ListProjectsArgs } from '../../server/types';
 import { prepareToolArgs, validateBasicArgs } from '../BaseToolHandler';
 import { createErrorResponse } from '../../utils/ErrorHandler';
 import { findGodotProjects } from '../../utils/FileUtils';
@@ -30,27 +30,29 @@ export const listProjectsDefinition: ToolDefinition = {
   },
 };
 
-export const handleListProjects = async (args: any): Promise<ToolResponse> => {
-  args = prepareToolArgs(args);
+export const handleListProjects = async (args: BaseToolArgs): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(args, ['directory']);
+  const validationError = validateBasicArgs(preparedArgs, ['directory']);
   if (validationError) {
     return createErrorResponse(validationError, [
       'Provide a valid directory path to search for Godot projects',
     ]);
   }
 
-  try {
-    logDebug(`Listing Godot projects in directory: ${args.directory}`);
+  const typedArgs = preparedArgs as ListProjectsArgs;
 
-    if (!existsSync(args.directory)) {
-      return createErrorResponse(`Directory does not exist: ${args.directory}`, [
+  try {
+    logDebug(`Listing Godot projects in directory: ${typedArgs.directory}`);
+
+    if (!existsSync(typedArgs.directory)) {
+      return createErrorResponse(`Directory does not exist: ${typedArgs.directory}`, [
         'Provide a valid directory path that exists on the system',
       ]);
     }
 
-    const recursive = args.recursive === true;
-    const projects = findGodotProjects(args.directory, recursive);
+    const recursive = typedArgs.recursive === true;
+    const projects = findGodotProjects(typedArgs.directory, recursive);
 
     return {
       content: [

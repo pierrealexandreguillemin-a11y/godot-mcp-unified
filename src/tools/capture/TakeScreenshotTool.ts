@@ -3,7 +3,7 @@
  * Captures a screenshot from a running Godot project or creates a temporary screenshot script
  */
 
-import { ToolDefinition, ToolResponse } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs, TakeScreenshotArgs } from '../../server/types';
 import {
   prepareToolArgs,
   validateBasicArgs,
@@ -102,17 +102,19 @@ func take_screenshot():
         print("SCREENSHOT_ERROR:Failed to save screenshot to " + save_path)
 `;
 
-export const handleTakeScreenshot = async (args: any): Promise<ToolResponse> => {
-  args = prepareToolArgs(args);
+export const handleTakeScreenshot = async (args: BaseToolArgs): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(args, ['projectPath']);
+  const validationError = validateBasicArgs(preparedArgs, ['projectPath']);
   if (validationError) {
     return createErrorResponse(validationError, [
       'Provide a valid path to a Godot project directory',
     ]);
   }
 
-  const projectValidationError = validateProjectPath(args.projectPath);
+  const typedArgs = preparedArgs as TakeScreenshotArgs;
+
+  const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {
     return projectValidationError;
   }
@@ -126,24 +128,24 @@ export const handleTakeScreenshot = async (args: any): Promise<ToolResponse> => 
       ]);
     }
 
-    const delay = args.delay || 1;
-    const outputPath = args.outputPath || 'screenshots/capture.png';
+    const delay = typedArgs.delay || 1;
+    const outputPath = typedArgs.outputPath || 'screenshots/capture.png';
     const resOutputPath = `res://${outputPath}`;
 
-    logDebug(`Taking screenshot of project: ${args.projectPath}`);
+    logDebug(`Taking screenshot of project: ${typedArgs.projectPath}`);
 
     // Create screenshots directory if needed
-    const screenshotsDir = join(args.projectPath, 'screenshots');
+    const screenshotsDir = join(typedArgs.projectPath, 'screenshots');
     if (!existsSync(screenshotsDir)) {
       mkdirSync(screenshotsDir, { recursive: true });
     }
 
     // Write temporary screenshot script
-    const tempScriptPath = join(args.projectPath, '_mcp_screenshot_temp.gd');
+    const tempScriptPath = join(typedArgs.projectPath, '_mcp_screenshot_temp.gd');
     writeFileSync(tempScriptPath, SCREENSHOT_SCRIPT, 'utf-8');
 
     // Create a temporary scene that runs the screenshot script
-    const tempScenePath = join(args.projectPath, '_mcp_screenshot_temp.tscn');
+    const tempScenePath = join(typedArgs.projectPath, '_mcp_screenshot_temp.tscn');
     const tempScene = `[gd_scene load_steps=2 format=3]
 
 [ext_resource type="Script" path="res://_mcp_screenshot_temp.gd" id="1"]
@@ -155,13 +157,13 @@ script = ExtResource("1")
 
     try {
       // Run the screenshot scene
-      const sceneArg = args.scenePath
-        ? `"${args.scenePath}"`
+      const sceneArg = typedArgs.scenePath
+        ? `"${typedArgs.scenePath}"`
         : '"res://_mcp_screenshot_temp.tscn"';
 
       // If a specific scene is requested, we need a different approach
       // For now, we use our temp scene
-      const cmd = `"${godotPath}" --path "${args.projectPath}" "res://_mcp_screenshot_temp.tscn" --screenshot-delay ${delay} --screenshot-output "${resOutputPath}" 2>&1`;
+      const cmd = `"${godotPath}" --path "${typedArgs.projectPath}" "res://_mcp_screenshot_temp.tscn" --screenshot-delay ${delay} --screenshot-output "${resOutputPath}" 2>&1`;
 
       logDebug(`Running: ${cmd}`);
 
@@ -176,7 +178,7 @@ script = ExtResource("1")
 
       if (successMatch) {
         const savedPath = successMatch[1].trim();
-        const fullOutputPath = join(args.projectPath, outputPath);
+        const fullOutputPath = join(typedArgs.projectPath, outputPath);
 
         return createSuccessResponse(
           `Screenshot captured successfully!\n` +
@@ -189,7 +191,7 @@ script = ExtResource("1")
         ]);
       } else {
         // Check if file exists anyway
-        const fullOutputPath = join(args.projectPath, outputPath);
+        const fullOutputPath = join(typedArgs.projectPath, outputPath);
         if (existsSync(fullOutputPath)) {
           return createSuccessResponse(
             `Screenshot captured successfully!\n` +

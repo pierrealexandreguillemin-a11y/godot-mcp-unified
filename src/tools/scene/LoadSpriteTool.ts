@@ -3,7 +3,7 @@
  * Loads sprites and textures into Sprite2D nodes in Godot scenes
  */
 
-import { ToolDefinition, ToolResponse } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs, LoadSpriteArgs } from '../../server/types';
 import {
   prepareToolArgs,
   validateBasicArgs,
@@ -44,10 +44,10 @@ export const loadSpriteDefinition: ToolDefinition = {
   },
 };
 
-export const handleLoadSprite = async (args: any): Promise<ToolResponse> => {
-  args = prepareToolArgs(args);
+export const handleLoadSprite = async (args: BaseToolArgs): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(args, [
+  const validationError = validateBasicArgs(preparedArgs, [
     'projectPath',
     'scenePath',
     'nodePath',
@@ -59,17 +59,19 @@ export const handleLoadSprite = async (args: any): Promise<ToolResponse> => {
     ]);
   }
 
-  const projectValidationError = validateProjectPath(args.projectPath);
+  const typedArgs = preparedArgs as LoadSpriteArgs;
+
+  const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const sceneValidationError = validateScenePath(args.projectPath, args.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
   if (sceneValidationError) {
     return sceneValidationError;
   }
 
-  const textureValidationError = validateFilePath(args.projectPath, args.texturePath);
+  const textureValidationError = validateFilePath(typedArgs.projectPath, typedArgs.texturePath);
   if (textureValidationError) {
     return textureValidationError;
   }
@@ -85,21 +87,21 @@ export const handleLoadSprite = async (args: any): Promise<ToolResponse> => {
     }
 
     logDebug(
-      `Loading sprite ${args.texturePath} into node ${args.nodePath} in scene: ${args.scenePath}`,
+      `Loading sprite ${typedArgs.texturePath} into node ${typedArgs.nodePath} in scene: ${typedArgs.scenePath}`,
     );
 
     // Prepare parameters for the operation
     const params = {
-      scenePath: args.scenePath,
-      nodePath: args.nodePath,
-      texturePath: args.texturePath,
+      scenePath: typedArgs.scenePath,
+      nodePath: typedArgs.nodePath,
+      texturePath: typedArgs.texturePath,
     };
 
     // Execute the operation
     const { stdout, stderr } = await executeOperation(
       'load_sprite',
       params,
-      args.projectPath,
+      typedArgs.projectPath,
       godotPath,
     );
 
@@ -112,7 +114,7 @@ export const handleLoadSprite = async (args: any): Promise<ToolResponse> => {
     }
 
     return createSuccessResponse(
-      `Sprite loaded successfully: ${args.texturePath} into ${args.nodePath}\n\nOutput: ${stdout}`,
+      `Sprite loaded successfully: ${typedArgs.texturePath} into ${typedArgs.nodePath}\n\nOutput: ${stdout}`,
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

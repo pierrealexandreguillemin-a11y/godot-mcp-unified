@@ -1,6 +1,7 @@
 /**
  * Path management utilities
  * Handles path validation, normalization, and Godot executable detection
+ * ISO/IEC 25010 compliant - strict typing
  */
 
 import { normalize } from 'path';
@@ -9,6 +10,7 @@ import { promisify } from 'util';
 import { exec } from 'child_process';
 
 import { logDebug } from '../utils/Logger';
+import { BaseToolArgs } from '../server/types';
 
 const execAsync = promisify(exec);
 
@@ -227,30 +229,35 @@ export const detectGodotPath = async (
   }
 };
 
+/** Path keys that should be normalized */
+const PATH_KEYS = [
+  'projectPath',
+  'scenePath',
+  'nodePath',
+  'texturePath',
+  'outputPath',
+  'newPath',
+  'filePath',
+  'directory',
+  'scriptPath',
+] as const;
+
 /**
  * Normalize all path arguments in handler parameters
+ * @param args - Tool arguments containing paths
+ * @returns Arguments with normalized paths
  */
-export const normalizeHandlerPaths = (args: any): any => {
+export const normalizeHandlerPaths = <T extends BaseToolArgs>(args: T): T => {
   if (!args || typeof args !== 'object') {
     return args;
   }
 
-  const pathKeys = [
-    'projectPath',
-    'scenePath',
-    'nodePath',
-    'texturePath',
-    'outputPath',
-    'newPath',
-    'filePath',
-    'directory',
-  ];
+  const normalizedArgs = { ...args } as T;
 
-  const normalizedArgs = { ...args };
-
-  for (const key of pathKeys) {
-    if (normalizedArgs[key] && typeof normalizedArgs[key] === 'string') {
-      normalizedArgs[key] = normalizePath(normalizedArgs[key]);
+  for (const key of PATH_KEYS) {
+    const value = normalizedArgs[key];
+    if (value && typeof value === 'string') {
+      (normalizedArgs as BaseToolArgs)[key] = normalizePath(value);
     }
   }
 

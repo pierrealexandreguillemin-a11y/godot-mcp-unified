@@ -3,20 +3,17 @@
  * Validates GDScript files and returns compilation errors
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, ExecError, GetScriptErrorsArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs, GetScriptErrorsArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
   validateBasicArgs,
   validateProjectPath,
   createJsonResponse,
-} from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
-import { detectGodotPath } from '../../core/PathManager';
-import { logDebug } from '../../utils/Logger';
-import { promisify } from 'util';
-import { exec } from 'child_process';
-
-const execAsync = promisify(exec);
+} from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { detectGodotPath } from '../../core/PathManager.js';
+import { logDebug } from '../../utils/Logger.js';
+import { getGodotPool } from '../../core/ProcessPool.js';
 
 export interface ScriptError {
   file: string;
@@ -128,24 +125,19 @@ export const handleGetScriptErrors = async (args: BaseToolArgs): Promise<ToolRes
     //   - May not discover autoloads correctly
     //   - Can produce false positives for autoload-dependent scripts
     //   - Each script requires a new Godot instance
-    const cmd = `"${godotPath}" --path "${typedArgs.projectPath}" --headless --check-only --quit 2>&1`;
+    const args = ['--path', typedArgs.projectPath, '--headless', '--check-only', '--quit'];
 
-    let stdout = '';
-    let stderr = '';
+    logDebug(`Executing via ProcessPool: ${godotPath} ${args.join(' ')}`);
 
-    try {
-      const result = await execAsync(cmd, {
-        timeout: 30000,
-        maxBuffer: 1024 * 1024 * 10, // 10MB buffer
-      });
-      stdout = result.stdout || '';
-      stderr = result.stderr || '';
-    } catch (execError: unknown) {
-      // Godot returns non-zero exit code if there are errors
-      const err = execError as ExecError;
-      stdout = err.stdout || '';
-      stderr = err.stderr || '';
-    }
+    const pool = getGodotPool();
+    const result = await pool.execute(godotPath, args, {
+      cwd: typedArgs.projectPath,
+      timeout: 30000,
+    });
+
+    // Godot returns non-zero exit code if there are errors, but we still want the output
+    const stdout = result.stdout || '';
+    const stderr = result.stderr || '';
 
     const combinedOutput = stdout + '\n' + stderr;
     const errors = parseGodotOutput(combinedOutput);

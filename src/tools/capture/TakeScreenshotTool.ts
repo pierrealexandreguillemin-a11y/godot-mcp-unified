@@ -3,22 +3,19 @@
  * Captures a screenshot from a running Godot project or creates a temporary screenshot script
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, TakeScreenshotArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs, TakeScreenshotArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
   validateBasicArgs,
   validateProjectPath,
   createSuccessResponse,
-} from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
-import { detectGodotPath } from '../../core/PathManager';
-import { logDebug } from '../../utils/Logger';
-import { writeFileSync, existsSync, mkdirSync, readFileSync, unlinkSync } from 'fs';
+} from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { detectGodotPath } from '../../core/PathManager.js';
+import { logDebug } from '../../utils/Logger.js';
+import { getGodotPool } from '../../core/ProcessPool.js';
+import { writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
-import { promisify } from 'util';
-import { exec } from 'child_process';
-
-const execAsync = promisify(exec);
 
 export const takeScreenshotDefinition: ToolDefinition = {
   name: 'take_screenshot',
@@ -163,16 +160,25 @@ script = ExtResource("1")
 
       // If a specific scene is requested, we need a different approach
       // For now, we use our temp scene
-      const cmd = `"${godotPath}" --path "${typedArgs.projectPath}" "res://_mcp_screenshot_temp.tscn" --screenshot-delay ${delay} --screenshot-output "${resOutputPath}" 2>&1`;
+      const args = [
+        '--path',
+        typedArgs.projectPath,
+        'res://_mcp_screenshot_temp.tscn',
+        '--screenshot-delay',
+        String(delay),
+        '--screenshot-output',
+        resOutputPath,
+      ];
 
-      logDebug(`Running: ${cmd}`);
+      logDebug(`Executing via ProcessPool: ${godotPath} ${args.join(' ')}`);
 
-      const { stdout, stderr } = await execAsync(cmd, {
+      const pool = getGodotPool();
+      const result = await pool.execute(godotPath, args, {
+        cwd: typedArgs.projectPath,
         timeout: 30000,
-        maxBuffer: 1024 * 1024,
       });
 
-      const output = stdout + stderr;
+      const output = (result.stdout || '') + (result.stderr || '');
       const successMatch = output.match(/SCREENSHOT_SUCCESS:(.+)/);
       const errorMatch = output.match(/SCREENSHOT_ERROR:(.+)/);
 

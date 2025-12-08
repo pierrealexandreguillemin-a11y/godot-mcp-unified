@@ -5,7 +5,7 @@
  * ISO/IEC 25010 compliant - strict typing
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, ProjectToolArgs, ExecError } from '../../server/types.js';
+import { ToolDefinition, ToolResponse, BaseToolArgs, ProjectToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
   validateBasicArgs,
@@ -15,12 +15,9 @@ import {
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { logDebug } from '../../utils/Logger.js';
-import { promisify } from 'util';
-import { exec } from 'child_process';
+import { getGodotPool } from '../../core/ProcessPool.js';
 import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
 import { join, extname } from 'path';
-
-const execAsync = promisify(exec);
 
 export interface ValidationIssue {
   type: 'error' | 'warning' | 'info';
@@ -251,7 +248,7 @@ function scanProjectFiles(projectPath: string): ProjectFiles {
 }
 
 /**
- * Validate scripts using Godot's --check-only
+ * Validate scripts using Godot's --check-only via ProcessPool
  */
 async function validateScripts(projectPath: string): Promise<ValidationIssue[]> {
   const issues: ValidationIssue[] = [];
@@ -267,19 +264,16 @@ async function validateScripts(projectPath: string): Promise<ValidationIssue[]> 
       return issues;
     }
 
-    const cmd = `"${godotPath}" --headless --path "${projectPath}" --check-only --quit 2>&1`;
+    const args = ['--headless', '--path', projectPath, '--check-only', '--quit'];
+    logDebug(`Validating scripts via ProcessPool: ${godotPath} ${args.join(' ')}`);
 
-    let output = '';
-    try {
-      const result = await execAsync(cmd, {
-        timeout: 60000,
-        maxBuffer: 1024 * 1024 * 10,
-      });
-      output = result.stdout + '\n' + result.stderr;
-    } catch (execError: unknown) {
-      const err = execError as ExecError;
-      output = (err.stdout || '') + '\n' + (err.stderr || '');
-    }
+    const pool = getGodotPool();
+    const result = await pool.execute(godotPath, args, {
+      cwd: projectPath,
+      timeout: 60000,
+    });
+
+    const output = (result.stdout || '') + '\n' + (result.stderr || '');
 
     // Parse error output
     const errorLines = output.split('\n');

@@ -5,7 +5,7 @@
  * ISO/IEC 25010 compliant - strict typing
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, ProjectToolArgs, ExecError } from '../../server/types.js';
+import { ToolDefinition, ToolResponse, BaseToolArgs, ProjectToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
   validateBasicArgs,
@@ -15,12 +15,9 @@ import {
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { logDebug } from '../../utils/Logger.js';
-import { promisify } from 'util';
-import { exec } from 'child_process';
+import { getGodotPool } from '../../core/ProcessPool.js';
 import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
-
-const execAsync = promisify(exec);
 
 export interface GenerateDocsArgs extends ProjectToolArgs {
   outputPath?: string;
@@ -87,35 +84,27 @@ export const handleGenerateDocs = async (args: BaseToolArgs): Promise<ToolRespon
 
     logDebug(`Generating documentation at: ${outputPath}`);
 
-    // Build command
-    // --doctool generates XML class documentation
-    const cmd = `"${godotPath}" --headless --path "${typedArgs.projectPath}" --doctool "${outputPath}" 2>&1`;
+    // Build arguments - --doctool generates XML class documentation
+    const args = ['--headless', '--path', typedArgs.projectPath, '--doctool', outputPath];
 
-    logDebug(`Command: ${cmd}`);
+    logDebug(`Executing via ProcessPool: ${godotPath} ${args.join(' ')}`);
 
-    let stdout = '';
-    let stderr = '';
+    const pool = getGodotPool();
+    const result = await pool.execute(godotPath, args, {
+      cwd: typedArgs.projectPath,
+      timeout: 120000, // 2 minute timeout
+    });
 
-    try {
-      const result = await execAsync(cmd, {
-        timeout: 120000, // 2 minute timeout
-        maxBuffer: 1024 * 1024 * 50, // 50MB buffer
-      });
-      stdout = result.stdout || '';
-      stderr = result.stderr || '';
-    } catch (execError: unknown) {
-      const err = execError as ExecError;
-      stdout = err.stdout || '';
-      stderr = err.stderr || '';
+    const stdout = result.stdout || '';
+    const stderr = result.stderr || '';
 
-      // doctool may return non-zero even on partial success
-      if (!stdout.includes('Generating') && !existsSync(join(outputPath, 'classes'))) {
-        return createErrorResponse(`Documentation generation failed: ${stderr || stdout}`, [
-          'Check the project has documented classes',
-          'Ensure scripts use ## doc comments',
-          'Try running Godot with --verbose for more details',
-        ]);
-      }
+    // doctool may return non-zero even on partial success
+    if (result.exitCode !== 0 && !stdout.includes('Generating') && !existsSync(join(outputPath, 'classes'))) {
+      return createErrorResponse(`Documentation generation failed: ${stderr || stdout}`, [
+        'Check the project has documented classes',
+        'Ensure scripts use ## doc comments',
+        'Try running Godot with --verbose for more details',
+      ]);
     }
 
     // Check what was generated

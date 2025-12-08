@@ -3,23 +3,19 @@
  * Gets UIDs for files in Godot projects (for Godot 4.4+)
  */
 
-import { promisify } from 'util';
-import { exec } from 'child_process';
-
-import { ToolDefinition, ToolResponse, BaseToolArgs, GetUidArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs, GetUidArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
   validateBasicArgs,
   validateProjectPath,
   validateFilePath,
   createSuccessResponse,
-} from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
-import { detectGodotPath } from '../../core/PathManager';
-import { executeOperation } from '../../core/GodotExecutor';
-import { logDebug } from '../../utils/Logger';
-
-const execAsync = promisify(exec);
+} from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { detectGodotPath } from '../../core/PathManager.js';
+import { executeOperation } from '../../core/GodotExecutor.js';
+import { logDebug } from '../../utils/Logger.js';
+import { getGodotPool } from '../../core/ProcessPool.js';
 
 /**
  * Check if Godot version is 4.4 or later
@@ -84,8 +80,9 @@ export const handleGetUid = async (args: BaseToolArgs): Promise<ToolResponse> =>
     }
 
     // Get Godot version to check if UIDs are supported
-    const { stdout: versionOutput } = await execAsync(`"${godotPath}" --version`);
-    const version = versionOutput.trim();
+    const pool = getGodotPool();
+    const versionResult = await pool.execute(godotPath, ['--version'], { timeout: 10000 });
+    const version = versionResult.stdout.trim();
 
     if (!isGodot44OrLater(version)) {
       return createErrorResponse(

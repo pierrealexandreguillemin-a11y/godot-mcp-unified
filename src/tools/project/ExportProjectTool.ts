@@ -5,7 +5,7 @@
  * ISO/IEC 25010 compliant - strict typing
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, ProjectToolArgs, ExecError } from '../../server/types.js';
+import { ToolDefinition, ToolResponse, BaseToolArgs, ProjectToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
   validateBasicArgs,
@@ -15,12 +15,9 @@ import {
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { logDebug } from '../../utils/Logger.js';
-import { promisify } from 'util';
-import { exec } from 'child_process';
+import { getGodotPool } from '../../core/ProcessPool.js';
 import { existsSync, mkdirSync } from 'fs';
 import { dirname, join } from 'path';
-
-const execAsync = promisify(exec);
 
 export type ExportMode = 'release' | 'debug';
 
@@ -115,51 +112,51 @@ export const handleExportProject = async (args: BaseToolArgs): Promise<ToolRespo
     logDebug(`Using preset: ${typedArgs.preset}`);
     logDebug(`Mode: ${mode}`);
 
-    // Build export command
-    const cmd = `"${godotPath}" --headless --path "${typedArgs.projectPath}" ${exportFlag} "${typedArgs.preset}" "${outputPath}" 2>&1`;
+    // Build export arguments
+    const args = [
+      '--headless',
+      '--path',
+      typedArgs.projectPath,
+      exportFlag,
+      typedArgs.preset,
+      outputPath,
+    ];
 
-    logDebug(`Command: ${cmd}`);
+    logDebug(`Executing via ProcessPool: ${godotPath} ${args.join(' ')}`);
 
-    let stdout = '';
-    let stderr = '';
+    const pool = getGodotPool();
+    const result = await pool.execute(godotPath, args, {
+      cwd: typedArgs.projectPath,
+      timeout: 300000, // 5 minute timeout for exports
+    });
 
-    try {
-      const result = await execAsync(cmd, {
-        timeout: 300000, // 5 minute timeout for exports
-        maxBuffer: 1024 * 1024 * 50, // 50MB buffer
-      });
-      stdout = result.stdout || '';
-      stderr = result.stderr || '';
-    } catch (execError: unknown) {
-      const err = execError as ExecError;
-      stdout = err.stdout || '';
-      stderr = err.stderr || '';
+    const stdout = result.stdout || '';
+    const stderr = result.stderr || '';
 
-      // Check for common export errors
-      if (stderr.includes('Invalid export preset') || stdout.includes('Invalid export preset')) {
-        return createErrorResponse(`Export preset not found: ${typedArgs.preset}`, [
-          'Check the preset name matches exactly (case-sensitive)',
-          'Open export_presets.cfg to see available presets',
-          'Create the preset in Godot editor if it does not exist',
-        ]);
-      }
+    // Check for common export errors
+    if (stderr.includes('Invalid export preset') || stdout.includes('Invalid export preset')) {
+      return createErrorResponse(`Export preset not found: ${typedArgs.preset}`, [
+        'Check the preset name matches exactly (case-sensitive)',
+        'Open export_presets.cfg to see available presets',
+        'Create the preset in Godot editor if it does not exist',
+      ]);
+    }
 
-      if (stderr.includes('No export template found') || stdout.includes('No export template found')) {
-        return createErrorResponse('Export templates not installed', [
-          'Download export templates from Godot website',
-          'In Godot editor: Editor > Manage Export Templates',
-          'Or run: godot --install-export-templates',
-        ]);
-      }
+    if (stderr.includes('No export template found') || stdout.includes('No export template found')) {
+      return createErrorResponse('Export templates not installed', [
+        'Download export templates from Godot website',
+        'In Godot editor: Editor > Manage Export Templates',
+        'Or run: godot --install-export-templates',
+      ]);
+    }
 
-      // If exit code is 0, it's not really an error
-      if (err.code !== 0) {
-        return createErrorResponse(`Export failed: ${stderr || stdout}`, [
-          'Check the Godot console output for details',
-          'Verify export preset configuration',
-          'Ensure export templates are installed',
-        ]);
-      }
+    // Non-zero exit code indicates failure
+    if (result.exitCode !== 0) {
+      return createErrorResponse(`Export failed: ${stderr || stdout}`, [
+        'Check the Godot console output for details',
+        'Verify export preset configuration',
+        'Ensure export templates are installed',
+      ]);
     }
 
     // Verify export was created

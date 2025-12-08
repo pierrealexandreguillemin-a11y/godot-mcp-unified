@@ -6,14 +6,11 @@
 
 import { normalize } from 'path';
 import { existsSync } from 'fs';
-import { promisify } from 'util';
-import { exec } from 'child_process';
 
 import { logDebug } from '../utils/Logger';
 import { BaseToolArgs } from '../server/types';
 import { LruCache, CacheStats } from './LruCache';
-
-const execAsync = promisify(exec);
+import { getGodotPool } from './ProcessPool.js';
 
 /**
  * LRU cache for validated Godot paths
@@ -108,9 +105,10 @@ export const isValidGodotPath = async (path: string): Promise<boolean> => {
       return false;
     }
 
-    // Try to execute Godot with --version flag
-    const command = path === 'godot' ? 'godot --version' : `"${path}" --version`;
-    await execAsync(command);
+    // Try to execute Godot with --version flag via ProcessPool
+    const pool = getGodotPool();
+    const cmd = path === 'godot' ? 'godot' : path;
+    await pool.execute(cmd, ['--version'], { timeout: 10000 });
 
     logDebug(`Valid Godot path: ${path}`);
     validatedPathsCache.set(path, true);

@@ -3,18 +3,15 @@
  * Retrieves metadata about a Godot project
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, GetProjectInfoArgs } from '../../server/types';
-import { prepareToolArgs, validateBasicArgs, validateProjectPath } from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
-import { getProjectStructure } from '../../utils/FileUtils';
-import { detectGodotPath } from '../../core/PathManager';
-import { logDebug } from '../../utils/Logger';
-import { promisify } from 'util';
-import { exec } from 'child_process';
+import { ToolDefinition, ToolResponse, BaseToolArgs, GetProjectInfoArgs } from '../../server/types.js';
+import { prepareToolArgs, validateBasicArgs, validateProjectPath } from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { getProjectStructure } from '../../utils/FileUtils.js';
+import { detectGodotPath } from '../../core/PathManager.js';
+import { logDebug } from '../../utils/Logger.js';
+import { getGodotPool } from '../../core/ProcessPool.js';
 import { readFileSync } from 'fs';
 import { join, basename } from 'path';
-
-const execAsync = promisify(exec);
 
 export const getProjectInfoDefinition: ToolDefinition = {
   name: 'get_project_info',
@@ -60,9 +57,10 @@ export const handleGetProjectInfo = async (args: BaseToolArgs): Promise<ToolResp
 
     logDebug(`Getting project info for: ${typedArgs.projectPath}`);
 
-    // Get Godot version
-    const execOptions = { timeout: 10000 }; // 10 second timeout
-    const { stdout } = await execAsync(`"${godotPath}" --version`, execOptions);
+    // Get Godot version via ProcessPool
+    const pool = getGodotPool();
+    const versionResult = await pool.execute(godotPath, ['--version'], { timeout: 10000 });
+    const stdout = versionResult.stdout;
 
     // Get project structure using the utility
     const projectStructure = getProjectStructure(typedArgs.projectPath);

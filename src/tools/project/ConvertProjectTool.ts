@@ -5,7 +5,7 @@
  * ISO/IEC 25010 compliant - strict typing
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, ExecError } from '../../server/types.js';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
   validateBasicArgs,
@@ -14,12 +14,9 @@ import {
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { logDebug } from '../../utils/Logger.js';
-import { promisify } from 'util';
-import { exec } from 'child_process';
+import { getGodotPool } from '../../core/ProcessPool.js';
 import { existsSync } from 'fs';
 import { join } from 'path';
-
-const execAsync = promisify(exec);
 
 export interface ConvertProjectArgs extends BaseToolArgs {
   sourcePath: string;
@@ -83,54 +80,44 @@ export const handleConvertProject = async (args: BaseToolArgs): Promise<ToolResp
 
     logDebug(`Converting project at: ${typedArgs.sourcePath}`);
 
-    // Build conversion command
+    // Build conversion arguments
     // Note: --convert-3to4 requires Godot 4.x and converts in place
-    const cmdArgs: string[] = [
-      `"${godotPath}"`,
+    const args: string[] = [
       '--headless',
       '--path',
-      `"${typedArgs.sourcePath}"`,
+      typedArgs.sourcePath,
       '--convert-3to4',
     ];
 
     if (typedArgs.noConvertSign) {
-      cmdArgs.push('--no-convert-sign');
+      args.push('--no-convert-sign');
     }
 
-    const cmd = cmdArgs.join(' ') + ' 2>&1';
+    logDebug(`Executing via ProcessPool: ${godotPath} ${args.join(' ')}`);
 
-    logDebug(`Command: ${cmd}`);
+    const pool = getGodotPool();
+    const result = await pool.execute(godotPath, args, {
+      cwd: typedArgs.sourcePath,
+      timeout: 600000, // 10 minute timeout for conversion
+    });
 
-    let stdout = '';
-    let stderr = '';
+    const stdout = result.stdout || '';
+    const stderr = result.stderr || '';
 
-    try {
-      const result = await execAsync(cmd, {
-        timeout: 600000, // 10 minute timeout for conversion
-        maxBuffer: 1024 * 1024 * 100, // 100MB buffer
-      });
-      stdout = result.stdout || '';
-      stderr = result.stderr || '';
-    } catch (execError: unknown) {
-      const err = execError as ExecError;
-      stdout = err.stdout || '';
-      stderr = err.stderr || '';
+    // Check for specific errors
+    if (stdout.includes('already version 4') || stderr.includes('already version 4')) {
+      return createErrorResponse('Project is already in Godot 4.x format', [
+        'No conversion needed',
+        'The project can be opened directly in Godot 4.x',
+      ]);
+    }
 
-      // Check for specific errors
-      if (stdout.includes('already version 4') || stderr.includes('already version 4')) {
-        return createErrorResponse('Project is already in Godot 4.x format', [
-          'No conversion needed',
-          'The project can be opened directly in Godot 4.x',
-        ]);
-      }
-
-      if (err.code !== 0 && !stdout.includes('Conversion complete')) {
-        return createErrorResponse(`Conversion failed: ${stderr || stdout}`, [
-          'Check the project is a valid Godot 3.x project',
-          'Review the error message for details',
-          'Some manual fixes may be required after conversion',
-        ]);
-      }
+    if (result.exitCode !== 0 && !stdout.includes('Conversion complete')) {
+      return createErrorResponse(`Conversion failed: ${stderr || stdout}`, [
+        'Check the project is a valid Godot 3.x project',
+        'Review the error message for details',
+        'Some manual fixes may be required after conversion',
+      ]);
     }
 
     // Check for conversion summary in output

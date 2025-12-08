@@ -30,6 +30,10 @@ import { manageInputActionsDefinition, handleManageInputActions } from './projec
 import { convertProjectDefinition, handleConvertProject } from './project/ConvertProjectTool';
 import { generateDocsDefinition, handleGenerateDocs } from './project/GenerateDocsTool';
 import { validateProjectDefinition, handleValidateProject } from './project/ValidateProjectTool';
+import { getProjectSettingsDefinition, handleGetProjectSettings } from './project/GetProjectSettingsTool';
+import { setProjectSettingDefinition, handleSetProjectSetting } from './project/SetProjectSettingTool';
+import { validateConversionDefinition, handleValidateConversion } from './project/ValidateConversionTool';
+import { exportPackDefinition, handleExportPack } from './project/ExportPackTool';
 
 // Scene tools
 import { createSceneDefinition, handleCreateScene } from './scene/CreateSceneTool';
@@ -49,6 +53,7 @@ import { moveNodeDefinition, handleMoveNode } from './scene/MoveNodeTool';
 import { instanceSceneDefinition, handleInstanceScene } from './scene/InstanceSceneTool';
 import { connectSignalDefinition, handleConnectSignal } from './scene/ConnectSignalTool';
 import { manageGroupsDefinition, handleManageGroups } from './scene/ManageGroupsTool';
+import { listScenesDefinition, handleListScenes } from './scene/ListScenesTool';
 
 // UID tools
 import { getUidDefinition, handleGetUid } from './uid/GetUidTool';
@@ -65,6 +70,7 @@ import { getScriptErrorsDefinition, handleGetScriptErrors } from './script/GetSc
 
 // Resource tools
 import { createResourceDefinition, handleCreateResource } from './resource/CreateResourceTool';
+import { listResourcesDefinition, handleListResources } from './resource/ListResourcesTool';
 
 // Capture tools
 import { takeScreenshotDefinition, handleTakeScreenshot } from './capture/TakeScreenshotTool';
@@ -188,6 +194,38 @@ export const toolRegistry: Map<string, ToolRegistration> = new Map([
       readOnly: true,
     },
   ],
+  [
+    'get_project_settings',
+    {
+      definition: getProjectSettingsDefinition,
+      handler: handleGetProjectSettings,
+      readOnly: true,
+    },
+  ],
+  [
+    'set_project_setting',
+    {
+      definition: setProjectSettingDefinition,
+      handler: handleSetProjectSetting,
+      readOnly: false,
+    },
+  ],
+  [
+    'validate_conversion_3to4',
+    {
+      definition: validateConversionDefinition,
+      handler: handleValidateConversion,
+      readOnly: true,
+    },
+  ],
+  [
+    'export_pack',
+    {
+      definition: exportPackDefinition,
+      handler: handleExportPack,
+      readOnly: false,
+    },
+  ],
 
   // Scene tools
   [
@@ -302,6 +340,14 @@ export const toolRegistry: Map<string, ToolRegistration> = new Map([
       readOnly: false,
     },
   ],
+  [
+    'list_scenes',
+    {
+      definition: listScenesDefinition,
+      handler: handleListScenes,
+      readOnly: true,
+    },
+  ],
 
   // UID tools
   [
@@ -386,6 +432,14 @@ export const toolRegistry: Map<string, ToolRegistration> = new Map([
       definition: createResourceDefinition,
       handler: handleCreateResource,
       readOnly: false,
+    },
+  ],
+  [
+    'list_resources',
+    {
+      definition: listResourcesDefinition,
+      handler: handleListResources,
+      readOnly: true,
     },
   ],
 

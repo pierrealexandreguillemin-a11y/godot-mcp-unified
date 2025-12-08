@@ -249,18 +249,88 @@ function parseSectionHeader(line: string, context: ParserContext): void {
 
 /**
  * Parse attributes from a section header
- * e.g., 'type="Script" path="res://test.gd" id="1_abc"'
+ * Handles complex values like ExtResource("1_script") and arrays ["a", "b"]
  */
 function parseAttributes(str: string): Record<string, string> {
   const attributes: Record<string, string> = {};
+  let i = 0;
 
-  // Match key=value or key="value" pairs
-  const regex = /(\w+)=(?:"([^"]*)"|([\w\-.():/\\]+))/g;
-  let match;
+  while (i < str.length) {
+    // Skip whitespace
+    while (i < str.length && /\s/.test(str[i])) i++;
+    if (i >= str.length) break;
 
-  while ((match = regex.exec(str)) !== null) {
-    const key = match[1];
-    const value = match[2] !== undefined ? match[2] : match[3];
+    // Parse key
+    const keyStart = i;
+    while (i < str.length && /\w/.test(str[i])) i++;
+    const key = str.slice(keyStart, i);
+
+    if (!key) {
+      i++;
+      continue;
+    }
+
+    // Skip whitespace and =
+    while (i < str.length && /\s/.test(str[i])) i++;
+    if (str[i] !== '=') continue;
+    i++;
+    while (i < str.length && /\s/.test(str[i])) i++;
+
+    // Parse value
+    let value = '';
+    if (str[i] === '"') {
+      // Simple quoted string
+      i++;
+      const valueStart = i;
+      while (i < str.length && str[i] !== '"') i++;
+      value = str.slice(valueStart, i);
+      i++;
+    } else if (str[i] === '[') {
+      // Array value - capture until matching ]
+      const valueStart = i;
+      let depth = 0;
+      while (i < str.length) {
+        if (str[i] === '[') depth++;
+        else if (str[i] === ']') {
+          depth--;
+          if (depth === 0) {
+            i++;
+            break;
+          }
+        } else if (str[i] === '"') {
+          // Skip quoted strings within array
+          i++;
+          while (i < str.length && str[i] !== '"') i++;
+        }
+        i++;
+      }
+      value = str.slice(valueStart, i);
+    } else {
+      // Unquoted value - handle function calls like ExtResource("id")
+      const valueStart = i;
+      let parenDepth = 0;
+      while (i < str.length) {
+        const ch = str[i];
+        if (ch === '(') {
+          parenDepth++;
+        } else if (ch === ')') {
+          parenDepth--;
+          if (parenDepth === 0) {
+            i++;
+            break;
+          }
+        } else if (ch === '"') {
+          // Skip quoted strings within function calls
+          i++;
+          while (i < str.length && str[i] !== '"') i++;
+        } else if (parenDepth === 0 && /\s/.test(ch)) {
+          break;
+        }
+        i++;
+      }
+      value = str.slice(valueStart, i);
+    }
+
     attributes[key] = value;
   }
 

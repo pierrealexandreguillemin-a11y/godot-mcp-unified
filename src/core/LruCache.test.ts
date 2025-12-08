@@ -3,6 +3,7 @@
  * ISO/IEC 25010 compliant test coverage
  */
 
+import { jest } from '@jest/globals';
 import { LruCache } from './LruCache.js';
 
 describe('LruCache', () => {

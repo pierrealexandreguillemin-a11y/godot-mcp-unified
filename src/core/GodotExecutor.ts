@@ -1,20 +1,20 @@
 /**
  * Godot executor utilities
  * Handles execution of Godot operations and commands
+ * Uses ProcessPool for concurrent execution management
+ *
+ * ISO/IEC 25010 compliant - efficient, reliable, maintainable
  */
 
-import { promisify } from 'util';
-import { exec } from 'child_process';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
-import { convertCamelToSnakeCase } from './ParameterNormalizer';
-import { BaseToolArgs } from '../server/types';
-import { normalizePath } from './PathManager';
-import { logDebug } from '../utils/Logger';
-import { GODOT_DEBUG_MODE } from '../config/config';
-
-const execAsync = promisify(exec);
+import { convertCamelToSnakeCase } from './ParameterNormalizer.js';
+import { BaseToolArgs } from '../server/types.js';
+import { normalizePath } from './PathManager.js';
+import { logDebug } from '../utils/Logger.js';
+import { GODOT_DEBUG_MODE } from '../config/config.js';
+import { getGodotPool, ProcessResult } from './ProcessPool.js';
 
 const getOperationsScriptPath = (): string => {
   const __filename = fileURLToPath(import.meta.url);
@@ -36,15 +36,16 @@ export const isGodot44OrLater = (version: string): boolean => {
 };
 
 /**
- * Get Godot version
+ * Get Godot version using ProcessPool
  */
 export const getGodotVersion = async (godotPath: string): Promise<string> => {
-  const { stdout } = await execAsync(`"${godotPath}" --version`);
-  return stdout.trim();
+  const pool = getGodotPool();
+  const result = await pool.execute(godotPath, ['--version'], { timeout: 10000 });
+  return result.stdout.trim();
 };
 
 /**
- * Execute a Godot operation using the operations script
+ * Execute a Godot operation using the operations script via ProcessPool
  */
 export const executeOperation = async (
   operation: string,
@@ -62,46 +63,47 @@ export const executeOperation = async (
   const snakeCaseParams = convertCamelToSnakeCase(params);
   logDebug(`Converted snake_case params: ${JSON.stringify(snakeCaseParams)}`);
 
+  // Serialize the snake_case parameters to a valid JSON string
+  const paramsJson = JSON.stringify(snakeCaseParams);
+
+  // Get the operations script path
+  const operationsScriptPath = getOperationsScriptPath();
+
+  // Build command arguments for ProcessPool
+  const args: string[] = [
+    '--headless',
+    '--path',
+    normalizedProjectPath,
+    '--script',
+    operationsScriptPath,
+    operation,
+    paramsJson,
+  ];
+
+  // Add debug arguments if debug mode is enabled
+  if (GODOT_DEBUG_MODE) {
+    args.push('--debug-godot');
+  }
+
+  logDebug(`Executing via ProcessPool: ${godotPath} ${args.join(' ')}`);
+
   try {
-    // Serialize the snake_case parameters to a valid JSON string
-    const paramsJson = JSON.stringify(snakeCaseParams);
-    // Escape double quotes and backslashes for shell safety
-    const escapedParams = paramsJson.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const pool = getGodotPool();
+    const result: ProcessResult = await pool.execute(godotPath, args, {
+      cwd: normalizedProjectPath,
+      timeout: 60000, // 1 minute timeout
+    });
 
-    // Add debug arguments if debug mode is enabled
-    const debugArgs = GODOT_DEBUG_MODE ? ['--debug-godot'] : [];
-
-    // Get the operations script path
-    const operationsScriptPath = getOperationsScriptPath();
-
-    // Construct the command with the operation and JSON parameters
-    const cmd = [
-      `"${godotPath}"`,
-      '--headless',
-      '--path',
-      `"${normalizedProjectPath}"`,
-      '--script',
-      `"${operationsScriptPath}"`,
-      operation,
-      `"${escapedParams}"`,
-      ...debugArgs,
-    ].join(' ');
-
-    logDebug(`Command: ${cmd}`);
-
-    const { stdout, stderr } = await execAsync(cmd);
-
-    return { stdout, stderr };
+    return {
+      stdout: result.stdout,
+      stderr: result.stderr,
+    };
   } catch (error: unknown) {
-    // If execAsync throws, it still contains stdout/stderr
-    if (error instanceof Error && 'stdout' in error && 'stderr' in error) {
-      const execError = error as Error & { stdout: string; stderr: string };
-      return {
-        stdout: execError.stdout,
-        stderr: execError.stderr,
-      };
-    }
-
-    throw error;
+    // Return error as stderr
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return {
+      stdout: '',
+      stderr: errorMessage,
+    };
   }
 };

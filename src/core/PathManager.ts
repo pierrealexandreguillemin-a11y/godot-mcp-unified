@@ -11,11 +11,16 @@ import { exec } from 'child_process';
 
 import { logDebug } from '../utils/Logger';
 import { BaseToolArgs } from '../server/types';
+import { LruCache, CacheStats } from './LruCache';
 
 const execAsync = promisify(exec);
 
-// Cache for validated paths
-const validatedPaths = new Map<string, boolean>();
+/**
+ * LRU cache for validated Godot paths
+ * - Max 100 entries (typical usage won't exceed this)
+ * - 10 minute TTL (paths don't change frequently)
+ */
+const validatedPathsCache = new LruCache<string, boolean>(100, 10 * 60 * 1000);
 
 /**
  * Validate a path to prevent path traversal attacks
@@ -86,9 +91,11 @@ export const isValidGodotPathSync = (path: string): boolean => {
  * Validate if a Godot path is valid and executable
  */
 export const isValidGodotPath = async (path: string): Promise<boolean> => {
-  // Check cache first
-  if (validatedPaths.has(path)) {
-    return validatedPaths.get(path)!;
+  // Check LRU cache first (handles expiration automatically)
+  const cachedResult = validatedPathsCache.get(path);
+  if (cachedResult !== undefined) {
+    logDebug(`Using cached validation result for: ${path} = ${cachedResult}`);
+    return cachedResult;
   }
 
   try {
@@ -97,7 +104,7 @@ export const isValidGodotPath = async (path: string): Promise<boolean> => {
     // Check if the file exists (skip for 'godot' which might be in PATH)
     if (path !== 'godot' && !existsSync(path)) {
       logDebug(`Path does not exist: ${path}`);
-      validatedPaths.set(path, false);
+      validatedPathsCache.set(path, false);
       return false;
     }
 
@@ -106,11 +113,11 @@ export const isValidGodotPath = async (path: string): Promise<boolean> => {
     await execAsync(command);
 
     logDebug(`Valid Godot path: ${path}`);
-    validatedPaths.set(path, true);
+    validatedPathsCache.set(path, true);
     return true;
   } catch (error) {
     logDebug(`Invalid Godot path: ${path}, error: ${error}`);
-    validatedPaths.set(path, false);
+    validatedPathsCache.set(path, false);
     return false;
   }
 };
@@ -262,4 +269,20 @@ export const normalizeHandlerPaths = <T extends BaseToolArgs>(args: T): T => {
   }
 
   return normalizedArgs;
+};
+
+/**
+ * Clear the validated paths cache
+ * Useful when Godot installation changes or for testing
+ */
+export const clearPathCache = (): void => {
+  validatedPathsCache.clear();
+  logDebug('Validated paths cache cleared');
+};
+
+/**
+ * Get cache statistics for monitoring
+ */
+export const getPathCacheStats = (): CacheStats => {
+  return validatedPathsCache.getStats();
 };

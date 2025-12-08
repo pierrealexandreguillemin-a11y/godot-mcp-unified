@@ -1,58 +1,57 @@
 /**
  * Logging utilities
- * Provides debug and general logging functionality
+ * Re-exports StructuredLogger functions for backward compatibility
+ *
+ * ISO/IEC 25010 compliant - maintainable, reliable
  */
 
-import { DEBUG_MODE } from '../config/config';
+import {
+  logDebug as structuredLogDebug,
+  logInfo as structuredLogInfo,
+  logWarn as structuredLogWarn,
+  logError as structuredLogError,
+  logger,
+  createLogger,
+  LogLevel,
+  StructuredLogger,
+} from './StructuredLogger.js';
 
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+import type { LogContext, LogEntry, LoggerConfig } from './StructuredLogger.js';
 
-/**
- * Log debug messages if debug mode is enabled
- */
-export const logDebug = (message: string): void => {
-  if (DEBUG_MODE) {
-    console.debug(`[DEBUG] ${message}`);
-  }
+// Re-export all from StructuredLogger
+export {
+  logger,
+  createLogger,
+  LogLevel,
+  StructuredLogger,
 };
 
-/**
- * Log info messages
- */
-export const logInfo = (message: string): void => {
-  console.log(`[INFO] ${message}`);
-};
+export type { LogContext, LogEntry, LoggerConfig };
+
+// Backward-compatible function exports
+export const logDebug = structuredLogDebug;
+export const logInfo = structuredLogInfo;
+export const logWarn = structuredLogWarn;
+export const logError = structuredLogError;
+
+export type SimplifiedLogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 /**
- * Log warning messages
+ * Generic logger function for backward compatibility
  */
-export const logWarn = (message: string): void => {
-  console.warn(`[WARN] ${message}`);
-};
-
-/**
- * Log error messages
- */
-export const logError = (message: string): void => {
-  console.error(`[ERROR] ${message}`);
-};
-
-/**
- * Generic logger function
- */
-export const log = (level: LogLevel, message: string): void => {
+export const log = (level: SimplifiedLogLevel, message: string): void => {
   switch (level) {
     case 'debug':
-      logDebug(message);
+      structuredLogDebug(message);
       break;
     case 'info':
-      logInfo(message);
+      structuredLogInfo(message);
       break;
     case 'warn':
-      logWarn(message);
+      structuredLogWarn(message);
       break;
     case 'error':
-      logError(message);
+      structuredLogError(message);
       break;
   }
 };

@@ -35,6 +35,17 @@ import { saveSceneDefinition, handleSaveScene } from './scene/SaveSceneTool';
 import { getUidDefinition, handleGetUid } from './uid/GetUidTool';
 import { updateProjectUidsDefinition, handleUpdateProjectUids } from './uid/UpdateProjectUidsTool';
 
+// Script tools
+import { listScriptsDefinition, handleListScripts } from './script/ListScriptsTool';
+import { readScriptDefinition, handleReadScript } from './script/ReadScriptTool';
+import { writeScriptDefinition, handleWriteScript } from './script/WriteScriptTool';
+import { deleteScriptDefinition, handleDeleteScript } from './script/DeleteScriptTool';
+import { attachScriptDefinition, handleAttachScript } from './script/AttachScriptTool';
+import { getScriptErrorsDefinition, handleGetScriptErrors } from './script/GetScriptErrorsTool';
+
+// Capture tools
+import { takeScreenshotDefinition, handleTakeScreenshot } from './capture/TakeScreenshotTool';
+
 export interface ToolRegistration {
   definition: ToolDefinition;
   handler: (args: any) => Promise<ToolResponse>;
@@ -180,6 +191,66 @@ export const toolRegistry: Map<string, ToolRegistration> = new Map([
       definition: updateProjectUidsDefinition,
       handler: handleUpdateProjectUids,
       readOnly: false,
+    },
+  ],
+
+  // Script tools
+  [
+    'list_scripts',
+    {
+      definition: listScriptsDefinition,
+      handler: handleListScripts,
+      readOnly: true,
+    },
+  ],
+  [
+    'read_script',
+    {
+      definition: readScriptDefinition,
+      handler: handleReadScript,
+      readOnly: true,
+    },
+  ],
+  [
+    'write_script',
+    {
+      definition: writeScriptDefinition,
+      handler: handleWriteScript,
+      readOnly: false,
+    },
+  ],
+  [
+    'delete_script',
+    {
+      definition: deleteScriptDefinition,
+      handler: handleDeleteScript,
+      readOnly: false,
+    },
+  ],
+  [
+    'attach_script',
+    {
+      definition: attachScriptDefinition,
+      handler: handleAttachScript,
+      readOnly: false,
+    },
+  ],
+  [
+    'get_script_errors',
+    {
+      definition: getScriptErrorsDefinition,
+      handler: handleGetScriptErrors,
+      readOnly: true,
+    },
+  ],
+
+  // Capture tools
+  [
+    'take_screenshot',
+    {
+      definition: takeScreenshotDefinition,
+      handler: handleTakeScreenshot,
+      readOnly: true,
     },
   ],
 ]);

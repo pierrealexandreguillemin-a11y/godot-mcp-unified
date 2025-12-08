@@ -1,8 +1,8 @@
 # Dependencies
 node_modules/
 
-# Build output (optionally commit build/ for easier deployment)
-# build/
+# Build output - regenerated with npm run build
+build/
 
 # Environment
 .env

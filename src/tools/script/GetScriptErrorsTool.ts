@@ -124,6 +124,10 @@ export const handleGetScriptErrors = async (args: BaseToolArgs): Promise<ToolRes
     // The --check-only flag validates scripts without running
     // --headless runs without GUI
     // --quit exits after initialization
+    // NOTE: --check-only has known limitations (GitHub issue #78587):
+    //   - May not discover autoloads correctly
+    //   - Can produce false positives for autoload-dependent scripts
+    //   - Each script requires a new Godot instance
     const cmd = `"${godotPath}" --path "${typedArgs.projectPath}" --headless --check-only --quit 2>&1`;
 
     let stdout = '';

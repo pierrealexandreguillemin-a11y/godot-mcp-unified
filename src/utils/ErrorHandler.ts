@@ -3,12 +3,16 @@
  * Provides standardized error response creation
  */
 
+export interface ErrorResponseContent {
+  type: 'text';
+  text: string;
+  [key: string]: unknown;
+}
+
 export interface ErrorResponse {
-  content: Array<{
-    type: 'text';
-    text: string;
-  }>;
+  content: ErrorResponseContent[];
   isError: true;
+  [key: string]: unknown;
 }
 
 /**

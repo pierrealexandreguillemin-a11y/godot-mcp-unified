@@ -5,7 +5,11 @@
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+  CallToolResult,
+} from '@modelcontextprotocol/sdk/types.js';
 
 import { config } from '../config/config';
 import { logInfo, logDebug, logError } from '../utils/Logger';
@@ -49,7 +53,7 @@ export class GodotMCPServer {
     });
 
     // Call tool handler
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.server.setRequestHandler(CallToolRequestSchema, async (request): Promise<CallToolResult> => {
       const { name: toolName, arguments: args } = request.params;
 
       logDebug(`Handling tool request: ${toolName}`);
@@ -58,7 +62,7 @@ export class GodotMCPServer {
         logError(`Unknown tool: ${toolName}`);
         return createErrorResponse(`Unknown tool: ${toolName}`, [
           'Use list_tools to see available tools',
-        ]) as any;
+        ]);
       }
 
       try {
@@ -67,19 +71,19 @@ export class GodotMCPServer {
           logError(`No handler found for tool: ${toolName}`);
           return createErrorResponse(`No handler found for tool: ${toolName}`, [
             'This appears to be a server configuration error',
-          ]) as any;
+          ]);
         }
 
         const result = await handler(args || {});
         logDebug(`Tool ${toolName} completed successfully`);
-        return result as any;
+        return result;
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         logError(`Tool ${toolName} failed: ${errorMessage}`);
         return createErrorResponse(`Tool execution failed: ${errorMessage}`, [
           'Check the server logs for more details',
           'Ensure all required parameters are provided',
-        ]) as any;
+        ]);
       }
     });
   }

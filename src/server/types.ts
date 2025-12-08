@@ -10,11 +10,13 @@
 export interface ToolResponseContent {
   type: 'text';
   text: string;
+  [key: string]: unknown;
 }
 
 export interface ToolResponse {
   content: ToolResponseContent[];
   isError?: boolean;
+  [key: string]: unknown;
 }
 
 export interface JsonSchemaProperty {

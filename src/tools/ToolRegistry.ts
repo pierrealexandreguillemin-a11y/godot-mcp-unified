@@ -25,6 +25,11 @@ import { runProjectDefinition, handleRunProject } from './project/RunProjectTool
 import { listProjectsDefinition, handleListProjects } from './project/ListProjectsTool';
 import { getProjectInfoDefinition, handleGetProjectInfo } from './project/GetProjectInfoTool';
 import { exportProjectDefinition, handleExportProject } from './project/ExportProjectTool';
+import { manageAutoloadsDefinition, handleManageAutoloads } from './project/ManageAutoloadsTool';
+import { manageInputActionsDefinition, handleManageInputActions } from './project/ManageInputActionsTool';
+import { convertProjectDefinition, handleConvertProject } from './project/ConvertProjectTool';
+import { generateDocsDefinition, handleGenerateDocs } from './project/GenerateDocsTool';
+import { validateProjectDefinition, handleValidateProject } from './project/ValidateProjectTool';
 
 // Scene tools
 import { createSceneDefinition, handleCreateScene } from './scene/CreateSceneTool';
@@ -39,6 +44,11 @@ import {
 import { saveSceneDefinition, handleSaveScene } from './scene/SaveSceneTool';
 import { getNodeTreeDefinition, handleGetNodeTree } from './scene/GetNodeTreeTool';
 import { duplicateNodeDefinition, handleDuplicateNode } from './scene/DuplicateNodeTool';
+import { renameNodeDefinition, handleRenameNode } from './scene/RenameNodeTool';
+import { moveNodeDefinition, handleMoveNode } from './scene/MoveNodeTool';
+import { instanceSceneDefinition, handleInstanceScene } from './scene/InstanceSceneTool';
+import { connectSignalDefinition, handleConnectSignal } from './scene/ConnectSignalTool';
+import { manageGroupsDefinition, handleManageGroups } from './scene/ManageGroupsTool';
 
 // UID tools
 import { getUidDefinition, handleGetUid } from './uid/GetUidTool';
@@ -52,6 +62,9 @@ import { deleteScriptDefinition, handleDeleteScript } from './script/DeleteScrip
 import { attachScriptDefinition, handleAttachScript } from './script/AttachScriptTool';
 import { detachScriptDefinition, handleDetachScript } from './script/DetachScriptTool';
 import { getScriptErrorsDefinition, handleGetScriptErrors } from './script/GetScriptErrorsTool';
+
+// Resource tools
+import { createResourceDefinition, handleCreateResource } from './resource/CreateResourceTool';
 
 // Capture tools
 import { takeScreenshotDefinition, handleTakeScreenshot } from './capture/TakeScreenshotTool';
@@ -135,6 +148,46 @@ export const toolRegistry: Map<string, ToolRegistration> = new Map([
       readOnly: false,
     },
   ],
+  [
+    'manage_autoloads',
+    {
+      definition: manageAutoloadsDefinition,
+      handler: handleManageAutoloads,
+      readOnly: false,
+    },
+  ],
+  [
+    'manage_input_actions',
+    {
+      definition: manageInputActionsDefinition,
+      handler: handleManageInputActions,
+      readOnly: false,
+    },
+  ],
+  [
+    'convert_3to4',
+    {
+      definition: convertProjectDefinition,
+      handler: handleConvertProject,
+      readOnly: false,
+    },
+  ],
+  [
+    'generate_docs',
+    {
+      definition: generateDocsDefinition,
+      handler: handleGenerateDocs,
+      readOnly: false,
+    },
+  ],
+  [
+    'validate_project',
+    {
+      definition: validateProjectDefinition,
+      handler: handleValidateProject,
+      readOnly: true,
+    },
+  ],
 
   // Scene tools
   [
@@ -206,6 +259,46 @@ export const toolRegistry: Map<string, ToolRegistration> = new Map([
     {
       definition: duplicateNodeDefinition,
       handler: handleDuplicateNode,
+      readOnly: false,
+    },
+  ],
+  [
+    'rename_node',
+    {
+      definition: renameNodeDefinition,
+      handler: handleRenameNode,
+      readOnly: false,
+    },
+  ],
+  [
+    'move_node',
+    {
+      definition: moveNodeDefinition,
+      handler: handleMoveNode,
+      readOnly: false,
+    },
+  ],
+  [
+    'instance_scene',
+    {
+      definition: instanceSceneDefinition,
+      handler: handleInstanceScene,
+      readOnly: false,
+    },
+  ],
+  [
+    'connect_signal',
+    {
+      definition: connectSignalDefinition,
+      handler: handleConnectSignal,
+      readOnly: false,
+    },
+  ],
+  [
+    'manage_groups',
+    {
+      definition: manageGroupsDefinition,
+      handler: handleManageGroups,
       readOnly: false,
     },
   ],
@@ -283,6 +376,16 @@ export const toolRegistry: Map<string, ToolRegistration> = new Map([
       definition: getScriptErrorsDefinition,
       handler: handleGetScriptErrors,
       readOnly: true,
+    },
+  ],
+
+  // Resource tools
+  [
+    'create_resource',
+    {
+      definition: createResourceDefinition,
+      handler: handleCreateResource,
+      readOnly: false,
     },
   ],
 

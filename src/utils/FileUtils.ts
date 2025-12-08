@@ -111,13 +111,13 @@ export const getProjectStructure = (
 
     scanDirectory(projectPath);
     return structure;
-  } catch (error) {
+  } catch {
+    // Return empty structure on error
     return {
-      error: 'Failed to get project structure',
       scenes: 0,
       scripts: 0,
       assets: 0,
       other: 0,
-    } as any;
+    };
   }
 };

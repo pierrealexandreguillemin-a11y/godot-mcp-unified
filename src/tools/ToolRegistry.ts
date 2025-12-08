@@ -24,6 +24,7 @@ import { launchEditorDefinition, handleLaunchEditor } from './project/LaunchEdit
 import { runProjectDefinition, handleRunProject } from './project/RunProjectTool';
 import { listProjectsDefinition, handleListProjects } from './project/ListProjectsTool';
 import { getProjectInfoDefinition, handleGetProjectInfo } from './project/GetProjectInfoTool';
+import { exportProjectDefinition, handleExportProject } from './project/ExportProjectTool';
 
 // Scene tools
 import { createSceneDefinition, handleCreateScene } from './scene/CreateSceneTool';
@@ -36,6 +37,8 @@ import {
   handleExportMeshLibrary,
 } from './scene/ExportMeshLibraryTool';
 import { saveSceneDefinition, handleSaveScene } from './scene/SaveSceneTool';
+import { getNodeTreeDefinition, handleGetNodeTree } from './scene/GetNodeTreeTool';
+import { duplicateNodeDefinition, handleDuplicateNode } from './scene/DuplicateNodeTool';
 
 // UID tools
 import { getUidDefinition, handleGetUid } from './uid/GetUidTool';
@@ -124,6 +127,14 @@ export const toolRegistry: Map<string, ToolRegistration> = new Map([
       readOnly: true,
     },
   ],
+  [
+    'export_project',
+    {
+      definition: exportProjectDefinition,
+      handler: handleExportProject,
+      readOnly: false,
+    },
+  ],
 
   // Scene tools
   [
@@ -179,6 +190,22 @@ export const toolRegistry: Map<string, ToolRegistration> = new Map([
     {
       definition: saveSceneDefinition,
       handler: handleSaveScene,
+      readOnly: false,
+    },
+  ],
+  [
+    'get_node_tree',
+    {
+      definition: getNodeTreeDefinition,
+      handler: handleGetNodeTree,
+      readOnly: true,
+    },
+  ],
+  [
+    'duplicate_node',
+    {
+      definition: duplicateNodeDefinition,
+      handler: handleDuplicateNode,
       readOnly: false,
     },
   ],

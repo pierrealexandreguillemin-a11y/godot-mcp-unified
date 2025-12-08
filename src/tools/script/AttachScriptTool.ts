@@ -1,6 +1,11 @@
 /**
  * Attach Script Tool
  * Attaches a GDScript to a node in a scene
+ *
+ * TECHNICAL DEBT: Uses regex-based .tscn parsing which is fragile.
+ * TODO: Consider using a proper TSCN parser library or implementing
+ * a state-machine parser for more robust scene file manipulation.
+ * Current approach may fail on edge cases with complex node structures.
  */
 
 import { ToolDefinition, ToolResponse, BaseToolArgs, AttachScriptArgs } from '../../server/types';

@@ -47,6 +47,7 @@ import { readScriptDefinition, handleReadScript } from './script/ReadScriptTool'
 import { writeScriptDefinition, handleWriteScript } from './script/WriteScriptTool';
 import { deleteScriptDefinition, handleDeleteScript } from './script/DeleteScriptTool';
 import { attachScriptDefinition, handleAttachScript } from './script/AttachScriptTool';
+import { detachScriptDefinition, handleDetachScript } from './script/DetachScriptTool';
 import { getScriptErrorsDefinition, handleGetScriptErrors } from './script/GetScriptErrorsTool';
 
 // Capture tools
@@ -238,6 +239,14 @@ export const toolRegistry: Map<string, ToolRegistration> = new Map([
     {
       definition: attachScriptDefinition,
       handler: handleAttachScript,
+      readOnly: false,
+    },
+  ],
+  [
+    'detach_script',
+    {
+      definition: detachScriptDefinition,
+      handler: handleDetachScript,
       readOnly: false,
     },
   ],

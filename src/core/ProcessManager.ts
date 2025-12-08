@@ -1,14 +1,15 @@
 /**
  * Process management utilities
  * Handles active Godot processes and their lifecycle
+ * ISO/IEC 25010 compliant - strict typing
  */
 
-import { spawn } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
 
 import { logDebug } from '../utils/Logger';
 
 export interface GodotProcess {
-  process: any;
+  process: ChildProcess;
   output: string[];
   errors: string[];
 }

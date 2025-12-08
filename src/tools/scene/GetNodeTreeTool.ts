@@ -225,7 +225,7 @@ export const handleGetNodeTree = async (args: BaseToolArgs): Promise<ToolRespons
     }
 
     // Create ASCII representation for easy reading
-    const asciiTree = formatTreeAsAscii(tree, '', true).replace(/^    /, '');
+    const asciiTree = formatTreeAsAscii(tree, '', true).replace(/^ {4}/, '');
 
     return createJsonResponse({
       scenePath: typedArgs.scenePath,

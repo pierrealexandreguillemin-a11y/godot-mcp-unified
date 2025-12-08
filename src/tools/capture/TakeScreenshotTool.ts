@@ -154,12 +154,8 @@ script = ExtResource("1")
 
     try {
       // Run the screenshot scene
-      const sceneArg = typedArgs.scenePath
-        ? `"${typedArgs.scenePath}"`
-        : '"res://_mcp_screenshot_temp.tscn"';
-
       // If a specific scene is requested, we need a different approach
-      // For now, we use our temp scene
+      // For now, we use our temp scene (scenePath support planned for future)
       const args = [
         '--path',
         typedArgs.projectPath,
@@ -183,7 +179,6 @@ script = ExtResource("1")
       const errorMatch = output.match(/SCREENSHOT_ERROR:(.+)/);
 
       if (successMatch) {
-        const savedPath = successMatch[1].trim();
         const fullOutputPath = join(typedArgs.projectPath, outputPath);
 
         return createSuccessResponse(
@@ -216,7 +211,7 @@ script = ExtResource("1")
       try {
         if (existsSync(tempScriptPath)) unlinkSync(tempScriptPath);
         if (existsSync(tempScenePath)) unlinkSync(tempScenePath);
-      } catch (e) {
+      } catch {
         // Ignore cleanup errors
       }
     }

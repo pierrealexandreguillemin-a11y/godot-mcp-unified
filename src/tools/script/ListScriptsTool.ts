@@ -65,7 +65,7 @@ const findScripts = (basePath: string, currentPath: string, scripts: ScriptInfo[
         });
       }
     }
-  } catch (error) {
+  } catch {
     // Skip directories we can't read
   }
 };

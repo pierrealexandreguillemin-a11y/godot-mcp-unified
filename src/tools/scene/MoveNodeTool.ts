@@ -110,17 +110,6 @@ export const handleMoveNode = async (args: BaseToolArgs): Promise<ToolResponse> 
       }
 
       // Prevent moving node to its own descendant
-      const isDescendant = doc.nodes.some(n => {
-        let current = n;
-        while (current.parent) {
-          if (current.name === node.name) return true;
-          const parent = doc.nodes.find(p => p.name === current.parent);
-          if (!parent) break;
-          current = parent;
-        }
-        return false;
-      });
-
       if (typedArgs.newParentPath.includes(node.name)) {
         return createErrorResponse('Cannot move a node to its own descendant', [
           'Choose a different parent',
@@ -146,19 +135,8 @@ export const handleMoveNode = async (args: BaseToolArgs): Promise<ToolResponse> 
     const oldParent = node.parent;
 
     // Update the node's parent
+    // In TSCN format, child references use node names, not paths, so no updates needed
     node.parent = isNewParentRoot ? '.' : typedArgs.newParentPath.split('/').pop();
-
-    // Update child nodes' parent paths if necessary
-    let updatedChildren = 0;
-    const oldPath = typedArgs.nodePath;
-    const newPath = isNewParentRoot ? node.name : `${typedArgs.newParentPath}/${node.name}`;
-
-    for (const childNode of doc.nodes) {
-      if (childNode.parent && childNode.parent.startsWith(oldPath.split('/').pop() || '')) {
-        // This is handled by the parent reference being the node name
-        // Child references don't need updating in TSCN format
-      }
-    }
 
     // Serialize and write back
     const serialized = serializeTscn(doc);

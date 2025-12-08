@@ -80,7 +80,7 @@ export const handleRenameNode = async (args: BaseToolArgs): Promise<ToolResponse
   }
 
   // Check for invalid characters in name
-  if (/[\/\\:*?"<>|]/.test(typedArgs.newName)) {
+  if (/[/\\:*?"<>|]/.test(typedArgs.newName)) {
     return createErrorResponse('Node name contains invalid characters', [
       'Avoid characters: / \\ : * ? " < > |',
     ]);

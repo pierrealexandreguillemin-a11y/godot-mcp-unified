@@ -11,7 +11,7 @@ import {
   getToolHandler,
   isToolRegistered,
 } from '../tools/ToolRegistry';
-import { logInfo, logError, logDebug } from '../utils/Logger';
+import { logInfo, logError } from '../utils/Logger';
 
 const runTests = async (): Promise<void> => {
   try {
@@ -135,7 +135,7 @@ const runTests = async (): Promise<void> => {
 
     // Test 4: Server Initialization for MCP Agent Usage
     logInfo('Test 4: Server Initialization for MCP Agent Usage');
-    const server = new GodotMCPServer();
+    const _server = new GodotMCPServer();
     logInfo('✓ Server initialized successfully');
 
     // Test 5: Server Capabilities Check

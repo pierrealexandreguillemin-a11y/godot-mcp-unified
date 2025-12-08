@@ -171,7 +171,7 @@ export const handleConnectSignal = async (args: BaseToolArgs): Promise<ToolRespo
  * Convert a node path to TSCN format
  * In TSCN, paths are relative to root using node names
  */
-function convertToTscnPath(nodePath: string, doc: { nodes: Array<{ name: string; parent?: string }> }): string {
+function convertToTscnPath(nodePath: string, _doc: { nodes: Array<{ name: string; parent?: string }> }): string {
   // Root node
   if (nodePath === '.' || nodePath === '' || nodePath === 'root') {
     return '.';

@@ -6,7 +6,6 @@
 
 import {
   ToolDefinition,
-  ToolResponse,
   BaseToolArgs,
   ToolHandler,
 } from '../server/types';

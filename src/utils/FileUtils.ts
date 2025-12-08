@@ -53,7 +53,7 @@ export const findGodotProjects = (directory: string, recursive: boolean): GodotP
         }
       }
     }
-  } catch (error) {
+  } catch {
     // Silently ignore errors for now
   }
 

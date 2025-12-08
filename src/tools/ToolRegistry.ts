@@ -1,9 +1,15 @@
 /**
  * Tool Registry
  * Central registry for all available tools with their definitions and handlers
+ * ISO/IEC 25010 compliant - strict typing
  */
 
-import { ToolDefinition, ToolResponse } from '../server/types';
+import {
+  ToolDefinition,
+  ToolResponse,
+  BaseToolArgs,
+  ToolHandler,
+} from '../server/types';
 import { READ_ONLY_MODE } from '../config/config';
 
 // System tools
@@ -48,7 +54,7 @@ import { takeScreenshotDefinition, handleTakeScreenshot } from './capture/TakeSc
 
 export interface ToolRegistration {
   definition: ToolDefinition;
-  handler: (args: any) => Promise<ToolResponse>;
+  handler: ToolHandler<BaseToolArgs>;
   readOnly: boolean;
 }
 
@@ -279,7 +285,7 @@ export const getAllToolDefinitions = (): ToolDefinition[] => {
  */
 export const getToolHandler = (
   toolName: string,
-): ((args: any) => Promise<ToolResponse>) | undefined => {
+): ToolHandler<BaseToolArgs> | undefined => {
   const tool = toolRegistry.get(toolName);
   return tool?.handler;
 };

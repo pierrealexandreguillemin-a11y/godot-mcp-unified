@@ -1,6 +1,7 @@
 /**
  * Parameter normalization utilities
  * Handles conversion between snake_case and camelCase parameters
+ * ISO/IEC 25010 compliant - strict typing
  */
 import { PARAMETER_MAPPINGS, REVERSE_PARAMETER_MAPPINGS } from '../config/config.js';
 /**
@@ -17,15 +18,19 @@ export const normalizeParameters = (params) => {
         if (Object.prototype.hasOwnProperty.call(params, key)) {
             let normalizedKey = key;
             // If the key is in snake_case, convert it to camelCase using our mapping
-            if (key.includes('_') && PARAMETER_MAPPINGS[key]) {
-                normalizedKey = PARAMETER_MAPPINGS[key];
+            if (key.includes('_')) {
+                const mappedKey = PARAMETER_MAPPINGS[key];
+                if (mappedKey) {
+                    normalizedKey = mappedKey;
+                }
             }
+            const value = params[key];
             // Handle nested objects recursively
-            if (typeof params[key] === 'object' && params[key] !== null && !Array.isArray(params[key])) {
-                result[normalizedKey] = normalizeParameters(params[key]);
+            if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                result[normalizedKey] = normalizeParameters(value);
             }
             else {
-                result[normalizedKey] = params[key];
+                result[normalizedKey] = value;
             }
         }
     }
@@ -43,12 +48,13 @@ export const convertCamelToSnakeCase = (params) => {
             // Convert camelCase to snake_case
             const snakeKey = REVERSE_PARAMETER_MAPPINGS[key] ||
                 key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+            const value = params[key];
             // Handle nested objects recursively
-            if (typeof params[key] === 'object' && params[key] !== null && !Array.isArray(params[key])) {
-                result[snakeKey] = convertCamelToSnakeCase(params[key]);
+            if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                result[snakeKey] = convertCamelToSnakeCase(value);
             }
             else {
-                result[snakeKey] = params[key];
+                result[snakeKey] = value;
             }
         }
     }

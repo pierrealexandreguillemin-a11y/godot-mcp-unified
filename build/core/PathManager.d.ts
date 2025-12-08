@@ -1,7 +1,9 @@
 /**
  * Path management utilities
  * Handles path validation, normalization, and Godot executable detection
+ * ISO/IEC 25010 compliant - strict typing
  */
+import { BaseToolArgs } from '../server/types';
 /**
  * Validate a path to prevent path traversal attacks
  */
@@ -30,6 +32,8 @@ export declare const getPlatformGodotPaths: () => string[];
 export declare const detectGodotPath: (customPath?: string, strictPathValidation?: boolean) => Promise<string | null>;
 /**
  * Normalize all path arguments in handler parameters
+ * @param args - Tool arguments containing paths
+ * @returns Arguments with normalized paths
  */
-export declare const normalizeHandlerPaths: (args: any) => any;
+export declare const normalizeHandlerPaths: <T extends BaseToolArgs>(args: T) => T;
 //# sourceMappingURL=PathManager.d.ts.map

@@ -1,6 +1,7 @@
 /**
  * Tool Registry
  * Central registry for all available tools with their definitions and handlers
+ * ISO/IEC 25010 compliant - strict typing
  */
 import { READ_ONLY_MODE } from '../config/config.js';
 // System tools

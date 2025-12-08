@@ -8,7 +8,8 @@ import { exec } from 'child_process';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
-import { convertCamelToSnakeCase, OperationParams } from './ParameterNormalizer';
+import { convertCamelToSnakeCase } from './ParameterNormalizer';
+import { BaseToolArgs } from '../server/types';
 import { normalizePath } from './PathManager';
 import { logDebug } from '../utils/Logger';
 import { GODOT_DEBUG_MODE } from '../config/config';
@@ -47,7 +48,7 @@ export const getGodotVersion = async (godotPath: string): Promise<string> => {
  */
 export const executeOperation = async (
   operation: string,
-  params: OperationParams,
+  params: BaseToolArgs,
   projectPath: string,
   godotPath: string,
 ): Promise<{ stdout: string; stderr: string }> => {

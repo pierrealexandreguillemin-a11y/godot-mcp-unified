@@ -1,9 +1,11 @@
 /**
  * Process management utilities
  * Handles active Godot processes and their lifecycle
+ * ISO/IEC 25010 compliant - strict typing
  */
+import { ChildProcess } from 'child_process';
 export interface GodotProcess {
-    process: any;
+    process: ChildProcess;
     output: string[];
     errors: string[];
 }

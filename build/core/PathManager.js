@@ -1,6 +1,7 @@
 /**
  * Path management utilities
  * Handles path validation, normalization, and Godot executable detection
+ * ISO/IEC 25010 compliant - strict typing
  */
 import { normalize } from 'path';
 import { existsSync } from 'fs';
@@ -184,27 +185,32 @@ export const detectGodotPath = async (customPath, strictPathValidation = false) 
         return defaultPath;
     }
 };
+/** Path keys that should be normalized */
+const PATH_KEYS = [
+    'projectPath',
+    'scenePath',
+    'nodePath',
+    'texturePath',
+    'outputPath',
+    'newPath',
+    'filePath',
+    'directory',
+    'scriptPath',
+];
 /**
  * Normalize all path arguments in handler parameters
+ * @param args - Tool arguments containing paths
+ * @returns Arguments with normalized paths
  */
 export const normalizeHandlerPaths = (args) => {
     if (!args || typeof args !== 'object') {
         return args;
     }
-    const pathKeys = [
-        'projectPath',
-        'scenePath',
-        'nodePath',
-        'texturePath',
-        'outputPath',
-        'newPath',
-        'filePath',
-        'directory',
-    ];
     const normalizedArgs = { ...args };
-    for (const key of pathKeys) {
-        if (normalizedArgs[key] && typeof normalizedArgs[key] === 'string') {
-            normalizedArgs[key] = normalizePath(normalizedArgs[key]);
+    for (const key of PATH_KEYS) {
+        const value = normalizedArgs[key];
+        if (value && typeof value === 'string') {
+            normalizedArgs[key] = normalizePath(value);
         }
     }
     return normalizedArgs;

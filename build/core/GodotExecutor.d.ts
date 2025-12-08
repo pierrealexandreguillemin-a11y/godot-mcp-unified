@@ -2,7 +2,7 @@
  * Godot executor utilities
  * Handles execution of Godot operations and commands
  */
-import { OperationParams } from './ParameterNormalizer';
+import { BaseToolArgs } from '../server/types';
 /**
  * Check if the Godot version is 4.4 or later
  */
@@ -14,7 +14,7 @@ export declare const getGodotVersion: (godotPath: string) => Promise<string>;
 /**
  * Execute a Godot operation using the operations script
  */
-export declare const executeOperation: (operation: string, params: OperationParams, projectPath: string, godotPath: string) => Promise<{
+export declare const executeOperation: (operation: string, params: BaseToolArgs, projectPath: string, godotPath: string) => Promise<{
     stdout: string;
     stderr: string;
 }>;

@@ -19,7 +19,7 @@ export interface ToolResponse {
 
 export interface JsonSchemaProperty {
   type: 'string' | 'number' | 'boolean' | 'object' | 'array';
-  description: string;
+  description?: string;
   enum?: string[];
   items?: JsonSchemaProperty;
   properties?: Record<string, JsonSchemaProperty>;

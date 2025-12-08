@@ -1,11 +1,12 @@
 /**
  * Tool Registry
  * Central registry for all available tools with their definitions and handlers
+ * ISO/IEC 25010 compliant - strict typing
  */
-import { ToolDefinition, ToolResponse } from '../server/types';
+import { ToolDefinition, BaseToolArgs, ToolHandler } from '../server/types';
 export interface ToolRegistration {
     definition: ToolDefinition;
-    handler: (args: any) => Promise<ToolResponse>;
+    handler: ToolHandler<BaseToolArgs>;
     readOnly: boolean;
 }
 /**
@@ -20,7 +21,7 @@ export declare const getAllToolDefinitions: () => ToolDefinition[];
 /**
  * Get a tool handler by name
  */
-export declare const getToolHandler: (toolName: string) => ((args: any) => Promise<ToolResponse>) | undefined;
+export declare const getToolHandler: (toolName: string) => ToolHandler<BaseToolArgs> | undefined;
 /**
  * Check if a tool is registered
  */

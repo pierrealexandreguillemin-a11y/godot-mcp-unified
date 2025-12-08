@@ -21,11 +21,14 @@ export const normalizeParameters = <T extends BaseToolArgs>(params: T): T => {
 
   for (const key in params) {
     if (Object.prototype.hasOwnProperty.call(params, key)) {
-      let normalizedKey = key;
+      let normalizedKey: string = key;
 
       // If the key is in snake_case, convert it to camelCase using our mapping
-      if (key.includes('_') && PARAMETER_MAPPINGS[key]) {
-        normalizedKey = PARAMETER_MAPPINGS[key];
+      if (key.includes('_')) {
+        const mappedKey = PARAMETER_MAPPINGS[key];
+        if (mappedKey) {
+          normalizedKey = mappedKey;
+        }
       }
 
       const value = params[key];

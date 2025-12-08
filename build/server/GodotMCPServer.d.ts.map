@@ -1,0 +1,1 @@
+{"version":3,"file":"GodotMCPServer.d.ts","sourceRoot":"","sources":["../../src/server/GodotMCPServer.ts"],"names":[],"mappings":"AAAA;;;GAGG;AAYH,qBAAa,cAAc;IACzB,OAAO,CAAC,MAAM,CAAS;IACvB,OAAO,CAAC,SAAS,CAAuB;;IAkBxC;;OAEG;IACH,OAAO,CAAC,aAAa;IAgDrB;;OAEG;IACU,KAAK,IAAI,OAAO,CAAC,IAAI,CAAC;IA6BnC;;OAEG;IACU,IAAI,IAAI,OAAO,CAAC,IAAI,CAAC;CAWnC"}

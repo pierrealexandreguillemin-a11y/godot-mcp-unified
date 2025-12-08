@@ -2,6 +2,8 @@
 
 > Documentation pour mon futur moi - Configuration complete pour coder en langage naturel dans Godot
 
+[Read in English](README.en.md)
+
 ## Architecture Globale
 
 ```

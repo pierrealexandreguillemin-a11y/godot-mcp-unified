@@ -1,6 +1,6 @@
 {
   "name": "godot-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server for interfacing with Godot game engine. Provides tools for launching the editor, running projects, and capturing debug output.",
   "type": "module",
   "bin": {
@@ -10,12 +10,15 @@
     "build"
   ],
   "scripts": {
-    "clean": "rimraf build",
+    "clean": "rimraf build coverage",
     "prebuild": "npm run clean",
     "build": "tsc && node scripts/build.js",
-    "test": "npm run build && node build/test/test.js",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
     "dev": "nodemon --watch src --ext ts --exec \"npm run build\"",
-    "inspector": "npx @modelcontextprotocol/inspector build/index.js"
+    "inspector": "npx @modelcontextprotocol/inspector build/index.js",
+    "lint": "tsc --noEmit"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "0.6.0",
@@ -23,22 +26,26 @@
     "fs-extra": "^11.2.0"
   },
   "devDependencies": {
+    "@types/jest": "^29.5.14",
     "@types/node": "^20.17.50",
+    "jest": "^29.7.0",
     "nodemon": "^3.0.0",
     "rimraf": "^6.0.1",
+    "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/bradypp/godot-mcp.git"
+    "url": "https://github.com/pierrealexandreguillemin-a11y/godot-mcp-unified.git"
   },
   "keywords": [
     "godot",
     "mcp",
     "ai",
     "claude",
-    "cline"
+    "cline",
+    "game-development"
   ]
 }

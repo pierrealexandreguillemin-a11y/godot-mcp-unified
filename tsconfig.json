@@ -12,7 +12,8 @@
     "forceConsistentCasingInFileNames": true,
     "declaration": true,
     "declarationMap": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "types": ["node"]
   },
   "include": [
     "src/**/*"
@@ -20,12 +21,8 @@
   "exclude": [
     "node_modules",
     "build",
-    "scripts"
-  ],
-  "plugins": [
-    {
-      "transform": "typescript-transform-paths",
-      "afterDeclarations": true
-    },
-  ],
+    "scripts",
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts"
+  ]
 }

@@ -27,3 +27,12 @@ export {
   type PublishDiagnosticsParams,
   type ScriptDiagnostic,
 } from './GodotLSPClient.js';
+
+export {
+  validateScript,
+  validateViaLSP,
+  validateViaBridge,
+  isRealTimeValidationAvailable,
+  type ValidationError,
+  type ValidationResult,
+} from './ScriptValidator.js';

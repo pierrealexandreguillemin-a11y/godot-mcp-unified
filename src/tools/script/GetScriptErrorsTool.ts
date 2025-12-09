@@ -12,7 +12,8 @@ import {
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { detectGodotPath } from '../../core/PathManager.js';
-import { logDebug } from '../../utils/Logger.js';
+import { logDebug, logInfo } from '../../utils/Logger.js';
+import { validateScript } from '../../bridge/index.js';
 import { getGodotPool } from '../../core/ProcessPool.js';
 
 export interface ScriptError {
@@ -107,11 +108,33 @@ export const handleGetScriptErrors = async (args: BaseToolArgs): Promise<ToolRes
   }
 
   try {
+    // Try real-time validation via LSP/Bridge first (if a specific script is provided)
+    if (typedArgs.scriptPath) {
+      logDebug('Attempting real-time validation via LSP/Bridge...');
+      const bridgeResult = await validateScript(typedArgs.projectPath, typedArgs.scriptPath);
+      if (bridgeResult) {
+        logInfo(`Script validated via ${bridgeResult.source}`);
+        const errorCount = bridgeResult.errors.filter(e => e.type === 'error').length;
+        const warningCount = bridgeResult.errors.filter(e => e.type === 'warning').length;
+        return createJsonResponse({
+          projectPath: typedArgs.projectPath,
+          scriptPath: typedArgs.scriptPath,
+          source: bridgeResult.source,
+          errorCount,
+          warningCount,
+          valid: errorCount === 0,
+          errors: bridgeResult.errors,
+        });
+      }
+      logDebug('Real-time validation unavailable, falling back to CLI...');
+    }
+
     const godotPath = await detectGodotPath();
     if (!godotPath) {
       return createErrorResponse('Could not find a valid Godot executable path', [
         'Ensure Godot is installed correctly',
         'Set GODOT_PATH environment variable',
+        'For real-time validation: Run Godot with --lsp-port=6005 or enable MCP Bridge plugin',
       ]);
     }
 
@@ -157,11 +180,12 @@ export const handleGetScriptErrors = async (args: BaseToolArgs): Promise<ToolRes
     return createJsonResponse({
       projectPath: typedArgs.projectPath,
       scriptPath: typedArgs.scriptPath || '(all scripts)',
+      source: 'cli',
       errorCount,
       warningCount,
       valid: errorCount === 0,
       errors: filteredErrors,
-      rawOutput: combinedOutput.slice(0, 2000), // First 2000 chars of raw output
+      rawOutput: combinedOutput.slice(0, 2000),
     });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

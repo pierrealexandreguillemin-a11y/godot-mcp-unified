@@ -15,3 +15,15 @@ export {
   type SelectedNode,
   type Autoload,
 } from './GodotBridge.js';
+
+export {
+  GodotLSPClient,
+  getGodotLSPClient,
+  tryConnectToLSP,
+  DiagnosticSeverity,
+  type Position,
+  type Range,
+  type Diagnostic,
+  type PublishDiagnosticsParams,
+  type ScriptDiagnostic,
+} from './GodotLSPClient.js';

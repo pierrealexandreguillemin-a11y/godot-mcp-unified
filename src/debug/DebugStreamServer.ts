@@ -192,7 +192,10 @@ class DebugStreamServerImpl {
   }
 
   /**
-   * Reset output indices (useful when a new process starts)
+   * Reset output indices when a new Godot process starts.
+   * Called externally by ProcessManager to ensure new process output
+   * is captured from the beginning.
+   * @public
    */
   resetIndices(): void {
     this.lastOutputIndex = 0;

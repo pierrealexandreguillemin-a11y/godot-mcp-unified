@@ -335,6 +335,60 @@ export interface SetKeyframeArgs extends SceneToolArgs {
   easing?: number;
 }
 
+export interface CreateAnimationTreeArgs extends SceneToolArgs {
+  nodeName: string;
+  parentNodePath?: string;
+  animPlayerPath?: string;
+  rootMotionTrack?: string;
+  processCallback?: 'idle' | 'physics' | 'manual';
+}
+
+export interface StateMachineState {
+  name: string;
+  animation?: string;
+  blendPosition?: number;
+}
+
+export interface StateMachineTransition {
+  from: string;
+  to: string;
+  autoAdvance?: boolean;
+  advanceCondition?: string;
+  xfadeTime?: number;
+  switchMode?: 'immediate' | 'sync' | 'at_end';
+}
+
+export interface SetupStateMachineArgs extends SceneToolArgs {
+  animTreePath: string;
+  states: StateMachineState[];
+  transitions?: StateMachineTransition[];
+  startState?: string;
+}
+
+export interface BlendPoint1D {
+  animation: string;
+  position: number;
+}
+
+export interface BlendPoint2D {
+  animation: string;
+  positionX: number;
+  positionY: number;
+}
+
+export interface BlendAnimationsArgs extends SceneToolArgs {
+  animTreePath: string;
+  blendSpaceName: string;
+  type: '1d' | '2d';
+  points: BlendPoint1D[] | BlendPoint2D[];
+  minSpace?: number;
+  maxSpace?: number;
+  minSpaceY?: number;
+  maxSpaceY?: number;
+  blendMode?: 'interpolated' | 'discrete' | 'carry';
+  sync?: boolean;
+}
+
 // ============================================================================
 // Physics Tool Arguments
 // ============================================================================

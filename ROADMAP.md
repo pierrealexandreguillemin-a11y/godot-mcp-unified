@@ -2,7 +2,7 @@
 
 > Analyse des fonctionnalites manquantes et ameliorations possibles
 
-## Etat actuel : 76 outils (v0.8.0)
+## Etat actuel : 79 outils (v0.9.0)
 
 ### Outils implementes par categorie
 
@@ -11,7 +11,7 @@
 | **Project** | 12 | launch_editor, run_project, stop_project, get_debug_output, list_projects, get_project_info, get_godot_version, get_project_settings, set_project_setting, get_input_map, add_input_action, validate_project |
 | **Scene** | 10 | create_scene, add_node, edit_node, remove_node, rename_node, move_node, duplicate_node, load_sprite, save_scene, get_scene_tree |
 | **Script** | 6 | list_scripts, read_script, write_script, attach_script, detach_script, get_script_errors |
-| **Animation** | 4 | create_animation_player, add_animation, add_animation_track, set_keyframe |
+| **Animation** | 7 | create_animation_player, add_animation, add_animation_track, set_keyframe, create_animation_tree, setup_state_machine, blend_animations |
 | **Physics** | 3 | create_collision_shape, setup_rigidbody, configure_physics_layers |
 | **TileMap** | 4 | create_tileset, create_tilemap_layer, set_tile, paint_tiles |
 | **Audio** | 3 | create_audio_bus, setup_audio_player, add_audio_effect |
@@ -273,12 +273,12 @@ Potentiel: Fine-tuner qwen2.5-coder sur ce dataset
 
 ## Prochaines Phases (vers 110 outils)
 
-### Phase 7 - Animation Avancée (3 outils) → 79 total
-| Outil | Description |
-|-------|-------------|
-| `create_animation_tree` | Créer AnimationTree |
-| `setup_state_machine` | Configurer state machine animation |
-| `blend_animations` | Configurer blend spaces |
+### Phase 7 - Animation Avancée ✅ COMPLETÉ (v0.9.0)
+| Outil | Description | Status |
+|-------|-------------|--------|
+| `create_animation_tree` | Créer AnimationTree | ✅ |
+| `setup_state_machine` | Configurer state machine animation | ✅ |
+| `blend_animations` | Configurer blend spaces | ✅ |
 
 ### Phase 8 - Physics Avancée (4 outils) → 83 total
 | Outil | Description |

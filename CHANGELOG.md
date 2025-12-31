@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2024-12-31
+
+### Added
+- **Advanced Animation Tools** (3 tools):
+  - `create_animation_tree`: Create AnimationTree node with state machine root
+    - Optional AnimationPlayer linkage
+    - Root motion track support
+    - Process callback configuration (idle/physics/manual)
+  - `setup_state_machine`: Configure AnimationNodeStateMachine with states and transitions
+    - State definitions with animation and blend position
+    - Transition configuration with auto-advance, conditions, cross-fade
+    - Switch modes: immediate, sync, at_end
+    - State validation ensures transitions reference defined states
+  - `blend_animations`: Configure BlendSpace1D or BlendSpace2D for smooth animation blending
+    - 1D blend with position parameter
+    - 2D blend with positionX/positionY
+    - Blend modes: interpolated, discrete, carry
+    - Animation sync option
+
+- Unit tests for all 3 new animation tools (18 new tests)
+- GDScript operations for AnimationTree, StateMachine, and BlendSpace
+
+### Changed
+- Tool count increased from 76 to 79
+- Animation tools category expanded (now 7 tools total)
+
 ## [0.8.0] - 2024-12-31
 
 ### Added

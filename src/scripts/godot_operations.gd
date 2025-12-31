@@ -82,6 +82,12 @@ func _init():
             add_animation_track(params)
         "set_keyframe":
             set_keyframe(params)
+        "create_animation_tree":
+            create_animation_tree(params)
+        "setup_state_machine":
+            setup_state_machine(params)
+        "blend_animations":
+            blend_animations(params)
         # Physics operations
         "create_collision_shape":
             create_collision_shape(params)
@@ -1657,6 +1663,291 @@ func set_keyframe(params):
         var save_error = ResourceSaver.save(packed_scene, full_scene_path)
         if save_error == OK:
             print("Keyframe set successfully at " + str(time) + "s in track " + str(track_idx))
+        else:
+            printerr("Failed to save scene: " + str(save_error))
+            quit(1)
+    else:
+        printerr("Failed to pack scene: " + str(result))
+        quit(1)
+
+# Create an AnimationTree node
+func create_animation_tree(params):
+    print("Creating AnimationTree in scene: " + params.scenePath)
+
+    var full_scene_path = params.scenePath
+    if not full_scene_path.begins_with("res://"):
+        full_scene_path = "res://" + full_scene_path
+
+    if not FileAccess.file_exists(full_scene_path):
+        printerr("Scene file does not exist: " + full_scene_path)
+        quit(1)
+
+    var scene = load(full_scene_path)
+    if not scene:
+        printerr("Failed to load scene: " + full_scene_path)
+        quit(1)
+
+    var scene_root = scene.instantiate()
+
+    # Find parent node
+    var parent = scene_root
+    if params.has("parentNodePath") and params.parentNodePath:
+        var parent_path = params.parentNodePath
+        if parent_path.begins_with("root/"):
+            parent_path = parent_path.replace("root/", "")
+        if parent_path != "" and parent_path != "root":
+            parent = scene_root.get_node(parent_path)
+            if not parent:
+                printerr("Parent node not found: " + params.parentNodePath)
+                quit(1)
+
+    # Create AnimationTree
+    var anim_tree = AnimationTree.new()
+    anim_tree.name = params.nodeName
+
+    # Set AnimationPlayer path if provided
+    if params.has("animPlayerPath") and params.animPlayerPath:
+        anim_tree.anim_player = NodePath(params.animPlayerPath)
+
+    # Set root motion track if provided
+    if params.has("rootMotionTrack") and params.rootMotionTrack:
+        anim_tree.root_motion_track = NodePath(params.rootMotionTrack)
+
+    # Set process callback
+    if params.has("processCallback"):
+        match params.processCallback:
+            "idle":
+                anim_tree.process_callback = AnimationTree.ANIMATION_PROCESS_IDLE
+            "physics":
+                anim_tree.process_callback = AnimationTree.ANIMATION_PROCESS_PHYSICS
+            "manual":
+                anim_tree.process_callback = AnimationTree.ANIMATION_PROCESS_MANUAL
+
+    # Create a default state machine as the tree root
+    var state_machine = AnimationNodeStateMachine.new()
+    anim_tree.tree_root = state_machine
+
+    parent.add_child(anim_tree)
+    anim_tree.owner = scene_root
+
+    # Save the scene
+    var packed_scene = PackedScene.new()
+    var result = packed_scene.pack(scene_root)
+
+    if result == OK:
+        var save_error = ResourceSaver.save(packed_scene, full_scene_path)
+        if save_error == OK:
+            print("AnimationTree '" + params.nodeName + "' created successfully")
+        else:
+            printerr("Failed to save scene: " + str(save_error))
+            quit(1)
+    else:
+        printerr("Failed to pack scene: " + str(result))
+        quit(1)
+
+# Setup state machine for AnimationTree
+func setup_state_machine(params):
+    print("Setting up state machine in scene: " + params.scenePath)
+
+    var full_scene_path = params.scenePath
+    if not full_scene_path.begins_with("res://"):
+        full_scene_path = "res://" + full_scene_path
+
+    if not FileAccess.file_exists(full_scene_path):
+        printerr("Scene file does not exist: " + full_scene_path)
+        quit(1)
+
+    var scene = load(full_scene_path)
+    if not scene:
+        printerr("Failed to load scene: " + full_scene_path)
+        quit(1)
+
+    var scene_root = scene.instantiate()
+
+    # Find AnimationTree
+    var tree_path = params.animTreePath
+    if tree_path.begins_with("root/"):
+        tree_path = tree_path.replace("root/", "")
+
+    var anim_tree = null
+    if tree_path == "" or tree_path == "root":
+        anim_tree = scene_root
+    else:
+        anim_tree = scene_root.get_node(tree_path)
+
+    if not anim_tree or not anim_tree is AnimationTree:
+        printerr("AnimationTree not found at: " + params.animTreePath)
+        quit(1)
+
+    # Get or create state machine
+    var state_machine = anim_tree.tree_root
+    if not state_machine or not state_machine is AnimationNodeStateMachine:
+        state_machine = AnimationNodeStateMachine.new()
+        anim_tree.tree_root = state_machine
+
+    # Add states
+    for state in params.states:
+        var anim_node = AnimationNodeAnimation.new()
+        if state.has("animation") and state.animation:
+            anim_node.animation = state.animation
+        state_machine.add_node(state.name, anim_node)
+        if debug_mode:
+            print("Added state: " + state.name)
+
+    # Add transitions if provided
+    if params.has("transitions") and params.transitions:
+        for trans in params.transitions:
+            var transition = AnimationNodeStateMachineTransition.new()
+
+            if trans.has("autoAdvance") and trans.autoAdvance:
+                transition.advance_mode = AnimationNodeStateMachineTransition.ADVANCE_MODE_AUTO
+
+            if trans.has("advanceCondition") and trans.advanceCondition:
+                transition.advance_condition = trans.advanceCondition
+
+            if trans.has("xfadeTime"):
+                transition.xfade_time = trans.xfadeTime
+
+            if trans.has("switchMode"):
+                match trans.switchMode:
+                    "immediate":
+                        transition.switch_mode = AnimationNodeStateMachineTransition.SWITCH_MODE_IMMEDIATE
+                    "sync":
+                        transition.switch_mode = AnimationNodeStateMachineTransition.SWITCH_MODE_SYNC
+                    "at_end":
+                        transition.switch_mode = AnimationNodeStateMachineTransition.SWITCH_MODE_AT_END
+
+            state_machine.add_transition(trans.from, trans.to, transition)
+            if debug_mode:
+                print("Added transition: " + trans.from + " -> " + trans.to)
+
+    # Set start state if provided
+    if params.has("startState") and params.startState:
+        state_machine.set_start_node(params.startState)
+
+    # Save the scene
+    var packed_scene = PackedScene.new()
+    var result = packed_scene.pack(scene_root)
+
+    if result == OK:
+        var save_error = ResourceSaver.save(packed_scene, full_scene_path)
+        if save_error == OK:
+            print("State machine configured with " + str(params.states.size()) + " states")
+        else:
+            printerr("Failed to save scene: " + str(save_error))
+            quit(1)
+    else:
+        printerr("Failed to pack scene: " + str(result))
+        quit(1)
+
+# Configure blend space for AnimationTree
+func blend_animations(params):
+    print("Creating blend space in scene: " + params.scenePath)
+
+    var full_scene_path = params.scenePath
+    if not full_scene_path.begins_with("res://"):
+        full_scene_path = "res://" + full_scene_path
+
+    if not FileAccess.file_exists(full_scene_path):
+        printerr("Scene file does not exist: " + full_scene_path)
+        quit(1)
+
+    var scene = load(full_scene_path)
+    if not scene:
+        printerr("Failed to load scene: " + full_scene_path)
+        quit(1)
+
+    var scene_root = scene.instantiate()
+
+    # Find AnimationTree
+    var tree_path = params.animTreePath
+    if tree_path.begins_with("root/"):
+        tree_path = tree_path.replace("root/", "")
+
+    var anim_tree = null
+    if tree_path == "" or tree_path == "root":
+        anim_tree = scene_root
+    else:
+        anim_tree = scene_root.get_node(tree_path)
+
+    if not anim_tree or not anim_tree is AnimationTree:
+        printerr("AnimationTree not found at: " + params.animTreePath)
+        quit(1)
+
+    # Get or create state machine as root
+    var state_machine = anim_tree.tree_root
+    if not state_machine or not state_machine is AnimationNodeStateMachine:
+        state_machine = AnimationNodeStateMachine.new()
+        anim_tree.tree_root = state_machine
+
+    # Create blend space based on type
+    var blend_space
+    if params.type == "1d":
+        blend_space = AnimationNodeBlendSpace1D.new()
+
+        if params.has("minSpace"):
+            blend_space.min_space = params.minSpace
+        if params.has("maxSpace"):
+            blend_space.max_space = params.maxSpace
+
+        # Add points
+        for point in params.points:
+            var anim_node = AnimationNodeAnimation.new()
+            anim_node.animation = point.animation
+            blend_space.add_blend_point(anim_node, point.position)
+            if debug_mode:
+                print("Added 1D point: " + point.animation + " at " + str(point.position))
+    else:  # 2d
+        blend_space = AnimationNodeBlendSpace2D.new()
+
+        if params.has("minSpace"):
+            blend_space.min_space = Vector2(params.minSpace, params.get("minSpaceY", params.minSpace))
+        if params.has("maxSpace"):
+            blend_space.max_space = Vector2(params.maxSpace, params.get("maxSpaceY", params.maxSpace))
+
+        # Add points
+        for point in params.points:
+            var anim_node = AnimationNodeAnimation.new()
+            anim_node.animation = point.animation
+            var pos = Vector2(point.positionX, point.positionY)
+            blend_space.add_blend_point(anim_node, pos)
+            if debug_mode:
+                print("Added 2D point: " + point.animation + " at " + str(pos))
+
+    # Set blend mode if provided
+    if params.has("blendMode"):
+        match params.blendMode:
+            "interpolated":
+                if params.type == "1d":
+                    blend_space.blend_mode = AnimationNodeBlendSpace1D.BLEND_MODE_INTERPOLATED
+                else:
+                    blend_space.blend_mode = AnimationNodeBlendSpace2D.BLEND_MODE_INTERPOLATED
+            "discrete":
+                if params.type == "1d":
+                    blend_space.blend_mode = AnimationNodeBlendSpace1D.BLEND_MODE_DISCRETE
+                else:
+                    blend_space.blend_mode = AnimationNodeBlendSpace2D.BLEND_MODE_DISCRETE
+            "carry":
+                if params.type == "1d":
+                    blend_space.blend_mode = AnimationNodeBlendSpace1D.BLEND_MODE_DISCRETE_CARRY
+                else:
+                    blend_space.blend_mode = AnimationNodeBlendSpace2D.BLEND_MODE_DISCRETE_CARRY
+
+    # Set sync if provided
+    if params.has("sync") and params.sync:
+        blend_space.sync = true
+
+    # Add blend space to state machine
+    state_machine.add_node(params.blendSpaceName, blend_space)
+
+    # Save the scene
+    var packed_scene = PackedScene.new()
+    var result = packed_scene.pack(scene_root)
+
+    if result == OK:
+        var save_error = ResourceSaver.save(packed_scene, full_scene_path)
+        if save_error == OK:
+            print("BlendSpace" + params.type.to_upper() + " '" + params.blendSpaceName + "' created with " + str(params.points.size()) + " points")
         else:
             printerr("Failed to save scene: " + str(save_error))
             quit(1)

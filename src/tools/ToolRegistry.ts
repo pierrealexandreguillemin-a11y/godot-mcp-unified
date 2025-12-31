@@ -82,6 +82,9 @@ import { takeScreenshotDefinition, handleTakeScreenshot } from './capture/TakeSc
 import { createAnimationPlayerDefinition, handleCreateAnimationPlayer } from './animation/CreateAnimationPlayerTool';
 import { addAnimationDefinition, handleAddAnimation } from './animation/AddAnimationTool';
 import { addAnimationTrackDefinition, handleAddAnimationTrack } from './animation/AddAnimationTrackTool';
+import { createAnimationTreeDefinition, handleCreateAnimationTree } from './animation/CreateAnimationTreeTool';
+import { setupStateMachineDefinition, handleSetupStateMachine } from './animation/SetupStateMachineTool';
+import { blendAnimationsDefinition, handleBlendAnimations } from './animation/BlendAnimationsTool';
 import { setKeyframeDefinition, handleSetKeyframe } from './animation/SetKeyframeTool';
 
 // Physics tools
@@ -568,6 +571,30 @@ export const toolRegistry: Map<string, ToolRegistration> = new Map([
     {
       definition: setKeyframeDefinition,
       handler: handleSetKeyframe,
+      readOnly: false,
+    },
+  ],
+  [
+    'create_animation_tree',
+    {
+      definition: createAnimationTreeDefinition,
+      handler: handleCreateAnimationTree,
+      readOnly: false,
+    },
+  ],
+  [
+    'setup_state_machine',
+    {
+      definition: setupStateMachineDefinition,
+      handler: handleSetupStateMachine,
+      readOnly: false,
+    },
+  ],
+  [
+    'blend_animations',
+    {
+      definition: blendAnimationsDefinition,
+      handler: handleBlendAnimations,
       readOnly: false,
     },
   ],

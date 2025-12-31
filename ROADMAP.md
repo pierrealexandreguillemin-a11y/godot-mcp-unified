@@ -105,30 +105,31 @@ Le serveur ne gere PAS les scripts GDScript directement.
 | `connect_signal` | Connecter signal | P1 |
 | `disconnect_signal` | Deconnecter signal | P2 |
 
-### 8. Animations
+### 8. Animations ✅ IMPLEMENTÉ (v0.4.0)
 
-| Outil propose | Description | Priorite |
-|---------------|-------------|----------|
-| `list_animations` | Lister animations | P1 |
-| `create_animation` | Creer animation | P2 |
-| `add_animation_track` | Ajouter track | P2 |
-| `play_animation` | Jouer animation (debug) | P2 |
+| Outil | Description | Status |
+|-------|-------------|--------|
+| `create_animation_player` | Creer AnimationPlayer | ✅ |
+| `add_animation` | Ajouter animation | ✅ |
+| `add_animation_track` | Ajouter track (value, position, rotation, etc.) | ✅ |
+| `set_keyframe` | Définir keyframe avec valeur/transition/easing | ✅ |
 
-### 9. Tilemap / Tileset
+### 9. Tilemap / Tileset ✅ IMPLEMENTÉ (v0.4.0)
 
-| Outil propose | Description | Priorite |
-|---------------|-------------|----------|
-| `create_tileset` | Creer tileset | P2 |
-| `edit_tilemap` | Modifier tilemap | P2 |
-| `paint_tiles` | Peindre tuiles | P2 |
+| Outil | Description | Status |
+|-------|-------------|--------|
+| `create_tileset` | Creer TileSet avec tile size | ✅ |
+| `create_tilemap_layer` | Creer TileMapLayer | ✅ |
+| `set_tile` | Placer une tuile | ✅ |
+| `paint_tiles` | Peindre tuiles en batch | ✅ |
 
-### 10. Audio
+### 10. Audio ✅ IMPLEMENTÉ (v0.4.0)
 
-| Outil propose | Description | Priorite |
-|---------------|-------------|----------|
-| `list_audio_buses` | Lister bus audio | P2 |
-| `create_audio_bus` | Creer bus | P2 |
-| `set_audio_effect` | Ajouter effet | P2 |
+| Outil | Description | Status |
+|-------|-------------|--------|
+| `create_audio_bus` | Creer bus audio | ✅ |
+| `setup_audio_player` | Configurer AudioStreamPlayer | ✅ |
+| `add_audio_effect` | Ajouter effet (reverb, delay, etc.) | ✅ |
 
 ---
 
@@ -142,12 +143,13 @@ Le serveur ne gere PAS les scripts GDScript directement.
 | `edit_shader` | Modifier shader | P2 |
 | `create_shader_material` | Material depuis shader | P2 |
 
-### 12. Physics
+### 12. Physics ✅ IMPLEMENTÉ (v0.4.0)
 
-| Outil propose | Description | Priorite |
-|---------------|-------------|----------|
-| `create_collision_shape` | Creer forme collision | P2 |
-| `edit_physics_layer` | Modifier layers physique | P2 |
+| Outil | Description | Status |
+|-------|-------------|--------|
+| `create_collision_shape` | Creer CollisionShape2D/3D | ✅ |
+| `setup_rigidbody` | Configurer RigidBody (masse, gravité) | ✅ |
+| `configure_physics_layers` | Nommer layers physique 2D/3D | ✅ |
 
 ### 13. Navigation
 
@@ -291,30 +293,32 @@ Potentiel: Fine-tuner qwen2.5-coder sur ce dataset
 
 ## Plan Implementation Suggere
 
-### Phase 1 - Scripts (CRITIQUE)
-1. `list_scripts`
-2. `read_script`
-3. `write_script`
-4. `attach_script`
-5. `get_script_errors`
+### Phase 1 - Scripts ✅ COMPLETÉ (v0.2.0)
+1. `list_scripts` ✅
+2. `read_script` ✅
+3. `write_script` ✅
+4. `attach_script` ✅
+5. `get_script_errors` ✅
 
-### Phase 2 - Visual
-6. `take_screenshot`
-7. `get_scene_tree`
+### Phase 2 - Game Development ✅ COMPLETÉ (v0.4.0)
+6. Animation tools (4 outils) ✅
+7. Physics tools (3 outils) ✅
+8. TileMap tools (4 outils) ✅
+9. Audio tools (3 outils) ✅
 
-### Phase 3 - Ressources
-8. `list_resources`
-9. `create_resource`
-10. `list_assets`
+### Phase 3 - Ressources (EN COURS)
+10. `list_resources` - existant
+11. `create_resource` - existant
+12. `list_assets`
 
 ### Phase 4 - Export
-11. `export_project`
-12. `list_export_presets`
+13. `export_project`
+14. `list_export_presets`
 
 ### Phase 5 - Avance
-13. Plugin Godot companion (TCP)
-14. Batch operations
-15. WebSocket live debug
+15. Plugin Godot companion (TCP) ✅ (GodotBridge)
+16. Batch operations
+17. WebSocket live debug
 
 ---
 
@@ -330,4 +334,5 @@ Potentiel: Fine-tuner qwen2.5-coder sur ce dataset
 
 ---
 
-*Document genere le 8 decembre 2024*
+*Document mis à jour le 31 décembre 2024*
+*Version actuelle: 0.4.0 - 54 tools*

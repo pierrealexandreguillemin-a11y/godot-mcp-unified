@@ -45,6 +45,15 @@ Claude Code → MCP Server → Fichier player.tscn créé
   - Paramètres projet
   - Export et documentation
 
+### Phase 6: Game Development Tools (v0.4.0)
+- **14 nouveaux tools** pour développement jeu :
+  - Animation: create_animation_player, add_animation, add_animation_track, set_keyframe
+  - Physics: create_collision_shape, setup_rigidbody, configure_physics_layers
+  - TileMap: create_tileset, create_tilemap_layer, set_tile, paint_tiles
+  - Audio: create_audio_bus, setup_audio_player, add_audio_effect
+- Opérations GDScript correspondantes dans godot_operations.gd
+- Tests unitaires pour les 14 outils (254 tests total)
+
 ### Phase 4: Quality & Testing (commits 7a05d9e - a1ef7e4)
 - ESLint 9 avec flat config
 - 133 tests d'intégration
@@ -92,6 +101,10 @@ godot-mcp-unified/
 │   │   ├── script/           # 6 tools scripts
 │   │   ├── project/          # 12 tools projet
 │   │   ├── resource/         # 4 tools ressources
+│   │   ├── animation/        # 4 tools animation
+│   │   ├── physics/          # 3 tools physique
+│   │   ├── tilemap/          # 4 tools tilemap
+│   │   ├── audio/            # 3 tools audio
 │   │   └── ...
 │   ├── bridge/
 │   │   ├── GodotBridge.ts    # Client TCP vers plugin
@@ -153,7 +166,7 @@ godot-mcp-unified/
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐       │
 │  │   MCP        │    │    Tool      │    │    Bridge    │       │
 │  │   Server     │───►│   Registry   │───►│    Module    │       │
-│  │              │    │   (42 tools) │    │              │       │
+│  │              │    │   (54 tools) │    │              │       │
 │  └──────────────┘    └──────┬───────┘    └──────┬───────┘       │
 │         │                   │                   │                │
 │         │            ┌──────┴───────┐    ┌──────┴───────┐       │
@@ -293,13 +306,13 @@ godot-mcp-unified/
 ## Métriques Actuelles
 
 ```
-Tests:           205 passing
+Tests:           254 passing
 Coverage:        44% (tools Godot-dépendants exclus)
 TypeScript:      0 errors
 ESLint:          0 warnings
 any types:       0
-Tools:           42 registered
-Commits:         35+
+Tools:           54 registered
+Commits:         40+
 ```
 
 ---
@@ -313,5 +326,5 @@ Commits:         35+
 
 ---
 
-*Documentation générée le 2025-12-09*
-*godot-mcp-unified v0.2.0*
+*Documentation mise à jour le 2025-12-31*
+*godot-mcp-unified v0.4.0*

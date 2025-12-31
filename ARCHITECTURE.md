@@ -65,6 +65,32 @@ Claude Code → MCP Server → Fichier player.tscn créé
 - Client LSP pour diagnostics temps réel
 - 205 tests (dont 16 tests d'intégration avec mock server)
 
+### Phase 5b: Visual & Navigation (v0.5.0)
+- **10 nouveaux tools** :
+  - Shader: create_shader, create_shader_material
+  - Navigation: create_navigation_region, bake_navigation_mesh
+  - Particles: create_gpu_particles, create_particle_material
+  - UI: create_ui_container, create_control
+  - Lighting: create_light, setup_environment
+
+### Phase 5c: Resources & Assets (v0.6.0)
+- **3 nouveaux tools** :
+  - list_assets, import_asset, reimport_assets
+- Filtrage par catégorie (texture, audio, model, font)
+
+### Phase 5d: Export (v0.7.0)
+- **1 nouveau tool** :
+  - list_export_presets
+
+### Phase 6: Advanced Operations (v0.8.0)
+- **4 nouveaux tools** :
+  - `batch_operations`: Exécution séquentielle de tools MCP avec gestion d'erreurs
+  - `start_debug_stream`: Serveur WebSocket pour streaming debug temps réel
+  - `stop_debug_stream`: Arrêt du serveur debug stream
+  - `get_debug_stream_status`: Statut du serveur debug stream
+- Infrastructure WebSocket (ws library)
+- 369 tests (dont 20 pour Phase 6)
+
 ---
 
 ## Architecture Actuelle
@@ -97,6 +123,7 @@ godot-mcp-unified/
 │   │   └── PathManager.ts    # Détection chemins Godot
 │   ├── tools/
 │   │   ├── BaseToolHandler.ts
+│   │   ├── ToolRegistry.ts   # 76 tools registered
 │   │   ├── scene/            # 10 tools scènes
 │   │   ├── script/           # 6 tools scripts
 │   │   ├── project/          # 12 tools projet
@@ -105,11 +132,21 @@ godot-mcp-unified/
 │   │   ├── physics/          # 3 tools physique
 │   │   ├── tilemap/          # 4 tools tilemap
 │   │   ├── audio/            # 3 tools audio
-│   │   └── ...
+│   │   ├── shader/           # 2 tools shaders
+│   │   ├── navigation/       # 2 tools navigation
+│   │   ├── particles/        # 2 tools particles
+│   │   ├── ui/               # 2 tools UI
+│   │   ├── lighting/         # 2 tools lighting
+│   │   ├── asset/            # 3 tools assets
+│   │   ├── export/           # 3 tools export
+│   │   ├── batch/            # 1 tool batch ops
+│   │   └── debug/            # 4 tools debug
 │   ├── bridge/
 │   │   ├── GodotBridge.ts    # Client TCP vers plugin
 │   │   ├── GodotLSPClient.ts # Client LSP Godot 4
 │   │   └── ScriptValidator.ts # API validation unifiée
+│   ├── debug/
+│   │   └── DebugStreamServer.ts # WebSocket server pour streaming
 │   └── utils/
 │       ├── Logger.ts
 │       ├── ErrorHandler.ts
@@ -166,7 +203,7 @@ godot-mcp-unified/
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐       │
 │  │   MCP        │    │    Tool      │    │    Bridge    │       │
 │  │   Server     │───►│   Registry   │───►│    Module    │       │
-│  │              │    │   (54 tools) │    │              │       │
+│  │              │    │   (76 tools) │    │              │       │
 │  └──────────────┘    └──────┬───────┘    └──────┬───────┘       │
 │         │                   │                   │                │
 │         │            ┌──────┴───────┐    ┌──────┴───────┐       │
@@ -306,13 +343,13 @@ godot-mcp-unified/
 ## Métriques Actuelles
 
 ```
-Tests:           254 passing
+Tests:           369 passing
 Coverage:        44% (tools Godot-dépendants exclus)
 TypeScript:      0 errors
 ESLint:          0 warnings
 any types:       0
-Tools:           54 registered
-Commits:         40+
+Tools:           76 registered
+Commits:         50+
 ```
 
 ---
@@ -327,4 +364,4 @@ Commits:         40+
 ---
 
 *Documentation mise à jour le 2025-12-31*
-*godot-mcp-unified v0.4.0*
+*godot-mcp-unified v0.8.0*

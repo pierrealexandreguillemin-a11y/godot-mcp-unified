@@ -26,10 +26,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Broadcasts to connected WebSocket clients
 
 - New dependency: `ws` ^8.18.0 for WebSocket support
-- Unit tests for all 4 new tools and DebugStreamServer
+- Unit tests for all 4 new tools and DebugStreamServer (369 tests total)
 
 ### Changed
 - Tool count increased from 72 to 76
+
+### Fixed
+- **SECURITY**: `batch_operations` maxOperations bypass via negative/NaN/Infinity values
+- **SECURITY**: `batch_operations` args array bypass (`typeof [] === 'object'`)
+- Use `response.isError` for reliable error detection instead of string matching
+- Proper null check for operation args validation
 
 ## [0.7.0] - 2024-12-31
 

@@ -90,6 +90,27 @@ export const handleCreateAnimationTree = async (args: BaseToolArgs): Promise<Too
 
   const typedArgs = preparedArgs as CreateAnimationTreeArgs;
 
+  // Validate nodeName - Godot node names cannot contain / : @ or be empty
+  const invalidNodeNameChars = /[/:@]/;
+  if (!typedArgs.nodeName || typedArgs.nodeName.trim() === '') {
+    return createErrorResponse('nodeName cannot be empty', [
+      'Provide a valid node name',
+    ]);
+  }
+  if (invalidNodeNameChars.test(typedArgs.nodeName)) {
+    return createErrorResponse('nodeName contains invalid characters', [
+      'Node names cannot contain: / : @',
+      `Received: "${typedArgs.nodeName}"`,
+    ]);
+  }
+
+  // Validate scenePath extension
+  if (!typedArgs.scenePath.endsWith('.tscn') && !typedArgs.scenePath.endsWith('.scn')) {
+    return createErrorResponse('scenePath must be a scene file (.tscn or .scn)', [
+      `Received: "${typedArgs.scenePath}"`,
+    ]);
+  }
+
   // Validate processCallback if provided
   if (
     typedArgs.processCallback &&

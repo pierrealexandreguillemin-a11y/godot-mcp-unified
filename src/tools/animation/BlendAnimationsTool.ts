@@ -127,6 +127,13 @@ export const handleBlendAnimations = async (args: BaseToolArgs): Promise<ToolRes
 
   const typedArgs = preparedArgs as BlendAnimationsArgs;
 
+  // Validate scenePath extension
+  if (!typedArgs.scenePath.endsWith('.tscn') && !typedArgs.scenePath.endsWith('.scn')) {
+    return createErrorResponse('scenePath must be a scene file (.tscn or .scn)', [
+      `Received: "${typedArgs.scenePath}"`,
+    ]);
+  }
+
   // Validate type
   if (typedArgs.type !== '1d' && typedArgs.type !== '2d') {
     return createErrorResponse('Invalid blend space type', ['Use "1d" or "2d"']);

@@ -114,6 +114,13 @@ export const handleSetupStateMachine = async (args: BaseToolArgs): Promise<ToolR
 
   const typedArgs = preparedArgs as SetupStateMachineArgs;
 
+  // Validate scenePath extension
+  if (!typedArgs.scenePath.endsWith('.tscn') && !typedArgs.scenePath.endsWith('.scn')) {
+    return createErrorResponse('scenePath must be a scene file (.tscn or .scn)', [
+      `Received: "${typedArgs.scenePath}"`,
+    ]);
+  }
+
   // Validate states array
   if (!Array.isArray(typedArgs.states) || typedArgs.states.length === 0) {
     return createErrorResponse('states must be a non-empty array', [

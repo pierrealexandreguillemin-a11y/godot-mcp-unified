@@ -192,6 +192,36 @@ describe('Animation Tools', () => {
       expect(result.content[0].text).toContain('processCallback');
     });
 
+    it('should return error for empty nodeName', async () => {
+      const result = await handleCreateAnimationTree({
+        projectPath: '/path/to/project',
+        scenePath: 'scenes/main.tscn',
+        nodeName: '   ',
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('cannot be empty');
+    });
+
+    it('should return error for nodeName with invalid characters', async () => {
+      const result = await handleCreateAnimationTree({
+        projectPath: '/path/to/project',
+        scenePath: 'scenes/main.tscn',
+        nodeName: 'Node/With:Invalid@Chars',
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('invalid characters');
+    });
+
+    it('should return error for invalid scenePath extension', async () => {
+      const result = await handleCreateAnimationTree({
+        projectPath: '/path/to/project',
+        scenePath: 'scenes/main.gd',
+        nodeName: 'AnimTree',
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('.tscn or .scn');
+    });
+
     it('should return error for invalid project path', async () => {
       const result = await handleCreateAnimationTree({
         projectPath: '/non/existent/path',
@@ -210,6 +240,17 @@ describe('Animation Tools', () => {
         scenePath: 'scenes/main.tscn',
       });
       expect(result.isError).toBe(true);
+    });
+
+    it('should return error for invalid scenePath extension', async () => {
+      const result = await handleSetupStateMachine({
+        projectPath: '/path/to/project',
+        scenePath: 'scenes/main.txt',
+        animTreePath: 'AnimTree',
+        states: [{ name: 'idle' }],
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('.tscn or .scn');
     });
 
     it('should return error when states is empty', async () => {
@@ -324,6 +365,19 @@ describe('Animation Tools', () => {
         scenePath: 'scenes/main.tscn',
       });
       expect(result.isError).toBe(true);
+    });
+
+    it('should return error for invalid scenePath extension', async () => {
+      const result = await handleBlendAnimations({
+        projectPath: '/path/to/project',
+        scenePath: 'scenes/main.json',
+        animTreePath: 'AnimTree',
+        blendSpaceName: 'BlendSpace',
+        type: '1d',
+        points: [{ animation: 'idle', position: 0 }],
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('.tscn or .scn');
     });
 
     it('should return error for invalid blend space type', async () => {

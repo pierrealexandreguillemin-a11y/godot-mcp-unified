@@ -78,6 +78,16 @@ describe('BatchOperations', () => {
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain("'args' is required");
     });
+
+    it('should return error when operation args is an array', async () => {
+      const result = await handleBatchOperations({
+        projectPath: '/path/to/project',
+        operations: [{ tool: 'get_godot_version', args: ['not', 'an', 'object'] }],
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('must be a plain object');
+      expect(result.content[0].text).toContain('not an array');
+    });
   });
 
   describe('Limits', () => {
@@ -113,6 +123,46 @@ describe('BatchOperations', () => {
       });
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('exceeds limit of 100');
+    });
+
+    it('should return error for negative maxOperations', async () => {
+      const result = await handleBatchOperations({
+        projectPath: '/path/to/project',
+        operations: [{ tool: 'get_godot_version', args: {} }],
+        maxOperations: -5,
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Invalid maxOperations');
+    });
+
+    it('should return error for zero maxOperations', async () => {
+      const result = await handleBatchOperations({
+        projectPath: '/path/to/project',
+        operations: [{ tool: 'get_godot_version', args: {} }],
+        maxOperations: 0,
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Invalid maxOperations');
+    });
+
+    it('should return error for NaN maxOperations', async () => {
+      const result = await handleBatchOperations({
+        projectPath: '/path/to/project',
+        operations: [{ tool: 'get_godot_version', args: {} }],
+        maxOperations: NaN,
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Invalid maxOperations');
+    });
+
+    it('should return error for Infinity maxOperations', async () => {
+      const result = await handleBatchOperations({
+        projectPath: '/path/to/project',
+        operations: [{ tool: 'get_godot_version', args: {} }],
+        maxOperations: Infinity,
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Invalid maxOperations');
     });
   });
 

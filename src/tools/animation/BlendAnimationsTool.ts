@@ -5,7 +5,14 @@
  * ISO/IEC 25010 compliant - strict typing
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, SceneToolArgs } from '../../server/types.js';
+import {
+  ToolDefinition,
+  ToolResponse,
+  BaseToolArgs,
+  BlendPoint1D,
+  BlendPoint2D,
+  BlendAnimationsArgs,
+} from '../../server/types.js';
 import {
   prepareToolArgs,
   validateBasicArgs,
@@ -18,29 +25,8 @@ import { detectGodotPath } from '../../core/PathManager.js';
 import { executeOperation } from '../../core/GodotExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
 
-export interface BlendPoint1D {
-  animation: string;
-  position: number;
-}
-
-export interface BlendPoint2D {
-  animation: string;
-  positionX: number;
-  positionY: number;
-}
-
-export interface BlendAnimationsArgs extends SceneToolArgs {
-  animTreePath: string;
-  blendSpaceName: string;
-  type: '1d' | '2d';
-  points: BlendPoint1D[] | BlendPoint2D[];
-  minSpace?: number;
-  maxSpace?: number;
-  minSpaceY?: number;
-  maxSpaceY?: number;
-  blendMode?: 'interpolated' | 'discrete' | 'carry';
-  sync?: boolean;
-}
+// Re-export for consumers
+export type { BlendPoint1D, BlendPoint2D, BlendAnimationsArgs };
 
 export interface BlendAnimationsResult {
   animTreePath: string;
@@ -189,6 +175,52 @@ export const handleBlendAnimations = async (args: BaseToolArgs): Promise<ToolRes
     return createErrorResponse('Invalid blendMode', [
       'Use one of: interpolated, discrete, carry',
     ]);
+  }
+
+  // Validate numeric parameters
+  if (typedArgs.minSpace !== undefined) {
+    if (typeof typedArgs.minSpace !== 'number' || !Number.isFinite(typedArgs.minSpace)) {
+      return createErrorResponse('minSpace must be a finite number', [
+        'Provide minSpace as a valid number',
+      ]);
+    }
+  }
+  if (typedArgs.maxSpace !== undefined) {
+    if (typeof typedArgs.maxSpace !== 'number' || !Number.isFinite(typedArgs.maxSpace)) {
+      return createErrorResponse('maxSpace must be a finite number', [
+        'Provide maxSpace as a valid number',
+      ]);
+    }
+  }
+  if (typedArgs.minSpace !== undefined && typedArgs.maxSpace !== undefined) {
+    if (typedArgs.minSpace >= typedArgs.maxSpace) {
+      return createErrorResponse('minSpace must be less than maxSpace', [
+        `Current: minSpace=${typedArgs.minSpace}, maxSpace=${typedArgs.maxSpace}`,
+      ]);
+    }
+  }
+  if (typedArgs.type === '2d') {
+    if (typedArgs.minSpaceY !== undefined) {
+      if (typeof typedArgs.minSpaceY !== 'number' || !Number.isFinite(typedArgs.minSpaceY)) {
+        return createErrorResponse('minSpaceY must be a finite number', [
+          'Provide minSpaceY as a valid number',
+        ]);
+      }
+    }
+    if (typedArgs.maxSpaceY !== undefined) {
+      if (typeof typedArgs.maxSpaceY !== 'number' || !Number.isFinite(typedArgs.maxSpaceY)) {
+        return createErrorResponse('maxSpaceY must be a finite number', [
+          'Provide maxSpaceY as a valid number',
+        ]);
+      }
+    }
+    if (typedArgs.minSpaceY !== undefined && typedArgs.maxSpaceY !== undefined) {
+      if (typedArgs.minSpaceY >= typedArgs.maxSpaceY) {
+        return createErrorResponse('minSpaceY must be less than maxSpaceY', [
+          `Current: minSpaceY=${typedArgs.minSpaceY}, maxSpaceY=${typedArgs.maxSpaceY}`,
+        ]);
+      }
+    }
   }
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);

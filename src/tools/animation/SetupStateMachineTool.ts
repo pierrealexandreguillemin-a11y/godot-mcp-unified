@@ -5,7 +5,14 @@
  * ISO/IEC 25010 compliant - strict typing
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, SceneToolArgs } from '../../server/types.js';
+import {
+  ToolDefinition,
+  ToolResponse,
+  BaseToolArgs,
+  StateMachineState,
+  StateMachineTransition,
+  SetupStateMachineArgs,
+} from '../../server/types.js';
 import {
   prepareToolArgs,
   validateBasicArgs,
@@ -18,27 +25,8 @@ import { detectGodotPath } from '../../core/PathManager.js';
 import { executeOperation } from '../../core/GodotExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
 
-export interface StateMachineState {
-  name: string;
-  animation?: string;
-  blendPosition?: number;
-}
-
-export interface StateMachineTransition {
-  from: string;
-  to: string;
-  autoAdvance?: boolean;
-  advanceCondition?: string;
-  xfadeTime?: number;
-  switchMode?: 'immediate' | 'sync' | 'at_end';
-}
-
-export interface SetupStateMachineArgs extends SceneToolArgs {
-  animTreePath: string;
-  states: StateMachineState[];
-  transitions?: StateMachineTransition[];
-  startState?: string;
-}
+// Re-export for consumers
+export type { StateMachineState, StateMachineTransition, SetupStateMachineArgs };
 
 export interface SetupStateMachineResult {
   animTreePath: string;
@@ -143,6 +131,24 @@ export const handleSetupStateMachine = async (args: BaseToolArgs): Promise<ToolR
     }
   }
 
+  // Collect state names for validation
+  const stateNames = new Set(typedArgs.states.map((s) => s.name));
+
+  // Check for duplicate state names
+  if (stateNames.size !== typedArgs.states.length) {
+    return createErrorResponse('Duplicate state names detected', [
+      'Each state must have a unique name',
+    ]);
+  }
+
+  // Validate startState if provided
+  if (typedArgs.startState && !stateNames.has(typedArgs.startState)) {
+    return createErrorResponse(`Unknown start state: '${typedArgs.startState}'`, [
+      'startState must reference an existing state name',
+      `Available states: ${Array.from(stateNames).join(', ')}`,
+    ]);
+  }
+
   // Validate transitions if provided
   if (typedArgs.transitions) {
     if (!Array.isArray(typedArgs.transitions)) {
@@ -151,7 +157,6 @@ export const handleSetupStateMachine = async (args: BaseToolArgs): Promise<ToolR
       ]);
     }
 
-    const stateNames = new Set(typedArgs.states.map((s) => s.name));
     for (let i = 0; i < typedArgs.transitions.length; i++) {
       const trans = typedArgs.transitions[i];
       if (!trans.from || !trans.to) {
@@ -168,6 +173,20 @@ export const handleSetupStateMachine = async (args: BaseToolArgs): Promise<ToolR
         return createErrorResponse(`Transition ${i}: unknown target state '${trans.to}'`, [
           'Ensure target state exists in states array',
         ]);
+      }
+      // Validate switchMode if provided
+      if (trans.switchMode && !['immediate', 'sync', 'at_end'].includes(trans.switchMode)) {
+        return createErrorResponse(`Transition ${i}: invalid switchMode '${trans.switchMode}'`, [
+          'Use one of: immediate, sync, at_end',
+        ]);
+      }
+      // Validate xfadeTime if provided
+      if (trans.xfadeTime !== undefined) {
+        if (typeof trans.xfadeTime !== 'number' || !Number.isFinite(trans.xfadeTime) || trans.xfadeTime < 0) {
+          return createErrorResponse(`Transition ${i}: xfadeTime must be a non-negative number`, [
+            'Provide xfadeTime as seconds (e.g., 0.2)',
+          ]);
+        }
       }
     }
   }

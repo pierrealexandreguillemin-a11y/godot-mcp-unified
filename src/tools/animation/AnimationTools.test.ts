@@ -268,6 +268,53 @@ describe('Animation Tools', () => {
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Not a valid Godot project');
     });
+
+    it('should return error for duplicate state names', async () => {
+      const result = await handleSetupStateMachine({
+        projectPath: '/path/to/project',
+        scenePath: 'scenes/main.tscn',
+        animTreePath: 'AnimTree',
+        states: [{ name: 'idle' }, { name: 'idle' }],
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Duplicate state names');
+    });
+
+    it('should return error for invalid startState', async () => {
+      const result = await handleSetupStateMachine({
+        projectPath: '/path/to/project',
+        scenePath: 'scenes/main.tscn',
+        animTreePath: 'AnimTree',
+        states: [{ name: 'idle' }, { name: 'walk' }],
+        startState: 'nonexistent',
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Unknown start state');
+    });
+
+    it('should return error for invalid switchMode', async () => {
+      const result = await handleSetupStateMachine({
+        projectPath: '/path/to/project',
+        scenePath: 'scenes/main.tscn',
+        animTreePath: 'AnimTree',
+        states: [{ name: 'idle' }, { name: 'walk' }],
+        transitions: [{ from: 'idle', to: 'walk', switchMode: 'invalid' as 'immediate' }],
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('invalid switchMode');
+    });
+
+    it('should return error for negative xfadeTime', async () => {
+      const result = await handleSetupStateMachine({
+        projectPath: '/path/to/project',
+        scenePath: 'scenes/main.tscn',
+        animTreePath: 'AnimTree',
+        states: [{ name: 'idle' }, { name: 'walk' }],
+        transitions: [{ from: 'idle', to: 'walk', xfadeTime: -1 }],
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('non-negative number');
+    });
   });
 
   describe('BlendAnimations', () => {
@@ -356,6 +403,64 @@ describe('Animation Tools', () => {
       });
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Not a valid Godot project');
+    });
+
+    it('should return error for NaN minSpace', async () => {
+      const result = await handleBlendAnimations({
+        projectPath: '/path/to/project',
+        scenePath: 'scenes/main.tscn',
+        animTreePath: 'AnimTree',
+        blendSpaceName: 'BlendSpace',
+        type: '1d',
+        points: [{ animation: 'idle', position: 0 }],
+        minSpace: NaN,
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('finite number');
+    });
+
+    it('should return error for Infinity maxSpace', async () => {
+      const result = await handleBlendAnimations({
+        projectPath: '/path/to/project',
+        scenePath: 'scenes/main.tscn',
+        animTreePath: 'AnimTree',
+        blendSpaceName: 'BlendSpace',
+        type: '1d',
+        points: [{ animation: 'idle', position: 0 }],
+        maxSpace: Infinity,
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('finite number');
+    });
+
+    it('should return error when minSpace >= maxSpace', async () => {
+      const result = await handleBlendAnimations({
+        projectPath: '/path/to/project',
+        scenePath: 'scenes/main.tscn',
+        animTreePath: 'AnimTree',
+        blendSpaceName: 'BlendSpace',
+        type: '1d',
+        points: [{ animation: 'idle', position: 0 }],
+        minSpace: 5,
+        maxSpace: 2,
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('less than maxSpace');
+    });
+
+    it('should return error when minSpaceY >= maxSpaceY for 2D', async () => {
+      const result = await handleBlendAnimations({
+        projectPath: '/path/to/project',
+        scenePath: 'scenes/main.tscn',
+        animTreePath: 'AnimTree',
+        blendSpaceName: 'BlendSpace',
+        type: '2d',
+        points: [{ animation: 'idle', positionX: 0, positionY: 0 }],
+        minSpaceY: 10,
+        maxSpaceY: 5,
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('less than maxSpaceY');
     });
   });
 });

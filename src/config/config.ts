@@ -70,7 +70,7 @@ export const mergeConfig = (userConfig?: Partial<GodotServerConfig>): GodotServe
 // Default configuration instance
 export const config = {
   SERVER_NAME: 'godot-mcp-server',
-  SERVER_VERSION: '0.1.0',
+  SERVER_VERSION: '0.3.0',
   DEBUG_MODE,
   GODOT_DEBUG_MODE,
   READ_ONLY_MODE,

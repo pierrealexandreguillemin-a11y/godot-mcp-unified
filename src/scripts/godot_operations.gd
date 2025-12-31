@@ -99,6 +99,20 @@ func _init():
             create_audio_bus(params)
         "add_audio_effect":
             add_audio_effect(params)
+        # Navigation operations
+        "create_navigation_region":
+            create_navigation_region(params)
+        # Particles operations
+        "create_gpu_particles":
+            create_gpu_particles(params)
+        # UI operations
+        "create_ui_container":
+            create_ui_container(params)
+        "create_control":
+            create_control(params)
+        # Lighting operations
+        "create_light":
+            create_light(params)
         _:
             log_error("Unknown operation: " + operation)
             quit(1)
@@ -814,7 +828,7 @@ func load_sprite(params):
         print("Original node path: " + node_path)
     
     if node_path.begins_with("root/"):
-        node_path = node_path.substr(5)  # Remove "root/" prefix
+        node_path = node_path.replace("root/", "")
         if debug_mode:
             print("Node path after removing 'root/' prefix: " + node_path)
     
@@ -1418,7 +1432,7 @@ func add_animation(params):
     # Find the AnimationPlayer node
     var player_path = params.player_node_path
     if player_path.begins_with("root/"):
-        player_path = player_path.substr(5)
+        player_path = player_path.replace("root/", "")
 
     var anim_player = null
     if player_path == "" or player_path == "root":
@@ -1495,7 +1509,7 @@ func add_animation_track(params):
     # Find the AnimationPlayer node
     var player_path = params.player_node_path
     if player_path.begins_with("root/"):
-        player_path = player_path.substr(5)
+        player_path = player_path.replace("root/", "")
 
     var anim_player = null
     if player_path == "" or player_path == "root":
@@ -1585,7 +1599,7 @@ func set_keyframe(params):
     # Find the AnimationPlayer node
     var player_path = params.player_node_path
     if player_path.begins_with("root/"):
-        player_path = player_path.substr(5)
+        player_path = player_path.replace("root/", "")
 
     var anim_player = null
     if player_path == "" or player_path == "root":
@@ -1676,7 +1690,7 @@ func create_collision_shape(params):
     # Find parent node
     var parent_path = params.parent_node_path
     if parent_path.begins_with("root/"):
-        parent_path = parent_path.substr(5)
+        parent_path = parent_path.replace("root/", "")
 
     var parent = scene_root
     if parent_path != "" and parent_path != "root":
@@ -1877,7 +1891,7 @@ func set_tile(params):
     # Find the TileMapLayer node
     var tilemap_path = params.tilemap_node_path
     if tilemap_path.begins_with("root/"):
-        tilemap_path = tilemap_path.substr(5)
+        tilemap_path = tilemap_path.replace("root/", "")
 
     var tilemap = null
     if tilemap_path == "" or tilemap_path == "root":
@@ -1937,7 +1951,7 @@ func paint_tiles(params):
     # Find the TileMapLayer node
     var tilemap_path = params.tilemap_node_path
     if tilemap_path.begins_with("root/"):
-        tilemap_path = tilemap_path.substr(5)
+        tilemap_path = tilemap_path.replace("root/", "")
 
     var tilemap = null
     if tilemap_path == "" or tilemap_path == "root":
@@ -2108,4 +2122,466 @@ func add_audio_effect(params):
         print("Audio effect '" + effect_class + "' added to bus '" + params.bus_name + "'")
     else:
         printerr("Failed to save bus layout: " + str(error))
+        quit(1)
+
+# =============================================================================
+# NAVIGATION OPERATIONS
+# =============================================================================
+
+# Create a NavigationRegion2D or NavigationRegion3D node
+func create_navigation_region(params):
+    print("Creating navigation region in scene: " + params.scene_path)
+
+    var full_scene_path = params.scene_path
+    if not full_scene_path.begins_with("res://"):
+        full_scene_path = "res://" + full_scene_path
+
+    if not FileAccess.file_exists(full_scene_path):
+        printerr("Scene file does not exist: " + full_scene_path)
+        quit(1)
+
+    var scene = load(full_scene_path)
+    if not scene:
+        printerr("Failed to load scene: " + full_scene_path)
+        quit(1)
+
+    var scene_root = scene.instantiate()
+
+    # Find parent node
+    var parent_path = params.parent_node_path if params.has("parent_node_path") else ""
+    if parent_path.begins_with("root/"):
+        parent_path = parent_path.replace("root/", "")
+
+    var parent = scene_root
+    if parent_path != "" and parent_path != "root":
+        parent = scene_root.get_node(parent_path)
+
+    if not parent:
+        printerr("Parent node not found: " + str(params.parent_node_path))
+        quit(1)
+
+    # Create the navigation region node
+    var is_3d = params.is_3d if params.has("is_3d") else false
+    var nav_region
+
+    if is_3d:
+        nav_region = NavigationRegion3D.new()
+    else:
+        nav_region = NavigationRegion2D.new()
+
+    nav_region.name = params.node_name
+
+    # Load navigation mesh if provided
+    if params.has("navigation_mesh_path") and params.navigation_mesh_path:
+        var mesh_path = params.navigation_mesh_path
+        if not mesh_path.begins_with("res://"):
+            mesh_path = "res://" + mesh_path
+        var nav_mesh = load(mesh_path)
+        if nav_mesh:
+            if is_3d:
+                nav_region.navigation_mesh = nav_mesh
+            else:
+                nav_region.navigation_polygon = nav_mesh
+
+    # Add to parent
+    parent.add_child(nav_region)
+    nav_region.owner = scene_root
+
+    if debug_mode:
+        print("Created NavigationRegion" + ("3D" if is_3d else "2D") + ": " + params.node_name)
+
+    # Save the scene
+    var packed_scene = PackedScene.new()
+    var result = packed_scene.pack(scene_root)
+
+    if result == OK:
+        var save_error = ResourceSaver.save(packed_scene, full_scene_path)
+        if save_error == OK:
+            print("NavigationRegion created successfully: " + params.node_name)
+        else:
+            printerr("Failed to save scene: " + str(save_error))
+            quit(1)
+    else:
+        printerr("Failed to pack scene: " + str(result))
+        quit(1)
+
+# =============================================================================
+# PARTICLES OPERATIONS
+# =============================================================================
+
+# Create a GPUParticles2D or GPUParticles3D node
+func create_gpu_particles(params):
+    print("Creating GPU particles in scene: " + params.scene_path)
+
+    var full_scene_path = params.scene_path
+    if not full_scene_path.begins_with("res://"):
+        full_scene_path = "res://" + full_scene_path
+
+    if not FileAccess.file_exists(full_scene_path):
+        printerr("Scene file does not exist: " + full_scene_path)
+        quit(1)
+
+    var scene = load(full_scene_path)
+    if not scene:
+        printerr("Failed to load scene: " + full_scene_path)
+        quit(1)
+
+    var scene_root = scene.instantiate()
+
+    # Find parent node
+    var parent_path = params.parent_node_path if params.has("parent_node_path") else ""
+    if parent_path.begins_with("root/"):
+        parent_path = parent_path.replace("root/", "")
+
+    var parent = scene_root
+    if parent_path != "" and parent_path != "root":
+        parent = scene_root.get_node(parent_path)
+
+    if not parent:
+        printerr("Parent node not found: " + str(params.parent_node_path))
+        quit(1)
+
+    # Create the particles node
+    var is_3d = params.is_3d if params.has("is_3d") else false
+    var particles
+
+    if is_3d:
+        particles = GPUParticles3D.new()
+    else:
+        particles = GPUParticles2D.new()
+
+    particles.name = params.node_name
+
+    # Set properties
+    if params.has("amount"):
+        particles.amount = int(params.amount)
+
+    if params.has("lifetime"):
+        particles.lifetime = float(params.lifetime)
+
+    if params.has("one_shot"):
+        particles.one_shot = params.one_shot
+
+    if params.has("preprocess"):
+        particles.preprocess = float(params.preprocess)
+
+    if params.has("emitting"):
+        particles.emitting = params.emitting
+
+    # Load process material if provided
+    if params.has("material_path") and params.material_path:
+        var mat_path = params.material_path
+        if not mat_path.begins_with("res://"):
+            mat_path = "res://" + mat_path
+        var material = load(mat_path)
+        if material:
+            particles.process_material = material
+
+    # Add to parent
+    parent.add_child(particles)
+    particles.owner = scene_root
+
+    if debug_mode:
+        print("Created GPUParticles" + ("3D" if is_3d else "2D") + ": " + params.node_name)
+
+    # Save the scene
+    var packed_scene = PackedScene.new()
+    var result = packed_scene.pack(scene_root)
+
+    if result == OK:
+        var save_error = ResourceSaver.save(packed_scene, full_scene_path)
+        if save_error == OK:
+            print("GPUParticles created successfully: " + params.node_name + " (amount: " + str(particles.amount) + ")")
+        else:
+            printerr("Failed to save scene: " + str(save_error))
+            quit(1)
+    else:
+        printerr("Failed to pack scene: " + str(result))
+        quit(1)
+
+# =============================================================================
+# UI OPERATIONS
+# =============================================================================
+
+# Create a UI Container node
+func create_ui_container(params):
+    print("Creating UI container in scene: " + params.scene_path)
+
+    var full_scene_path = params.scene_path
+    if not full_scene_path.begins_with("res://"):
+        full_scene_path = "res://" + full_scene_path
+
+    if not FileAccess.file_exists(full_scene_path):
+        printerr("Scene file does not exist: " + full_scene_path)
+        quit(1)
+
+    var scene = load(full_scene_path)
+    if not scene:
+        printerr("Failed to load scene: " + full_scene_path)
+        quit(1)
+
+    var scene_root = scene.instantiate()
+
+    # Find parent node
+    var parent_path = params.parent_node_path if params.has("parent_node_path") else ""
+    if parent_path.begins_with("root/"):
+        parent_path = parent_path.replace("root/", "")
+
+    var parent = scene_root
+    if parent_path != "" and parent_path != "root":
+        parent = scene_root.get_node(parent_path)
+
+    if not parent:
+        printerr("Parent node not found: " + str(params.parent_node_path))
+        quit(1)
+
+    # Create the container node
+    var container = instantiate_class(params.node_type)
+    if not container:
+        printerr("Failed to create container of type: " + params.node_type)
+        quit(1)
+
+    container.name = params.node_name
+
+    # Set columns for GridContainer
+    if params.has("columns") and params.node_type == "GridContainer":
+        container.columns = int(params.columns)
+
+    # Set custom minimum size
+    if params.has("custom_minimum_size"):
+        var size = params.custom_minimum_size
+        container.custom_minimum_size = Vector2(size.x, size.y)
+
+    # Set anchors preset
+    if params.has("anchors_preset"):
+        match params.anchors_preset:
+            "full_rect":
+                container.set_anchors_preset(Control.PRESET_FULL_RECT)
+            "center":
+                container.set_anchors_preset(Control.PRESET_CENTER)
+            "top_left":
+                container.set_anchors_preset(Control.PRESET_TOP_LEFT)
+            "top_right":
+                container.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+            "bottom_left":
+                container.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+            "bottom_right":
+                container.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+
+    # Add to parent
+    parent.add_child(container)
+    container.owner = scene_root
+
+    if debug_mode:
+        print("Created UI container: " + params.node_name + " (" + params.node_type + ")")
+
+    # Save the scene
+    var packed_scene = PackedScene.new()
+    var result = packed_scene.pack(scene_root)
+
+    if result == OK:
+        var save_error = ResourceSaver.save(packed_scene, full_scene_path)
+        if save_error == OK:
+            print("UI Container created successfully: " + params.node_name + " (" + params.node_type + ")")
+        else:
+            printerr("Failed to save scene: " + str(save_error))
+            quit(1)
+    else:
+        printerr("Failed to pack scene: " + str(result))
+        quit(1)
+
+# Create a UI Control node
+func create_control(params):
+    print("Creating UI control in scene: " + params.scene_path)
+
+    var full_scene_path = params.scene_path
+    if not full_scene_path.begins_with("res://"):
+        full_scene_path = "res://" + full_scene_path
+
+    if not FileAccess.file_exists(full_scene_path):
+        printerr("Scene file does not exist: " + full_scene_path)
+        quit(1)
+
+    var scene = load(full_scene_path)
+    if not scene:
+        printerr("Failed to load scene: " + full_scene_path)
+        quit(1)
+
+    var scene_root = scene.instantiate()
+
+    # Find parent node
+    var parent_path = params.parent_node_path if params.has("parent_node_path") else ""
+    if parent_path.begins_with("root/"):
+        parent_path = parent_path.replace("root/", "")
+
+    var parent = scene_root
+    if parent_path != "" and parent_path != "root":
+        parent = scene_root.get_node(parent_path)
+
+    if not parent:
+        printerr("Parent node not found: " + str(params.parent_node_path))
+        quit(1)
+
+    # Create the control node
+    var control = instantiate_class(params.node_type)
+    if not control:
+        printerr("Failed to create control of type: " + params.node_type)
+        quit(1)
+
+    control.name = params.node_name
+
+    # Set text for appropriate controls
+    if params.has("text"):
+        if control is Button or control is Label or control is LineEdit or control is TextEdit:
+            control.text = params.text
+
+    # Set placeholder text
+    if params.has("placeholder_text"):
+        if control is LineEdit:
+            control.placeholder_text = params.placeholder_text
+        elif control is TextEdit:
+            control.placeholder_text = params.placeholder_text
+
+    # Set texture for TextureRect
+    if params.has("texture_path") and control is TextureRect:
+        var tex_path = params.texture_path
+        if not tex_path.begins_with("res://"):
+            tex_path = "res://" + tex_path
+        var texture = load(tex_path)
+        if texture:
+            control.texture = texture
+
+    # Set color for ColorRect
+    if params.has("color") and control is ColorRect:
+        var c = params.color
+        var a = c.a if c.has("a") else 1.0
+        control.color = Color(c.r, c.g, c.b, a)
+
+    # Set range values for Range controls
+    if params.has("min_value") and control is Range:
+        control.min_value = float(params.min_value)
+    if params.has("max_value") and control is Range:
+        control.max_value = float(params.max_value)
+    if params.has("value") and control is Range:
+        control.value = float(params.value)
+
+    # Add to parent
+    parent.add_child(control)
+    control.owner = scene_root
+
+    if debug_mode:
+        print("Created UI control: " + params.node_name + " (" + params.node_type + ")")
+
+    # Save the scene
+    var packed_scene = PackedScene.new()
+    var result = packed_scene.pack(scene_root)
+
+    if result == OK:
+        var save_error = ResourceSaver.save(packed_scene, full_scene_path)
+        if save_error == OK:
+            print("UI Control created successfully: " + params.node_name + " (" + params.node_type + ")")
+        else:
+            printerr("Failed to save scene: " + str(save_error))
+            quit(1)
+    else:
+        printerr("Failed to pack scene: " + str(result))
+        quit(1)
+
+# =============================================================================
+# LIGHTING OPERATIONS
+# =============================================================================
+
+# Create a Light2D or Light3D node
+func create_light(params):
+    print("Creating light in scene: " + params.scene_path)
+
+    var full_scene_path = params.scene_path
+    if not full_scene_path.begins_with("res://"):
+        full_scene_path = "res://" + full_scene_path
+
+    if not FileAccess.file_exists(full_scene_path):
+        printerr("Scene file does not exist: " + full_scene_path)
+        quit(1)
+
+    var scene = load(full_scene_path)
+    if not scene:
+        printerr("Failed to load scene: " + full_scene_path)
+        quit(1)
+
+    var scene_root = scene.instantiate()
+
+    # Find parent node
+    var parent_path = params.parent_node_path if params.has("parent_node_path") else ""
+    if parent_path.begins_with("root/"):
+        parent_path = parent_path.replace("root/", "")
+
+    var parent = scene_root
+    if parent_path != "" and parent_path != "root":
+        parent = scene_root.get_node(parent_path)
+
+    if not parent:
+        printerr("Parent node not found: " + str(params.parent_node_path))
+        quit(1)
+
+    # Create the light node
+    var light = instantiate_class(params.node_type)
+    if not light:
+        printerr("Failed to create light of type: " + params.node_type)
+        quit(1)
+
+    light.name = params.node_name
+
+    # Set color
+    if params.has("color"):
+        var c = params.color
+        light.light_color = Color(c.r, c.g, c.b)
+
+    # Set energy
+    if params.has("energy"):
+        light.light_energy = float(params.energy)
+
+    # Set range for OmniLight3D and SpotLight3D
+    if params.has("range"):
+        if light is OmniLight3D:
+            light.omni_range = float(params.range)
+        elif light is SpotLight3D:
+            light.spot_range = float(params.range)
+
+    # Set spot angle for SpotLight3D
+    if params.has("spot_angle") and light is SpotLight3D:
+        light.spot_angle = float(params.spot_angle)
+
+    # Set shadow
+    if params.has("shadow_enabled"):
+        light.shadow_enabled = params.shadow_enabled
+
+    # Set texture for PointLight2D
+    if params.has("texture_path") and light is PointLight2D:
+        var tex_path = params.texture_path
+        if not tex_path.begins_with("res://"):
+            tex_path = "res://" + tex_path
+        var texture = load(tex_path)
+        if texture:
+            light.texture = texture
+
+    # Add to parent
+    parent.add_child(light)
+    light.owner = scene_root
+
+    if debug_mode:
+        print("Created light: " + params.node_name + " (" + params.node_type + ")")
+
+    # Save the scene
+    var packed_scene = PackedScene.new()
+    var result = packed_scene.pack(scene_root)
+
+    if result == OK:
+        var save_error = ResourceSaver.save(packed_scene, full_scene_path)
+        if save_error == OK:
+            print("Light created successfully: " + params.node_name + " (" + params.node_type + ")")
+        else:
+            printerr("Failed to save scene: " + str(save_error))
+            quit(1)
+    else:
+        printerr("Failed to pack scene: " + str(result))
         quit(1)

@@ -33,6 +33,7 @@ import { getProjectSettingsDefinition, handleGetProjectSettings } from './projec
 import { setProjectSettingDefinition, handleSetProjectSetting } from './project/SetProjectSettingTool';
 import { validateConversionDefinition, handleValidateConversion } from './project/ValidateConversionTool';
 import { exportPackDefinition, handleExportPack } from './project/ExportPackTool';
+import { listExportPresetsDefinition, handleListExportPresets } from './project/ListExportPresetsTool';
 
 // Scene tools
 import { createSceneDefinition, handleCreateScene } from './scene/CreateSceneTool';
@@ -95,6 +96,31 @@ import { paintTilesDefinition, handlePaintTiles } from './tilemap/PaintTilesTool
 import { createAudioBusDefinition, handleCreateAudioBus } from './audio/CreateAudioBusTool';
 import { setupAudioPlayerDefinition, handleSetupAudioPlayer } from './audio/SetupAudioPlayerTool';
 import { addAudioEffectDefinition, handleAddAudioEffect } from './audio/AddAudioEffectTool';
+
+// Shader tools
+import { createShaderDefinition, handleCreateShader } from './shader/CreateShaderTool';
+import { createShaderMaterialDefinition, handleCreateShaderMaterial } from './shader/CreateShaderMaterialTool';
+
+// Navigation tools
+import { createNavigationRegionDefinition, handleCreateNavigationRegion } from './navigation/CreateNavigationRegionTool';
+import { bakeNavigationMeshDefinition, handleBakeNavigationMesh } from './navigation/BakeNavigationMeshTool';
+
+// Particles tools
+import { createGPUParticlesDefinition, handleCreateGPUParticles } from './particles/CreateGPUParticlesTool';
+import { createParticleMaterialDefinition, handleCreateParticleMaterial } from './particles/CreateParticleMaterialTool';
+
+// UI tools
+import { createUIContainerDefinition, handleCreateUIContainer } from './ui/CreateUIContainerTool';
+import { createControlDefinition, handleCreateControl } from './ui/CreateControlTool';
+
+// Lighting tools
+import { createLightDefinition, handleCreateLight } from './lighting/CreateLightTool';
+import { setupEnvironmentDefinition, handleSetupEnvironment } from './lighting/SetupEnvironmentTool';
+
+// Asset tools
+import { listAssetsDefinition, handleListAssets } from './asset/ListAssetsTool';
+import { importAssetDefinition, handleImportAsset } from './asset/ImportAssetTool';
+import { reimportAssetsDefinition, handleReimportAssets } from './asset/ReimportAssetsTool';
 
 export interface ToolRegistration {
   definition: ToolDefinition;
@@ -245,6 +271,14 @@ export const toolRegistry: Map<string, ToolRegistration> = new Map([
       definition: exportPackDefinition,
       handler: handleExportPack,
       readOnly: false,
+    },
+  ],
+  [
+    'list_export_presets',
+    {
+      definition: listExportPresetsDefinition,
+      handler: handleListExportPresets,
+      readOnly: true,
     },
   ],
 
@@ -590,6 +624,122 @@ export const toolRegistry: Map<string, ToolRegistration> = new Map([
     {
       definition: addAudioEffectDefinition,
       handler: handleAddAudioEffect,
+      readOnly: false,
+    },
+  ],
+
+  // Shader tools
+  [
+    'create_shader',
+    {
+      definition: createShaderDefinition,
+      handler: handleCreateShader,
+      readOnly: false,
+    },
+  ],
+  [
+    'create_shader_material',
+    {
+      definition: createShaderMaterialDefinition,
+      handler: handleCreateShaderMaterial,
+      readOnly: false,
+    },
+  ],
+
+  // Navigation tools
+  [
+    'create_navigation_region',
+    {
+      definition: createNavigationRegionDefinition,
+      handler: handleCreateNavigationRegion,
+      readOnly: false,
+    },
+  ],
+  [
+    'bake_navigation_mesh',
+    {
+      definition: bakeNavigationMeshDefinition,
+      handler: handleBakeNavigationMesh,
+      readOnly: false,
+    },
+  ],
+
+  // Particles tools
+  [
+    'create_gpu_particles',
+    {
+      definition: createGPUParticlesDefinition,
+      handler: handleCreateGPUParticles,
+      readOnly: false,
+    },
+  ],
+  [
+    'create_particle_material',
+    {
+      definition: createParticleMaterialDefinition,
+      handler: handleCreateParticleMaterial,
+      readOnly: false,
+    },
+  ],
+
+  // UI tools
+  [
+    'create_ui_container',
+    {
+      definition: createUIContainerDefinition,
+      handler: handleCreateUIContainer,
+      readOnly: false,
+    },
+  ],
+  [
+    'create_control',
+    {
+      definition: createControlDefinition,
+      handler: handleCreateControl,
+      readOnly: false,
+    },
+  ],
+
+  // Lighting tools
+  [
+    'create_light',
+    {
+      definition: createLightDefinition,
+      handler: handleCreateLight,
+      readOnly: false,
+    },
+  ],
+  [
+    'setup_environment',
+    {
+      definition: setupEnvironmentDefinition,
+      handler: handleSetupEnvironment,
+      readOnly: false,
+    },
+  ],
+
+  // Asset tools
+  [
+    'list_assets',
+    {
+      definition: listAssetsDefinition,
+      handler: handleListAssets,
+      readOnly: true,
+    },
+  ],
+  [
+    'import_asset',
+    {
+      definition: importAssetDefinition,
+      handler: handleImportAsset,
+      readOnly: false,
+    },
+  ],
+  [
+    'reimport_assets',
+    {
+      definition: reimportAssetsDefinition,
+      handler: handleReimportAssets,
       readOnly: false,
     },
   ],

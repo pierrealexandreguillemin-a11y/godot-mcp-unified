@@ -306,19 +306,32 @@ Potentiel: Fine-tuner qwen2.5-coder sur ce dataset
 8. TileMap tools (4 outils) ✅
 9. Audio tools (3 outils) ✅
 
-### Phase 3 - Ressources (EN COURS)
-10. `list_resources` - existant
-11. `create_resource` - existant
-12. `list_assets`
+### Phase 3 - Visual & Navigation ✅ COMPLETÉ (v0.5.0)
+10. Shader tools (2 outils) ✅
+    - `create_shader`, `create_shader_material`
+11. Navigation tools (2 outils) ✅
+    - `create_navigation_region`, `bake_navigation_mesh`
+12. Particles tools (2 outils) ✅
+    - `create_gpu_particles`, `create_particle_material`
+13. UI tools (2 outils) ✅
+    - `create_ui_container`, `create_control`
+14. Lighting tools (2 outils) ✅
+    - `create_light`, `setup_environment`
 
-### Phase 4 - Export
-13. `export_project`
-14. `list_export_presets`
+### Phase 4 - Resources & Assets ✅ COMPLETÉ (v0.6.0)
+15. `list_assets` ✅
+16. `import_asset` ✅
+17. `reimport_assets` ✅
 
-### Phase 5 - Avance
-15. Plugin Godot companion (TCP) ✅ (GodotBridge)
-16. Batch operations
-17. WebSocket live debug
+### Phase 5 - Export ✅ COMPLETÉ (v0.7.0)
+18. `export_project` - existant ✅
+19. `export_pack` - existant ✅
+20. `list_export_presets` ✅
+
+### Phase 6 - Avancé (PROCHAINE)
+21. Plugin Godot companion (TCP) ✅ (GodotBridge)
+22. Batch operations
+23. WebSocket live debug
 
 ---
 
@@ -335,4 +348,4 @@ Potentiel: Fine-tuner qwen2.5-coder sur ce dataset
 ---
 
 *Document mis à jour le 31 décembre 2024*
-*Version actuelle: 0.4.0 - 54 tools*
+*Version actuelle: 0.7.0 - 72 tools*

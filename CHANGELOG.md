@@ -5,6 +5,67 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2024-12-31
+
+### Added
+- **Export Tools** (1 tool):
+  - `list_export_presets`: List all export presets from export_presets.cfg
+
+- Unit tests for export tool
+
+### Changed
+- Tool count increased from 71 to 72
+
+## [0.6.0] - 2024-12-31
+
+### Added
+- **Asset Tools** (3 tools):
+  - `list_assets`: List all assets (images, audio, 3D models, fonts) in a Godot project
+  - `import_asset`: Copy external asset file into project (auto-imported by Godot)
+  - `reimport_assets`: Force reimport via touch or .import deletion
+
+- Unit tests for all 3 new tools
+- Asset category filtering (texture, audio, model, font)
+- .import file detection for assets
+
+### Changed
+- Tool count increased from 68 to 71
+- Updated ROADMAP.md with Phase 4 status
+
+### Fixed
+- Corrected tool count (was documented as 66, actual was 68)
+
+## [0.5.0] - 2024-12-31
+
+### Added
+- **Shader Tools** (2 tools):
+  - `create_shader`: Create .gdshader files with shader_type, render_mode, vertex/fragment/light code
+  - `create_shader_material`: Create ShaderMaterial resource with shader reference and parameters
+
+- **Navigation Tools** (2 tools):
+  - `create_navigation_region`: Create NavigationRegion2D/3D node for pathfinding
+  - `bake_navigation_mesh`: Create NavigationPolygon (2D) or NavigationMesh (3D) resource
+
+- **Particles Tools** (2 tools):
+  - `create_gpu_particles`: Create GPUParticles2D/3D node with amount, lifetime, preprocess
+  - `create_particle_material`: Create ParticleProcessMaterial with emission shape, direction, gravity
+
+- **UI Tools** (2 tools):
+  - `create_ui_container`: Create Container nodes (VBox, HBox, Grid, Center, Margin, Panel, Scroll, Split, Tab, Flow)
+  - `create_control`: Create Control nodes (Button, Label, LineEdit, TextEdit, TextureRect, ColorRect, Slider, SpinBox, CheckBox)
+
+- **Lighting Tools** (2 tools):
+  - `create_light`: Create Light2D/3D nodes (Directional, Omni, Spot, Point)
+  - `setup_environment`: Create Environment resource with background, ambient light, fog, glow, SSAO, SSR, SDFGI
+
+- GDScript operations for create_navigation_region, create_gpu_particles, create_ui_container, create_control, create_light
+- Unit tests for all 10 new tools (303 total tests)
+- @types/fs-extra for TypeScript compatibility
+
+### Changed
+- Tool count increased from 54 to 68 (10 new tools + 4 previously undocumented)
+- Updated ROADMAP.md with Phase 3 status
+
 ## [0.4.0] - 2024-12-31
 
 ### Added

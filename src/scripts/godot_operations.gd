@@ -75,6 +75,30 @@ func _init():
             get_uid(params)
         "resave_resources":
             resave_resources(params)
+        # Animation operations
+        "add_animation":
+            add_animation(params)
+        "add_animation_track":
+            add_animation_track(params)
+        "set_keyframe":
+            set_keyframe(params)
+        # Physics operations
+        "create_collision_shape":
+            create_collision_shape(params)
+        "set_project_setting":
+            set_project_setting(params)
+        # TileMap operations
+        "create_tileset":
+            create_tileset(params)
+        "set_tile":
+            set_tile(params)
+        "paint_tiles":
+            paint_tiles(params)
+        # Audio operations
+        "create_audio_bus":
+            create_audio_bus(params)
+        "add_audio_effect":
+            add_audio_effect(params)
         _:
             log_error("Unknown operation: " + operation)
             quit(1)
@@ -1367,3 +1391,721 @@ func save_scene(params):
             printerr("Failed to save scene: " + str(error))
     else:
         printerr("Failed to pack scene: " + str(result))
+
+# =============================================================================
+# ANIMATION OPERATIONS
+# =============================================================================
+
+# Add an animation to an AnimationPlayer node
+func add_animation(params):
+    print("Adding animation to scene: " + params.scene_path)
+
+    var full_scene_path = params.scene_path
+    if not full_scene_path.begins_with("res://"):
+        full_scene_path = "res://" + full_scene_path
+
+    if not FileAccess.file_exists(full_scene_path):
+        printerr("Scene file does not exist: " + full_scene_path)
+        quit(1)
+
+    var scene = load(full_scene_path)
+    if not scene:
+        printerr("Failed to load scene: " + full_scene_path)
+        quit(1)
+
+    var scene_root = scene.instantiate()
+
+    # Find the AnimationPlayer node
+    var player_path = params.player_node_path
+    if player_path.begins_with("root/"):
+        player_path = player_path.substr(5)
+
+    var anim_player = null
+    if player_path == "" or player_path == "root":
+        anim_player = scene_root
+    else:
+        anim_player = scene_root.get_node(player_path)
+
+    if not anim_player or not anim_player is AnimationPlayer:
+        printerr("AnimationPlayer not found at: " + params.player_node_path)
+        quit(1)
+
+    if debug_mode:
+        print("Found AnimationPlayer: " + anim_player.name)
+
+    # Create new Animation
+    var animation = Animation.new()
+    animation.length = params.length if params.has("length") else 1.0
+
+    if params.has("loop") and params.loop:
+        animation.loop_mode = Animation.LOOP_LINEAR
+
+    # Get or create the default animation library
+    var library_name = ""
+    var library: AnimationLibrary
+
+    if anim_player.has_animation_library(library_name):
+        library = anim_player.get_animation_library(library_name)
+    else:
+        library = AnimationLibrary.new()
+        anim_player.add_animation_library(library_name, library)
+
+    # Add the animation to the library
+    var anim_name = params.animation_name
+    var error = library.add_animation(anim_name, animation)
+
+    if error != OK:
+        printerr("Failed to add animation: " + str(error))
+        quit(1)
+
+    # Save the scene
+    var packed_scene = PackedScene.new()
+    var result = packed_scene.pack(scene_root)
+
+    if result == OK:
+        var save_error = ResourceSaver.save(packed_scene, full_scene_path)
+        if save_error == OK:
+            print("Animation '" + anim_name + "' added successfully (length: " + str(animation.length) + "s)")
+        else:
+            printerr("Failed to save scene: " + str(save_error))
+            quit(1)
+    else:
+        printerr("Failed to pack scene: " + str(result))
+        quit(1)
+
+# Add a track to an animation
+func add_animation_track(params):
+    print("Adding animation track to scene: " + params.scene_path)
+
+    var full_scene_path = params.scene_path
+    if not full_scene_path.begins_with("res://"):
+        full_scene_path = "res://" + full_scene_path
+
+    if not FileAccess.file_exists(full_scene_path):
+        printerr("Scene file does not exist: " + full_scene_path)
+        quit(1)
+
+    var scene = load(full_scene_path)
+    if not scene:
+        printerr("Failed to load scene: " + full_scene_path)
+        quit(1)
+
+    var scene_root = scene.instantiate()
+
+    # Find the AnimationPlayer node
+    var player_path = params.player_node_path
+    if player_path.begins_with("root/"):
+        player_path = player_path.substr(5)
+
+    var anim_player = null
+    if player_path == "" or player_path == "root":
+        anim_player = scene_root
+    else:
+        anim_player = scene_root.get_node(player_path)
+
+    if not anim_player or not anim_player is AnimationPlayer:
+        printerr("AnimationPlayer not found at: " + params.player_node_path)
+        quit(1)
+
+    # Get the animation
+    var anim_name = params.animation_name
+    if not anim_player.has_animation(anim_name):
+        printerr("Animation not found: " + anim_name)
+        quit(1)
+
+    var animation = anim_player.get_animation(anim_name)
+
+    # Determine track type
+    var track_type = Animation.TYPE_VALUE  # Default
+    match params.track_type:
+        "value":
+            track_type = Animation.TYPE_VALUE
+        "position_2d", "position_3d":
+            track_type = Animation.TYPE_POSITION_3D
+        "rotation_2d", "rotation_3d":
+            track_type = Animation.TYPE_ROTATION_3D
+        "scale_2d", "scale_3d":
+            track_type = Animation.TYPE_SCALE_3D
+        "method":
+            track_type = Animation.TYPE_METHOD
+        "bezier":
+            track_type = Animation.TYPE_BEZIER
+        "audio":
+            track_type = Animation.TYPE_AUDIO
+        "animation":
+            track_type = Animation.TYPE_ANIMATION
+
+    # Create the track
+    var track_idx = animation.add_track(track_type)
+
+    # Set track path
+    var node_path = params.node_path
+    if params.has("property") and params.property:
+        node_path = node_path + ":" + params.property
+
+    animation.track_set_path(track_idx, NodePath(node_path))
+
+    if debug_mode:
+        print("Added track " + str(track_idx) + " of type " + params.track_type + " for " + node_path)
+
+    # Save the scene
+    var packed_scene = PackedScene.new()
+    var result = packed_scene.pack(scene_root)
+
+    if result == OK:
+        var save_error = ResourceSaver.save(packed_scene, full_scene_path)
+        if save_error == OK:
+            print("Track added successfully to animation '" + anim_name + "' (index: " + str(track_idx) + ")")
+        else:
+            printerr("Failed to save scene: " + str(save_error))
+            quit(1)
+    else:
+        printerr("Failed to pack scene: " + str(result))
+        quit(1)
+
+# Set a keyframe in an animation track
+func set_keyframe(params):
+    print("Setting keyframe in scene: " + params.scene_path)
+
+    var full_scene_path = params.scene_path
+    if not full_scene_path.begins_with("res://"):
+        full_scene_path = "res://" + full_scene_path
+
+    if not FileAccess.file_exists(full_scene_path):
+        printerr("Scene file does not exist: " + full_scene_path)
+        quit(1)
+
+    var scene = load(full_scene_path)
+    if not scene:
+        printerr("Failed to load scene: " + full_scene_path)
+        quit(1)
+
+    var scene_root = scene.instantiate()
+
+    # Find the AnimationPlayer node
+    var player_path = params.player_node_path
+    if player_path.begins_with("root/"):
+        player_path = player_path.substr(5)
+
+    var anim_player = null
+    if player_path == "" or player_path == "root":
+        anim_player = scene_root
+    else:
+        anim_player = scene_root.get_node(player_path)
+
+    if not anim_player or not anim_player is AnimationPlayer:
+        printerr("AnimationPlayer not found at: " + params.player_node_path)
+        quit(1)
+
+    # Get the animation
+    var anim_name = params.animation_name
+    if not anim_player.has_animation(anim_name):
+        printerr("Animation not found: " + anim_name)
+        quit(1)
+
+    var animation = anim_player.get_animation(anim_name)
+
+    # Validate track index
+    var track_idx = int(params.track_index)
+    if track_idx < 0 or track_idx >= animation.get_track_count():
+        printerr("Invalid track index: " + str(track_idx))
+        quit(1)
+
+    # Insert the keyframe
+    var time = float(params.time)
+    var value = params.value
+
+    # Convert value if needed (handle Vector2, Vector3, Color from dict)
+    if typeof(value) == TYPE_DICTIONARY:
+        if value.has("x") and value.has("y"):
+            if value.has("z"):
+                value = Vector3(value.x, value.y, value.z)
+            else:
+                value = Vector2(value.x, value.y)
+        elif value.has("r") and value.has("g") and value.has("b"):
+            var a = value.a if value.has("a") else 1.0
+            value = Color(value.r, value.g, value.b, a)
+
+    var key_idx = animation.track_insert_key(track_idx, time, value)
+
+    # Set transition and easing if provided
+    if params.has("transition"):
+        animation.track_set_key_transition(track_idx, key_idx, params.transition)
+
+    if debug_mode:
+        print("Inserted keyframe at time " + str(time) + " with value " + str(value))
+
+    # Save the scene
+    var packed_scene = PackedScene.new()
+    var result = packed_scene.pack(scene_root)
+
+    if result == OK:
+        var save_error = ResourceSaver.save(packed_scene, full_scene_path)
+        if save_error == OK:
+            print("Keyframe set successfully at " + str(time) + "s in track " + str(track_idx))
+        else:
+            printerr("Failed to save scene: " + str(save_error))
+            quit(1)
+    else:
+        printerr("Failed to pack scene: " + str(result))
+        quit(1)
+
+# =============================================================================
+# PHYSICS OPERATIONS
+# =============================================================================
+
+# Create a collision shape with specified shape type
+func create_collision_shape(params):
+    print("Creating collision shape in scene: " + params.scene_path)
+
+    var full_scene_path = params.scene_path
+    if not full_scene_path.begins_with("res://"):
+        full_scene_path = "res://" + full_scene_path
+
+    if not FileAccess.file_exists(full_scene_path):
+        printerr("Scene file does not exist: " + full_scene_path)
+        quit(1)
+
+    var scene = load(full_scene_path)
+    if not scene:
+        printerr("Failed to load scene: " + full_scene_path)
+        quit(1)
+
+    var scene_root = scene.instantiate()
+
+    # Find parent node
+    var parent_path = params.parent_node_path
+    if parent_path.begins_with("root/"):
+        parent_path = parent_path.substr(5)
+
+    var parent = scene_root
+    if parent_path != "" and parent_path != "root":
+        parent = scene_root.get_node(parent_path)
+
+    if not parent:
+        printerr("Parent node not found: " + params.parent_node_path)
+        quit(1)
+
+    # Determine if 2D or 3D
+    var is_3d = params.is_3d if params.has("is_3d") else false
+
+    # Create the collision shape node
+    var collision_shape
+    if is_3d:
+        collision_shape = CollisionShape3D.new()
+    else:
+        collision_shape = CollisionShape2D.new()
+
+    collision_shape.name = params.node_name
+
+    # Create the shape based on shape_type
+    var shape
+    var shape_params = params.shape_params if params.has("shape_params") else {}
+
+    if is_3d:
+        match params.shape_type:
+            "box":
+                shape = BoxShape3D.new()
+                if shape_params.has("size"):
+                    var s = shape_params.size
+                    shape.size = Vector3(s.x, s.y, s.z) if s.has("z") else Vector3(s.x, s.y, 1)
+            "sphere":
+                shape = SphereShape3D.new()
+                if shape_params.has("radius"):
+                    shape.radius = shape_params.radius
+            "capsule":
+                shape = CapsuleShape3D.new()
+                if shape_params.has("radius"):
+                    shape.radius = shape_params.radius
+                if shape_params.has("height"):
+                    shape.height = shape_params.height
+            "cylinder":
+                shape = CylinderShape3D.new()
+                if shape_params.has("radius"):
+                    shape.radius = shape_params.radius
+                if shape_params.has("height"):
+                    shape.height = shape_params.height
+            "convex":
+                shape = ConvexPolygonShape3D.new()
+            _:
+                printerr("Unknown 3D shape type: " + params.shape_type)
+                quit(1)
+    else:
+        match params.shape_type:
+            "rectangle":
+                shape = RectangleShape2D.new()
+                if shape_params.has("size"):
+                    var s = shape_params.size
+                    shape.size = Vector2(s.x, s.y)
+            "circle":
+                shape = CircleShape2D.new()
+                if shape_params.has("radius"):
+                    shape.radius = shape_params.radius
+            "capsule":
+                shape = CapsuleShape2D.new()
+                if shape_params.has("radius"):
+                    shape.radius = shape_params.radius
+                if shape_params.has("height"):
+                    shape.height = shape_params.height
+            "polygon":
+                shape = ConvexPolygonShape2D.new()
+                if shape_params.has("points"):
+                    var points = PackedVector2Array()
+                    for p in shape_params.points:
+                        points.append(Vector2(p.x, p.y))
+                    shape.points = points
+            _:
+                printerr("Unknown 2D shape type: " + params.shape_type)
+                quit(1)
+
+    collision_shape.shape = shape
+
+    # Add to parent
+    parent.add_child(collision_shape)
+    collision_shape.owner = scene_root
+
+    if debug_mode:
+        print("Created " + ("3D" if is_3d else "2D") + " collision shape: " + params.node_name)
+
+    # Save the scene
+    var packed_scene = PackedScene.new()
+    var result = packed_scene.pack(scene_root)
+
+    if result == OK:
+        var save_error = ResourceSaver.save(packed_scene, full_scene_path)
+        if save_error == OK:
+            print("CollisionShape created successfully: " + params.node_name + " (" + params.shape_type + ")")
+        else:
+            printerr("Failed to save scene: " + str(save_error))
+            quit(1)
+    else:
+        printerr("Failed to pack scene: " + str(result))
+        quit(1)
+
+# Set a project setting
+func set_project_setting(params):
+    print("Setting project setting: " + params.setting)
+
+    var setting_path = params.setting
+    var value = params.value
+
+    ProjectSettings.set_setting(setting_path, value)
+
+    # Save project settings
+    var error = ProjectSettings.save()
+
+    if error == OK:
+        print("Project setting '" + setting_path + "' set to: " + str(value))
+    else:
+        printerr("Failed to save project settings: " + str(error))
+        quit(1)
+
+# =============================================================================
+# TILEMAP OPERATIONS
+# =============================================================================
+
+# Create a TileSet resource
+func create_tileset(params):
+    print("Creating TileSet: " + params.tileset_path)
+
+    var tileset_path = params.tileset_path
+    if not tileset_path.begins_with("res://"):
+        tileset_path = "res://" + tileset_path
+
+    # Create new TileSet
+    var tileset = TileSet.new()
+
+    # Set tile size
+    var tile_size = params.tile_size
+    tileset.tile_size = Vector2i(int(tile_size.x), int(tile_size.y))
+
+    # Add texture source if provided
+    if params.has("texture_path") and params.texture_path:
+        var texture_path = params.texture_path
+        if not texture_path.begins_with("res://"):
+            texture_path = "res://" + texture_path
+
+        var texture = load(texture_path)
+        if texture:
+            var source = TileSetAtlasSource.new()
+            source.texture = texture
+            source.texture_region_size = tileset.tile_size
+            tileset.add_source(source)
+            if debug_mode:
+                print("Added texture source from: " + texture_path)
+        else:
+            printerr("Warning: Could not load texture: " + texture_path)
+
+    # Ensure directory exists
+    var dir_path = tileset_path.get_base_dir()
+    if dir_path != "res://":
+        var dir = DirAccess.open("res://")
+        if dir:
+            var relative_dir = dir_path.substr(6)  # Remove "res://"
+            if not dir.dir_exists(relative_dir):
+                dir.make_dir_recursive(relative_dir)
+
+    # Save the TileSet
+    var error = ResourceSaver.save(tileset, tileset_path)
+
+    if error == OK:
+        print("TileSet created successfully at: " + tileset_path)
+        print("Tile size: " + str(tileset.tile_size))
+    else:
+        printerr("Failed to save TileSet: " + str(error))
+        quit(1)
+
+# Set a single tile in a TileMapLayer
+func set_tile(params):
+    print("Setting tile in scene: " + params.scene_path)
+
+    var full_scene_path = params.scene_path
+    if not full_scene_path.begins_with("res://"):
+        full_scene_path = "res://" + full_scene_path
+
+    if not FileAccess.file_exists(full_scene_path):
+        printerr("Scene file does not exist: " + full_scene_path)
+        quit(1)
+
+    var scene = load(full_scene_path)
+    if not scene:
+        printerr("Failed to load scene: " + full_scene_path)
+        quit(1)
+
+    var scene_root = scene.instantiate()
+
+    # Find the TileMapLayer node
+    var tilemap_path = params.tilemap_node_path
+    if tilemap_path.begins_with("root/"):
+        tilemap_path = tilemap_path.substr(5)
+
+    var tilemap = null
+    if tilemap_path == "" or tilemap_path == "root":
+        tilemap = scene_root
+    else:
+        tilemap = scene_root.get_node(tilemap_path)
+
+    if not tilemap or not tilemap is TileMapLayer:
+        printerr("TileMapLayer not found at: " + params.tilemap_node_path)
+        quit(1)
+
+    # Set the tile
+    var pos = Vector2i(int(params.position.x), int(params.position.y))
+    var source_id = int(params.source_id)
+    var atlas_coords = Vector2i(int(params.atlas_coords.x), int(params.atlas_coords.y))
+    var alt_tile = int(params.alternative_tile) if params.has("alternative_tile") else 0
+
+    tilemap.set_cell(pos, source_id, atlas_coords, alt_tile)
+
+    if debug_mode:
+        print("Set tile at " + str(pos) + " to source " + str(source_id) + ", atlas " + str(atlas_coords))
+
+    # Save the scene
+    var packed_scene = PackedScene.new()
+    var result = packed_scene.pack(scene_root)
+
+    if result == OK:
+        var save_error = ResourceSaver.save(packed_scene, full_scene_path)
+        if save_error == OK:
+            print("Tile set successfully at position " + str(pos))
+        else:
+            printerr("Failed to save scene: " + str(save_error))
+            quit(1)
+    else:
+        printerr("Failed to pack scene: " + str(result))
+        quit(1)
+
+# Paint multiple tiles in a TileMapLayer
+func paint_tiles(params):
+    print("Painting tiles in scene: " + params.scene_path)
+
+    var full_scene_path = params.scene_path
+    if not full_scene_path.begins_with("res://"):
+        full_scene_path = "res://" + full_scene_path
+
+    if not FileAccess.file_exists(full_scene_path):
+        printerr("Scene file does not exist: " + full_scene_path)
+        quit(1)
+
+    var scene = load(full_scene_path)
+    if not scene:
+        printerr("Failed to load scene: " + full_scene_path)
+        quit(1)
+
+    var scene_root = scene.instantiate()
+
+    # Find the TileMapLayer node
+    var tilemap_path = params.tilemap_node_path
+    if tilemap_path.begins_with("root/"):
+        tilemap_path = tilemap_path.substr(5)
+
+    var tilemap = null
+    if tilemap_path == "" or tilemap_path == "root":
+        tilemap = scene_root
+    else:
+        tilemap = scene_root.get_node(tilemap_path)
+
+    if not tilemap or not tilemap is TileMapLayer:
+        printerr("TileMapLayer not found at: " + params.tilemap_node_path)
+        quit(1)
+
+    # Paint all tiles
+    var tiles = params.tiles
+    var count = 0
+
+    for tile in tiles:
+        var pos = Vector2i(int(tile.position.x), int(tile.position.y))
+        var source_id = int(tile.source_id)
+        var atlas_coords = Vector2i(int(tile.atlas_coords.x), int(tile.atlas_coords.y))
+        var alt_tile = int(tile.alternative_tile) if tile.has("alternative_tile") else 0
+
+        tilemap.set_cell(pos, source_id, atlas_coords, alt_tile)
+        count += 1
+
+    if debug_mode:
+        print("Painted " + str(count) + " tiles")
+
+    # Save the scene
+    var packed_scene = PackedScene.new()
+    var result = packed_scene.pack(scene_root)
+
+    if result == OK:
+        var save_error = ResourceSaver.save(packed_scene, full_scene_path)
+        if save_error == OK:
+            print("Successfully painted " + str(count) + " tiles")
+        else:
+            printerr("Failed to save scene: " + str(save_error))
+            quit(1)
+    else:
+        printerr("Failed to pack scene: " + str(result))
+        quit(1)
+
+# =============================================================================
+# AUDIO OPERATIONS
+# =============================================================================
+
+# Create an audio bus
+func create_audio_bus(params):
+    print("Creating audio bus: " + params.bus_name)
+
+    # Add new bus
+    var bus_count = AudioServer.bus_count
+    AudioServer.add_bus()
+    var new_bus_idx = bus_count  # The new bus is at the end
+
+    # Set bus name
+    AudioServer.set_bus_name(new_bus_idx, params.bus_name)
+
+    # Set parent bus (send)
+    var parent_bus = params.parent_bus if params.has("parent_bus") else "Master"
+    var parent_idx = AudioServer.get_bus_index(parent_bus)
+    if parent_idx >= 0:
+        AudioServer.set_bus_send(new_bus_idx, parent_bus)
+
+    # Set volume
+    if params.has("volume"):
+        AudioServer.set_bus_volume_db(new_bus_idx, params.volume)
+
+    # Set solo/mute
+    if params.has("solo"):
+        AudioServer.set_bus_solo(new_bus_idx, params.solo)
+    if params.has("mute"):
+        AudioServer.set_bus_mute(new_bus_idx, params.mute)
+
+    # Save the bus layout
+    var bus_layout = AudioServer.generate_bus_layout()
+    var layout_path = "res://default_bus_layout.tres"
+    var error = ResourceSaver.save(bus_layout, layout_path)
+
+    if error == OK:
+        print("Audio bus '" + params.bus_name + "' created successfully")
+        print("Parent bus: " + parent_bus)
+    else:
+        printerr("Failed to save bus layout: " + str(error))
+        quit(1)
+
+# Add an effect to an audio bus
+func add_audio_effect(params):
+    print("Adding audio effect to bus: " + params.bus_name)
+
+    # Find the bus
+    var bus_idx = AudioServer.get_bus_index(params.bus_name)
+    if bus_idx < 0:
+        printerr("Audio bus not found: " + params.bus_name)
+        quit(1)
+
+    # Create the effect based on type
+    var effect = null
+    var effect_class = params.effect_class
+
+    match effect_class:
+        "AudioEffectAmplify":
+            effect = AudioEffectAmplify.new()
+        "AudioEffectBandLimitFilter":
+            effect = AudioEffectBandLimitFilter.new()
+        "AudioEffectBandPassFilter":
+            effect = AudioEffectBandPassFilter.new()
+        "AudioEffectChorus":
+            effect = AudioEffectChorus.new()
+        "AudioEffectCompressor":
+            effect = AudioEffectCompressor.new()
+        "AudioEffectDelay":
+            effect = AudioEffectDelay.new()
+        "AudioEffectDistortion":
+            effect = AudioEffectDistortion.new()
+        "AudioEffectEQ6":
+            effect = AudioEffectEQ6.new()
+        "AudioEffectEQ10":
+            effect = AudioEffectEQ10.new()
+        "AudioEffectEQ21":
+            effect = AudioEffectEQ21.new()
+        "AudioEffectFilter":
+            effect = AudioEffectFilter.new()
+        "AudioEffectHighPassFilter":
+            effect = AudioEffectHighPassFilter.new()
+        "AudioEffectHighShelfFilter":
+            effect = AudioEffectHighShelfFilter.new()
+        "AudioEffectLimiter":
+            effect = AudioEffectLimiter.new()
+        "AudioEffectLowPassFilter":
+            effect = AudioEffectLowPassFilter.new()
+        "AudioEffectLowShelfFilter":
+            effect = AudioEffectLowShelfFilter.new()
+        "AudioEffectNotchFilter":
+            effect = AudioEffectNotchFilter.new()
+        "AudioEffectPanner":
+            effect = AudioEffectPanner.new()
+        "AudioEffectPhaser":
+            effect = AudioEffectPhaser.new()
+        "AudioEffectPitchShift":
+            effect = AudioEffectPitchShift.new()
+        "AudioEffectRecord":
+            effect = AudioEffectRecord.new()
+        "AudioEffectReverb":
+            effect = AudioEffectReverb.new()
+        "AudioEffectSpectrumAnalyzer":
+            effect = AudioEffectSpectrumAnalyzer.new()
+        "AudioEffectStereoEnhance":
+            effect = AudioEffectStereoEnhance.new()
+        _:
+            printerr("Unknown audio effect type: " + effect_class)
+            quit(1)
+
+    # Apply effect parameters if provided
+    if params.has("effect_params"):
+        for param_name in params.effect_params:
+            effect.set(param_name, params.effect_params[param_name])
+
+    # Add the effect to the bus
+    AudioServer.add_bus_effect(bus_idx, effect)
+
+    # Save the bus layout
+    var bus_layout = AudioServer.generate_bus_layout()
+    var layout_path = "res://default_bus_layout.tres"
+    var error = ResourceSaver.save(bus_layout, layout_path)
+
+    if error == OK:
+        print("Audio effect '" + effect_class + "' added to bus '" + params.bus_name + "'")
+    else:
+        printerr("Failed to save bus layout: " + str(error))
+        quit(1)

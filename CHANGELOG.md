@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2024-12-31
+
+### Added
+- **Batch Operations Tool** (1 tool):
+  - `batch_operations`: Execute multiple MCP tools in sequence with error handling
+    - Sequential execution with stopOnError option
+    - Validates tool names against registry
+    - Prevents recursive batch calls
+    - Limits to 100 operations max
+
+- **Debug Stream Tools** (3 tools):
+  - `start_debug_stream`: Start WebSocket server for real-time debug output
+  - `stop_debug_stream`: Stop the WebSocket debug stream server
+  - `get_debug_stream_status`: Get current status of debug stream server
+
+- **DebugStreamServer infrastructure**:
+  - WebSocket server for live Godot debug output streaming
+  - Polls ProcessManager for stdout/stderr
+  - Broadcasts to connected WebSocket clients
+
+- New dependency: `ws` ^8.18.0 for WebSocket support
+- Unit tests for all 4 new tools and DebugStreamServer
+
+### Changed
+- Tool count increased from 72 to 76
+
 ## [0.7.0] - 2024-12-31
 
 ### Added

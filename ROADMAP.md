@@ -328,10 +328,11 @@ Potentiel: Fine-tuner qwen2.5-coder sur ce dataset
 19. `export_pack` - existant ✅
 20. `list_export_presets` ✅
 
-### Phase 6 - Avancé (PROCHAINE)
+### Phase 6 - Advanced Operations ✅ COMPLETÉ (v0.8.0)
 21. Plugin Godot companion (TCP) ✅ (GodotBridge)
-22. Batch operations
-23. WebSocket live debug
+22. `batch_operations` ✅
+23. WebSocket live debug ✅
+    - `start_debug_stream`, `stop_debug_stream`, `get_debug_stream_status`
 
 ---
 
@@ -348,4 +349,4 @@ Potentiel: Fine-tuner qwen2.5-coder sur ce dataset
 ---
 
 *Document mis à jour le 31 décembre 2024*
-*Version actuelle: 0.7.0 - 72 tools*
+*Version actuelle: 0.8.0 - 76 tools*

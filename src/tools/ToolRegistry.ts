@@ -17,6 +17,9 @@ import { getGodotVersionDefinition, handleGetGodotVersion } from './system/GetGo
 // Debug tools
 import { stopProjectDefinition, handleStopProject } from './debug/StopProjectTool';
 import { getDebugOutputDefinition, handleGetDebugOutput } from './debug/GetDebugOutputTool';
+import { startDebugStreamDefinition, handleStartDebugStream } from './debug/StartDebugStreamTool';
+import { stopDebugStreamDefinition, handleStopDebugStream } from './debug/StopDebugStreamTool';
+import { getDebugStreamStatusDefinition, handleGetDebugStreamStatus } from './debug/GetDebugStreamStatusTool';
 
 // Project tools
 import { launchEditorDefinition, handleLaunchEditor } from './project/LaunchEditorTool';
@@ -122,6 +125,9 @@ import { listAssetsDefinition, handleListAssets } from './asset/ListAssetsTool';
 import { importAssetDefinition, handleImportAsset } from './asset/ImportAssetTool';
 import { reimportAssetsDefinition, handleReimportAssets } from './asset/ReimportAssetsTool';
 
+// Batch tools
+import { batchOperationsDefinition, handleBatchOperations } from './batch/BatchOperationsTool';
+
 export interface ToolRegistration {
   definition: ToolDefinition;
   handler: ToolHandler<BaseToolArgs>;
@@ -156,6 +162,30 @@ export const toolRegistry: Map<string, ToolRegistration> = new Map([
     {
       definition: getDebugOutputDefinition,
       handler: handleGetDebugOutput,
+      readOnly: true,
+    },
+  ],
+  [
+    'start_debug_stream',
+    {
+      definition: startDebugStreamDefinition,
+      handler: handleStartDebugStream,
+      readOnly: false,
+    },
+  ],
+  [
+    'stop_debug_stream',
+    {
+      definition: stopDebugStreamDefinition,
+      handler: handleStopDebugStream,
+      readOnly: false,
+    },
+  ],
+  [
+    'get_debug_stream_status',
+    {
+      definition: getDebugStreamStatusDefinition,
+      handler: handleGetDebugStreamStatus,
       readOnly: true,
     },
   ],
@@ -740,6 +770,16 @@ export const toolRegistry: Map<string, ToolRegistration> = new Map([
     {
       definition: reimportAssetsDefinition,
       handler: handleReimportAssets,
+      readOnly: false,
+    },
+  ],
+
+  // Batch tools
+  [
+    'batch_operations',
+    {
+      definition: batchOperationsDefinition,
+      handler: handleBatchOperations,
       readOnly: false,
     },
   ],

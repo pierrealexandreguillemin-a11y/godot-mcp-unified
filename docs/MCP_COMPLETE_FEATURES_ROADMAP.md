@@ -19,42 +19,58 @@
 
 ## Analyse comparative
 
-### Notre MCP actuel (godot-mcp-unified v0.3.0)
+### Notre MCP actuel (godot-mcp-unified v0.8.0)
 
-**40 outils existants:**
+**76 outils implémentés:**
 
-| Catégorie | Outils | Status |
-|-----------|--------|--------|
-| System | `get_godot_version` | ✅ |
-| Debug | `stop_project`, `get_debug_output` | ✅ |
-| Project | `launch_editor`, `run_project`, `list_projects`, `get_project_info`, `export_project`, `manage_autoloads`, `manage_input_actions`, `convert_3to4`, `generate_docs`, `validate_project`, `get_project_settings`, `set_project_setting`, `validate_conversion_3to4`, `export_pack` | ✅ |
-| Scene | `create_scene`, `add_node`, `edit_node`, `remove_node`, `load_sprite`, `export_mesh_library`, `save_scene`, `get_node_tree`, `duplicate_node`, `rename_node`, `move_node`, `instance_scene`, `connect_signal`, `manage_groups`, `list_scenes` | ✅ |
-| UID | `get_uid`, `update_project_uids` | ✅ |
-| Script | `list_scripts`, `read_script`, `write_script`, `delete_script`, `attach_script`, `detach_script`, `get_script_errors` | ✅ |
-| Resource | `create_resource`, `list_resources` | ✅ |
-| Capture | `take_screenshot` | ✅ |
-| MCP | Resources, Prompts, Logging | ✅ |
+| Catégorie | Nb | Status |
+|-----------|:--:|--------|
+| Project | 12 | ✅ |
+| Scene | 10 | ✅ |
+| Script | 6 | ✅ |
+| Animation | 4 | ✅ |
+| Physics | 3 | ✅ |
+| TileMap | 4 | ✅ |
+| Audio | 3 | ✅ |
+| Shader | 2 | ✅ |
+| Navigation | 2 | ✅ |
+| Particles | 2 | ✅ |
+| UI | 2 | ✅ |
+| Lighting | 2 | ✅ |
+| Assets | 3 | ✅ |
+| Export | 3 | ✅ |
+| Batch | 1 | ✅ |
+| Debug Stream | 3 | ✅ |
+| UID | 2 | ✅ |
+| 3D | 1 | ✅ |
+| Resource | 4 | ✅ |
+| Signals | 3 | ✅ |
+| Groups | 3 | ✅ |
+| MCP Capabilities | Resources, Prompts, Logging | ✅ |
 
 ### MCPs concurrents - Features uniques
 
 | Feature | GDAI MCP | ee0pdt | bradypp | Notre MCP |
 |---------|----------|--------|---------|-----------|
-| Screenshots auto | ✅ | ❌ | ❌ | ⚠️ Manuel |
-| Debug output live | ✅ | ✅ | ✅ | ✅ |
+| Screenshots auto | ✅ | ❌ | ❌ | ⚠️ TODO |
+| Debug output live | ✅ | ✅ | ✅ | ✅ WebSocket |
 | Script errors | ✅ | ✅ | ❌ | ✅ |
 | Scene tree | ✅ | ✅ | ✅ | ✅ |
 | Node manipulation | ✅ | ✅ | ✅ | ✅ |
 | Property editing | ✅ | ✅ | ✅ | ✅ |
 | Resource creation | ✅ | ✅ | ❌ | ✅ |
+| Animation tools | ❌ | ❌ | ❌ | ✅ 4 outils |
+| Shader creation | ❌ | ❌ | ❌ | ✅ 2 outils |
+| TileMap tools | ❌ | ❌ | ❌ | ✅ 4 outils |
+| Physics setup | ❌ | ❌ | ❌ | ✅ 3 outils |
+| Audio management | ❌ | ❌ | ❌ | ✅ 3 outils |
+| UI/Control tools | ❌ | ❌ | ❌ | ✅ 2 outils |
+| Navigation | ❌ | ❌ | ❌ | ✅ 2 outils |
+| Particles | ❌ | ❌ | ❌ | ✅ 2 outils |
+| Batch operations | ❌ | ❌ | ❌ | ✅ |
+| Multiplayer setup | ❌ | ❌ | ❌ | ❌ Phase 11 |
 | AI mesh generation | ❌ | ❌ | ❌ | ❌ |
-| Documentation offline | ❌ | ❌ | ❌ | ❌ |
-| Multiplayer setup | ❌ | ❌ | ❌ | ❌ |
-| Animation tools | ❌ | ❌ | ❌ | ❌ |
-| Shader creation | ❌ | ❌ | ❌ | ❌ |
-| TileMap tools | ❌ | ❌ | ❌ | ❌ |
-| Physics setup | ❌ | ❌ | ❌ | ❌ |
-| Audio management | ❌ | ❌ | ❌ | ❌ |
-| UI/Control tools | ❌ | ❌ | ❌ | ❌ |
+| Documentation offline | ❌ | ❌ | ❌ | ❌ Phase 15 |
 
 ---
 
@@ -223,10 +239,12 @@ validate_gdscript        - Valider syntaxe GDScript
 
 | Métrique | Valeur |
 |----------|--------|
-| Outils actuels | 40 |
-| Outils à ajouter | 70 |
-| Outils total cible | 110 |
+| Outils actuels | 76 |
+| Outils à ajouter | 42 |
+| Outils total cible | 118 |
 | MCP Capabilities | Tools, Resources, Prompts, Logging |
+| Version actuelle | 0.8.0 |
+| Tests | 369 |
 
 ### Objectif final
 Un MCP permettant de créer en langage naturel:

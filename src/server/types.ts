@@ -300,3 +300,143 @@ export interface ExecResult {
   stdout: string;
   stderr: string;
 }
+
+// ============================================================================
+// Animation Tool Arguments
+// ============================================================================
+
+export interface CreateAnimationPlayerArgs extends SceneToolArgs {
+  nodeName: string;
+  parentNodePath?: string;
+}
+
+export interface AddAnimationArgs extends SceneToolArgs {
+  playerNodePath: string;
+  animationName: string;
+  length?: number;
+  loop?: boolean;
+}
+
+export interface AddAnimationTrackArgs extends SceneToolArgs {
+  playerNodePath: string;
+  animationName: string;
+  trackType: 'value' | 'position_2d' | 'position_3d' | 'rotation_2d' | 'rotation_3d' | 'scale_2d' | 'scale_3d' | 'method' | 'bezier' | 'audio' | 'animation';
+  nodePath: string;
+  property?: string;
+}
+
+export interface SetKeyframeArgs extends SceneToolArgs {
+  playerNodePath: string;
+  animationName: string;
+  trackIndex: number;
+  time: number;
+  value: unknown;
+  transition?: number;
+  easing?: number;
+}
+
+// ============================================================================
+// Physics Tool Arguments
+// ============================================================================
+
+export interface CreateCollisionShapeArgs extends SceneToolArgs {
+  nodeName: string;
+  parentNodePath: string;
+  shapeType: 'rectangle' | 'circle' | 'capsule' | 'polygon' | 'box' | 'sphere' | 'cylinder' | 'convex';
+  is3D?: boolean;
+  shapeParams?: CollisionShapeParams;
+}
+
+export interface CollisionShapeParams {
+  size?: Vector2 | Vector3;
+  radius?: number;
+  height?: number;
+  points?: Vector2[];
+}
+
+export interface SetupRigidBodyArgs extends SceneToolArgs {
+  nodePath: string;
+  bodyType?: 'dynamic' | 'static' | 'kinematic';
+  mass?: number;
+  gravity_scale?: number;
+  linear_damp?: number;
+  angular_damp?: number;
+  physics_material?: string;
+}
+
+export interface ConfigurePhysicsLayersArgs extends ProjectToolArgs {
+  dimension: '2d' | '3d';
+  layers: PhysicsLayerConfig[];
+}
+
+export interface PhysicsLayerConfig {
+  layer: number;
+  name: string;
+}
+
+// ============================================================================
+// TileMap Tool Arguments
+// ============================================================================
+
+export interface CreateTileSetArgs extends ProjectToolArgs {
+  tilesetPath: string;
+  tileSize: Vector2;
+  texturePath?: string;
+}
+
+export interface CreateTileMapLayerArgs extends SceneToolArgs {
+  nodeName: string;
+  parentNodePath?: string;
+  tilesetPath: string;
+  zIndex?: number;
+}
+
+export interface SetTileArgs extends SceneToolArgs {
+  tilemapNodePath: string;
+  layer?: number;
+  position: Vector2;
+  sourceId: number;
+  atlasCoords: Vector2;
+  alternativeTile?: number;
+}
+
+export interface PaintTilesArgs extends SceneToolArgs {
+  tilemapNodePath: string;
+  layer?: number;
+  tiles: TilePlacement[];
+}
+
+export interface TilePlacement {
+  position: Vector2;
+  sourceId: number;
+  atlasCoords: Vector2;
+  alternativeTile?: number;
+}
+
+// ============================================================================
+// Audio Tool Arguments
+// ============================================================================
+
+export interface CreateAudioBusArgs extends ProjectToolArgs {
+  busName: string;
+  parentBus?: string;
+  volume?: number;
+  solo?: boolean;
+  mute?: boolean;
+}
+
+export interface SetupAudioPlayerArgs extends SceneToolArgs {
+  nodeName: string;
+  parentNodePath?: string;
+  is3D?: boolean;
+  streamPath?: string;
+  bus?: string;
+  autoplay?: boolean;
+  volumeDb?: number;
+}
+
+export interface AddAudioEffectArgs extends ProjectToolArgs {
+  busName: string;
+  effectType: 'amplify' | 'bandlimit' | 'bandpass' | 'chorus' | 'compressor' | 'delay' | 'distortion' | 'eq' | 'filter' | 'highpass' | 'highshelf' | 'limiter' | 'lowpass' | 'lowshelf' | 'notch' | 'panner' | 'phaser' | 'pitch_shift' | 'record' | 'reverb' | 'spectrum_analyzer' | 'stereo_enhance';
+  effectParams?: Record<string, unknown>;
+}

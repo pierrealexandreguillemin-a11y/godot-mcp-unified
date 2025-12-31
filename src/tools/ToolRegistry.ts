@@ -74,6 +74,28 @@ import { listResourcesDefinition, handleListResources } from './resource/ListRes
 // Capture tools
 import { takeScreenshotDefinition, handleTakeScreenshot } from './capture/TakeScreenshotTool';
 
+// Animation tools
+import { createAnimationPlayerDefinition, handleCreateAnimationPlayer } from './animation/CreateAnimationPlayerTool';
+import { addAnimationDefinition, handleAddAnimation } from './animation/AddAnimationTool';
+import { addAnimationTrackDefinition, handleAddAnimationTrack } from './animation/AddAnimationTrackTool';
+import { setKeyframeDefinition, handleSetKeyframe } from './animation/SetKeyframeTool';
+
+// Physics tools
+import { createCollisionShapeDefinition, handleCreateCollisionShape } from './physics/CreateCollisionShapeTool';
+import { setupRigidBodyDefinition, handleSetupRigidBody } from './physics/SetupRigidBodyTool';
+import { configurePhysicsLayersDefinition, handleConfigurePhysicsLayers } from './physics/ConfigurePhysicsLayersTool';
+
+// TileMap tools
+import { createTileSetDefinition, handleCreateTileSet } from './tilemap/CreateTileSetTool';
+import { createTileMapLayerDefinition, handleCreateTileMapLayer } from './tilemap/CreateTileMapLayerTool';
+import { setTileDefinition, handleSetTile } from './tilemap/SetTileTool';
+import { paintTilesDefinition, handlePaintTiles } from './tilemap/PaintTilesTool';
+
+// Audio tools
+import { createAudioBusDefinition, handleCreateAudioBus } from './audio/CreateAudioBusTool';
+import { setupAudioPlayerDefinition, handleSetupAudioPlayer } from './audio/SetupAudioPlayerTool';
+import { addAudioEffectDefinition, handleAddAudioEffect } from './audio/AddAudioEffectTool';
+
 export interface ToolRegistration {
   definition: ToolDefinition;
   handler: ToolHandler<BaseToolArgs>;
@@ -449,6 +471,126 @@ export const toolRegistry: Map<string, ToolRegistration> = new Map([
       definition: takeScreenshotDefinition,
       handler: handleTakeScreenshot,
       readOnly: true,
+    },
+  ],
+
+  // Animation tools
+  [
+    'create_animation_player',
+    {
+      definition: createAnimationPlayerDefinition,
+      handler: handleCreateAnimationPlayer,
+      readOnly: false,
+    },
+  ],
+  [
+    'add_animation',
+    {
+      definition: addAnimationDefinition,
+      handler: handleAddAnimation,
+      readOnly: false,
+    },
+  ],
+  [
+    'add_animation_track',
+    {
+      definition: addAnimationTrackDefinition,
+      handler: handleAddAnimationTrack,
+      readOnly: false,
+    },
+  ],
+  [
+    'set_keyframe',
+    {
+      definition: setKeyframeDefinition,
+      handler: handleSetKeyframe,
+      readOnly: false,
+    },
+  ],
+
+  // Physics tools
+  [
+    'create_collision_shape',
+    {
+      definition: createCollisionShapeDefinition,
+      handler: handleCreateCollisionShape,
+      readOnly: false,
+    },
+  ],
+  [
+    'setup_rigidbody',
+    {
+      definition: setupRigidBodyDefinition,
+      handler: handleSetupRigidBody,
+      readOnly: false,
+    },
+  ],
+  [
+    'configure_physics_layers',
+    {
+      definition: configurePhysicsLayersDefinition,
+      handler: handleConfigurePhysicsLayers,
+      readOnly: false,
+    },
+  ],
+
+  // TileMap tools
+  [
+    'create_tileset',
+    {
+      definition: createTileSetDefinition,
+      handler: handleCreateTileSet,
+      readOnly: false,
+    },
+  ],
+  [
+    'create_tilemap_layer',
+    {
+      definition: createTileMapLayerDefinition,
+      handler: handleCreateTileMapLayer,
+      readOnly: false,
+    },
+  ],
+  [
+    'set_tile',
+    {
+      definition: setTileDefinition,
+      handler: handleSetTile,
+      readOnly: false,
+    },
+  ],
+  [
+    'paint_tiles',
+    {
+      definition: paintTilesDefinition,
+      handler: handlePaintTiles,
+      readOnly: false,
+    },
+  ],
+
+  // Audio tools
+  [
+    'create_audio_bus',
+    {
+      definition: createAudioBusDefinition,
+      handler: handleCreateAudioBus,
+      readOnly: false,
+    },
+  ],
+  [
+    'setup_audio_player',
+    {
+      definition: setupAudioPlayerDefinition,
+      handler: handleSetupAudioPlayer,
+      readOnly: false,
+    },
+  ],
+  [
+    'add_audio_effect',
+    {
+      definition: addAudioEffectDefinition,
+      handler: handleAddAudioEffect,
+      readOnly: false,
     },
   ],
 ]);

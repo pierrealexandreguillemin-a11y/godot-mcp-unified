@@ -2,48 +2,48 @@
 
 > Analyse des fonctionnalites manquantes et ameliorations possibles
 
-## Etat actuel : 17 outils
+## Etat actuel : 76 outils (v0.8.0)
 
-### Outils existants
+### Outils implementes par categorie
 
-| Categorie | Outil | Description |
-|-----------|-------|-------------|
-| **System** | `get_godot_version` | Version Godot |
-| **Debug** | `get_debug_output` | Sortie console |
-| | `stop_project` | Arreter projet |
-| **Project** | `launch_editor` | Ouvrir editeur |
-| | `run_project` | Lancer projet |
-| | `list_projects` | Lister projets |
-| | `get_project_info` | Info projet |
-| **Scene** | `create_scene` | Creer scene |
-| | `add_node` | Ajouter node |
-| | `edit_node` | Modifier node |
-| | `remove_node` | Supprimer node |
-| | `load_sprite` | Charger texture |
-| | `save_scene` | Sauvegarder scene |
-| | `export_mesh_library` | Export MeshLibrary |
-| **UID** | `get_uid` | Obtenir UID |
-| | `update_project_uids` | Maj references |
+| Categorie | Nb | Outils |
+|-----------|:--:|--------|
+| **Project** | 12 | launch_editor, run_project, stop_project, get_debug_output, list_projects, get_project_info, get_godot_version, get_project_settings, set_project_setting, get_input_map, add_input_action, validate_project |
+| **Scene** | 10 | create_scene, add_node, edit_node, remove_node, rename_node, move_node, duplicate_node, load_sprite, save_scene, get_scene_tree |
+| **Script** | 6 | list_scripts, read_script, write_script, attach_script, detach_script, get_script_errors |
+| **Animation** | 4 | create_animation_player, add_animation, add_animation_track, set_keyframe |
+| **Physics** | 3 | create_collision_shape, setup_rigidbody, configure_physics_layers |
+| **TileMap** | 4 | create_tileset, create_tilemap_layer, set_tile, paint_tiles |
+| **Audio** | 3 | create_audio_bus, setup_audio_player, add_audio_effect |
+| **Shader** | 2 | create_shader, create_shader_material |
+| **Navigation** | 2 | create_navigation_region, bake_navigation_mesh |
+| **Particles** | 2 | create_gpu_particles, create_particle_material |
+| **UI** | 2 | create_ui_container, create_control |
+| **Lighting** | 2 | create_light, setup_environment |
+| **Assets** | 3 | list_assets, import_asset, reimport_assets |
+| **Export** | 3 | export_project, export_pack, list_export_presets |
+| **Batch** | 1 | batch_operations |
+| **Debug Stream** | 3 | start_debug_stream, stop_debug_stream, get_debug_stream_status |
+| **UID** | 2 | get_uid, update_project_uids |
+| **3D** | 1 | export_mesh_library |
+| **Resource** | 4 | list_resources, read_resource, create_resource, modify_resource |
+| **Signals** | 3 | list_signals, connect_signal, disconnect_signal |
+| **Groups** | 3 | add_to_group, remove_from_group, list_groups |
 
 ---
 
 ## Fonctionnalites MANQUANTES (Priorite Haute)
 
-### 1. Scripts GDScript (CRITIQUE - absent!)
+### 1. Scripts GDScript ✅ COMPLETÉ (v0.2.0)
 
-Le serveur ne gere PAS les scripts GDScript directement.
-
-| Outil propose | Description | Priorite |
-|---------------|-------------|----------|
-| `list_scripts` | Lister tous les .gd du projet | P0 |
-| `read_script` | Lire contenu d'un script | P0 |
-| `write_script` | Creer/modifier un script | P0 |
-| `delete_script` | Supprimer un script | P1 |
-| `attach_script` | Attacher script a un node | P0 |
-| `detach_script` | Detacher script d'un node | P1 |
-| `get_script_errors` | Erreurs de compilation | P0 |
-
-**Source:** [ee0pdt/Godot-MCP](https://github.com/ee0pdt/Godot-MCP) a ces fonctions
+| Outil | Description | Status |
+|-------|-------------|--------|
+| `list_scripts` | Lister tous les .gd du projet | ✅ |
+| `read_script` | Lire contenu d'un script | ✅ |
+| `write_script` | Creer/modifier un script | ✅ |
+| `attach_script` | Attacher script a un node | ✅ |
+| `detach_script` | Detacher script d'un node | ✅ |
+| `get_script_errors` | Erreurs de compilation | ✅ |
 
 ### 2. Screenshots / Capture visuelle
 
@@ -54,56 +54,51 @@ Le serveur ne gere PAS les scripts GDScript directement.
 
 **Source:** [GDAI MCP](https://github.com/3ddelano/gdai-mcp-plugin-godot) - "Automatically takes screenshots to visually understand the editor"
 
-### 3. Ressources (.tres, .res)
+### 3. Ressources (.tres, .res) ✅ COMPLETÉ
 
-| Outil propose | Description | Priorite |
-|---------------|-------------|----------|
-| `list_resources` | Lister ressources projet | P1 |
-| `create_resource` | Creer nouvelle ressource | P1 |
-| `edit_resource` | Modifier ressource | P1 |
-| `delete_resource` | Supprimer ressource | P2 |
+| Outil | Description | Status |
+|-------|-------------|--------|
+| `list_resources` | Lister ressources projet | ✅ |
+| `create_resource` | Creer nouvelle ressource | ✅ |
+| `read_resource` | Lire ressource | ✅ |
+| `modify_resource` | Modifier ressource | ✅ |
 
-### 4. Assets / Import
+### 4. Assets / Import ✅ COMPLETÉ (v0.6.0)
 
-| Outil propose | Description | Priorite |
-|---------------|-------------|----------|
-| `list_assets` | Lister images/sons/modeles | P1 |
-| `import_asset` | Importer fichier externe | P1 |
-| `reimport_assets` | Forcer reimport | P1 |
-| `get_import_settings` | Parametres import | P2 |
+| Outil | Description | Status |
+|-------|-------------|--------|
+| `list_assets` | Lister images/sons/modeles | ✅ |
+| `import_asset` | Importer fichier externe | ✅ |
+| `reimport_assets` | Forcer reimport | ✅ |
 
-### 5. Export / Build
+### 5. Export / Build ✅ COMPLETÉ (v0.7.0)
 
-| Outil propose | Description | Priorite |
-|---------------|-------------|----------|
-| `list_export_presets` | Lister presets export | P1 |
-| `export_project` | Exporter projet | P1 |
-| `export_pck` | Exporter PCK seul | P2 |
-
-**Commande Godot:** `godot --headless --export "preset" output_path`
+| Outil | Description | Status |
+|-------|-------------|--------|
+| `list_export_presets` | Lister presets export | ✅ |
+| `export_project` | Exporter projet | ✅ |
+| `export_pack` | Exporter PCK seul | ✅ |
 
 ---
 
-## Fonctionnalites MANQUANTES (Priorite Moyenne)
+## Fonctionnalites COMPLETÉES (Priorite Moyenne)
 
-### 6. Scene Tree avance
+### 6. Scene Tree avance ✅ COMPLETÉ
 
-| Outil propose | Description | Priorite |
-|---------------|-------------|----------|
-| `get_scene_tree` | Arbre complet de la scene | P1 |
-| `duplicate_node` | Dupliquer node | P1 |
-| `reparent_node` | Changer parent | P1 |
-| `rename_node` | Renommer node | P1 |
-| `get_node_properties` | Toutes proprietes node | P1 |
-| `instantiate_scene` | Instancier scene dans scene | P1 |
+| Outil | Description | Status |
+|-------|-------------|--------|
+| `get_scene_tree` | Arbre complet de la scene | ✅ |
+| `duplicate_node` | Dupliquer node | ✅ |
+| `move_node` | Changer parent (reparent) | ✅ |
+| `rename_node` | Renommer node | ✅ |
 
-### 7. Signaux
+### 7. Signaux ✅ COMPLETÉ
 
-| Outil propose | Description | Priorite |
-|---------------|-------------|----------|
-| `list_signals` | Lister signaux d'un node | P1 |
-| `connect_signal` | Connecter signal | P1 |
-| `disconnect_signal` | Deconnecter signal | P2 |
+| Outil | Description | Status |
+|-------|-------------|--------|
+| `list_signals` | Lister signaux d'un node | ✅ |
+| `connect_signal` | Connecter signal | ✅ |
+| `disconnect_signal` | Deconnecter signal | ✅ |
 
 ### 8. Animations ✅ IMPLEMENTÉ (v0.4.0)
 
@@ -135,13 +130,12 @@ Le serveur ne gere PAS les scripts GDScript directement.
 
 ## Fonctionnalites MANQUANTES (Priorite Basse)
 
-### 11. Shaders
+### 11. Shaders ✅ COMPLETÉ (v0.5.0)
 
-| Outil propose | Description | Priorite |
-|---------------|-------------|----------|
-| `create_shader` | Creer shader | P2 |
-| `edit_shader` | Modifier shader | P2 |
-| `create_shader_material` | Material depuis shader | P2 |
+| Outil | Description | Status |
+|-------|-------------|--------|
+| `create_shader` | Creer shader | ✅ |
+| `create_shader_material` | Material depuis shader | ✅ |
 
 ### 12. Physics ✅ IMPLEMENTÉ (v0.4.0)
 
@@ -151,122 +145,63 @@ Le serveur ne gere PAS les scripts GDScript directement.
 | `setup_rigidbody` | Configurer RigidBody (masse, gravité) | ✅ |
 | `configure_physics_layers` | Nommer layers physique 2D/3D | ✅ |
 
-### 13. Navigation
+### 13. Navigation ✅ COMPLETÉ (v0.5.0)
 
-| Outil propose | Description | Priorite |
-|---------------|-------------|----------|
-| `create_navigation_region` | Region navigation | P2 |
-| `bake_navigation` | Cuire navmesh | P2 |
+| Outil | Description | Status |
+|-------|-------------|--------|
+| `create_navigation_region` | Region navigation | ✅ |
+| `bake_navigation_mesh` | Cuire navmesh | ✅ |
 
-### 14. Project Settings
+### 14. Project Settings ✅ COMPLETÉ
 
-| Outil propose | Description | Priorite |
-|---------------|-------------|----------|
-| `get_project_settings` | Lire settings | P1 |
-| `set_project_setting` | Modifier setting | P1 |
-| `get_input_map` | Lire input map | P1 |
-| `add_input_action` | Ajouter action input | P2 |
+| Outil | Description | Status |
+|-------|-------------|--------|
+| `get_project_settings` | Lire settings | ✅ |
+| `set_project_setting` | Modifier setting | ✅ |
+| `get_input_map` | Lire input map | ✅ |
+| `add_input_action` | Ajouter action input | ✅ |
 
-### 15. Autoload / Singletons
+### 15. Autoload / Singletons ✅ COMPLETÉ
 
-| Outil propose | Description | Priorite |
-|---------------|-------------|----------|
-| `list_autoloads` | Lister autoloads | P1 |
-| `add_autoload` | Ajouter autoload | P2 |
-| `remove_autoload` | Supprimer autoload | P2 |
+| Outil | Description | Status |
+|-------|-------------|--------|
+| `manage_autoloads` | Gérer autoloads | ✅ |
 
 ---
 
 ## Ameliorations Performance
 
-### 1. Mode Headless
+### 1. Mode Headless (TODO)
 
-Actuellement le serveur lance Godot avec GUI. Ajouter option `--headless` pour:
-- Operations plus rapides
-- CI/CD compatible
-- Moins de RAM
+Ajouter option `--headless` pour operations CI/CD.
 
-```typescript
-// Option a ajouter
-env: {
-  HEADLESS_MODE: "true"
-}
-```
+### 2. Cache de projet ✅ COMPLETÉ
 
-### 2. Cache de projet
+LRU Cache avec TTL implémenté (`src/core/LruCache.ts`).
 
-Eviter de relire project.godot a chaque operation.
+### 3. Batch Operations ✅ COMPLETÉ (v0.8.0)
 
-```typescript
-// Ajouter cache avec TTL
-const projectCache = new Map<string, {data: ProjectInfo, expires: number}>();
-```
+`batch_operations` permet d'exécuter plusieurs outils en séquence.
 
-### 3. Batch Operations
+### 4. WebSocket Live ✅ COMPLETÉ (v0.8.0)
 
-Permettre plusieurs operations en une seule commande:
-
-```typescript
-// Nouveau tool
-batch_operations({
-  operations: [
-    { tool: "create_scene", args: {...} },
-    { tool: "add_node", args: {...} },
-    { tool: "attach_script", args: {...} }
-  ]
-})
-```
-
-### 4. WebSocket Live
-
-Connexion persistante pour:
-- Debug output en temps reel
-- Notifications changements fichiers
-- Etat du projet live
+`start_debug_stream`, `stop_debug_stream`, `get_debug_stream_status`
 
 ---
 
 ## Ameliorations Architecture
 
-### 1. Plugin Godot Companion
+### 1. Plugin Godot Companion ✅ COMPLETÉ (v0.2.0)
 
-Actuellement: MCP execute Godot via CLI (lent)
-Propose: Plugin Godot qui ecoute sur port TCP
+GodotBridge TCP client + EditorPlugin (`godot-plugin/addons/mcp_bridge/`).
 
-```
-Claude <-> MCP Server <-> TCP <-> Plugin Godot (dans editeur)
-```
+### 2. GDScript LSP Integration ✅ COMPLETÉ (v0.2.0)
 
-Avantages:
-- Operations instantanees
-- Acces complet EditorInterface
-- Pas besoin relancer Godot
+GodotLSPClient pour diagnostics temps réel.
 
-**Reference:** [GDAI MCP](https://github.com/3ddelano/gdai-mcp-plugin-godot) utilise cette approche
+### 3. EditorScript Execution ✅ COMPLETÉ
 
-### 2. GDScript LSP Integration
-
-Integrer le Language Server Protocol de Godot pour:
-- Autocompletion
-- Diagnostics en temps reel
-- Go to definition
-- Refactoring
-
-### 3. EditorScript Execution
-
-Utiliser `EditorScript._run()` pour operations complexes:
-
-```gdscript
-@tool
-extends EditorScript
-
-func _run():
-    # Operations editeur avancees
-    var editor = EditorInterface.get_editor_main_screen()
-    # ...
-```
-
-**Source:** [Godot Docs - EditorScript](https://docs.godotengine.org/en/stable/classes/class_editorscript.html)
+`godot_operations.gd` exécute les opérations via EditorScript.
 
 ---
 
@@ -333,6 +268,88 @@ Potentiel: Fine-tuner qwen2.5-coder sur ce dataset
 22. `batch_operations` ✅
 23. WebSocket live debug ✅
     - `start_debug_stream`, `stop_debug_stream`, `get_debug_stream_status`
+
+---
+
+## Prochaines Phases (vers 110 outils)
+
+### Phase 7 - Animation Avancée (3 outils) → 79 total
+| Outil | Description |
+|-------|-------------|
+| `create_animation_tree` | Créer AnimationTree |
+| `setup_state_machine` | Configurer state machine animation |
+| `blend_animations` | Configurer blend spaces |
+
+### Phase 8 - Physics Avancée (4 outils) → 83 total
+| Outil | Description |
+|-------|-------------|
+| `create_area` | Créer Area2D/3D avec détection |
+| `setup_raycast` | Configurer RayCast |
+| `create_physics_material` | Créer PhysicsMaterial |
+| `setup_joints` | Configurer joints (hinge, slider, etc.) |
+
+### Phase 9 - TileMap Avancé (3 outils) → 86 total
+| Outil | Description |
+|-------|-------------|
+| `setup_autotile` | Configurer autotiling/terrain |
+| `create_tile_collision` | Ajouter collision aux tuiles |
+| `create_tile_navigation` | Ajouter navigation aux tuiles |
+
+### Phase 10 - UI Avancée (5 outils) → 91 total
+| Outil | Description |
+|-------|-------------|
+| `create_ui_theme` | Créer thème UI |
+| `setup_control_anchors` | Configurer anchors et margins |
+| `setup_focus_navigation` | Configurer navigation focus |
+| `create_popup` | Créer popups et dialogs |
+| `setup_responsive_ui` | Configurer UI responsive |
+
+### Phase 11 - Multiplayer (5 outils) → 96 total
+| Outil | Description |
+|-------|-------------|
+| `setup_multiplayer_peer` | Configurer ENet/WebSocket/WebRTC |
+| `create_network_spawner` | Créer MultiplayerSpawner |
+| `setup_synchronizer` | Configurer MultiplayerSynchronizer |
+| `define_rpc_functions` | Définir fonctions RPC |
+| `create_lobby_system` | Créer système lobby basique |
+
+### Phase 12 - Particles & Shaders Avancés (5 outils) → 101 total
+| Outil | Description |
+|-------|-------------|
+| `create_particle_attractor` | Créer attracteurs |
+| `create_particle_collision` | Créer collision particules |
+| `create_visual_shader` | Créer visual shader avec nodes |
+| `add_shader_parameter` | Ajouter paramètres uniformes |
+| `create_shader_preset` | Créer presets (outline, dissolve) |
+
+### Phase 13 - 3D Avancé (6 outils) → 107 total
+| Outil | Description |
+|-------|-------------|
+| `create_mesh_instance` | Créer MeshInstance3D |
+| `setup_material` | Configurer StandardMaterial3D |
+| `create_csg_shape` | Créer CSG shapes |
+| `setup_lightmapper` | Configurer baking lumière |
+| `create_world_environment` | Créer WorldEnvironment |
+| `setup_post_processing` | Configurer post-processing |
+
+### Phase 14 - AI & Behavior (4 outils) → 111 total
+| Outil | Description |
+|-------|-------------|
+| `create_behavior_tree` | Créer arbre de comportement |
+| `setup_finite_state_machine` | Configurer FSM |
+| `create_utility_ai` | Créer système utility AI |
+| `setup_advanced_pathfinding` | Configurer pathfinding avancé |
+
+### Phase 15 - Save/Load & Docs (7 outils) → 118 total
+| Outil | Description |
+|-------|-------------|
+| `create_save_resource` | Créer resource sauvegarde |
+| `serialize_scene` | Sérialiser état scène |
+| `deserialize_scene` | Restaurer état scène |
+| `get_class_documentation` | Obtenir doc classe Godot |
+| `search_documentation` | Rechercher dans docs |
+| `get_node_types` | Lister types nodes disponibles |
+| `take_screenshot` | Capture écran éditeur/jeu |
 
 ---
 

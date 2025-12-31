@@ -124,8 +124,13 @@ async function validateOperation(
     return `Operation ${index}: Unknown tool '${operation.tool}'`;
   }
 
-  if (!operation.args || operation.args === null || typeof operation.args !== 'object') {
-    return `Operation ${index}: 'args' is required and must be an object`;
+  if (
+    !operation.args ||
+    operation.args === null ||
+    typeof operation.args !== 'object' ||
+    Array.isArray(operation.args)
+  ) {
+    return `Operation ${index}: 'args' is required and must be a plain object (not an array)`;
   }
 
   return null;
@@ -229,7 +234,14 @@ export const handleBatchOperations = async (args: BaseToolArgs): Promise<ToolRes
   }
 
   // Validate max operations limit
-  const maxOps = Math.min(typedArgs.maxOperations ?? MAX_OPERATIONS, MAX_OPERATIONS);
+  const requestedMax = typedArgs.maxOperations ?? MAX_OPERATIONS;
+  if (typeof requestedMax !== 'number' || !Number.isFinite(requestedMax) || requestedMax < 1) {
+    return createErrorResponse('Invalid maxOperations value', [
+      'maxOperations must be a positive integer',
+      `Maximum allowed: ${MAX_OPERATIONS}`,
+    ]);
+  }
+  const maxOps = Math.min(requestedMax, MAX_OPERATIONS);
   if (typedArgs.operations.length > maxOps) {
     return createErrorResponse(
       `Too many operations: ${typedArgs.operations.length} exceeds limit of ${maxOps}`,

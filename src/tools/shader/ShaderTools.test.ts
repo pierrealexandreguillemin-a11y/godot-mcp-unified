@@ -52,7 +52,7 @@ describe('Shader Tools', () => {
         shaderType: 'invalid',
       });
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Invalid shader type');
+      expect(result.content[0].text).toContain('shaderType');
     });
 
     it('should return error for invalid project path', async () => {

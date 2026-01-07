@@ -1,86 +1,46 @@
 /**
  * Create Shader Tool
  * Creates a .gdshader file with specified shader type and content
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createSuccessResponse,
-} from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
+} from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import { logDebug } from '../../utils/Logger';
-
-export interface CreateShaderArgs extends BaseToolArgs {
-  projectPath: string;
-  shaderPath: string;
-  shaderType: 'spatial' | 'canvas_item' | 'particles' | 'sky' | 'fog';
-  renderMode?: string[];
-  vertexCode?: string;
-  fragmentCode?: string;
-  lightCode?: string;
-}
+import { logDebug } from '../../utils/Logger.js';
+import {
+  CreateShaderSchema,
+  CreateShaderInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const createShaderDefinition: ToolDefinition = {
   name: 'create_shader',
   description: 'Create a .gdshader file with specified shader type and code',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      shaderPath: {
-        type: 'string',
-        description: 'Path for the shader file (e.g., "shaders/my_shader.gdshader")',
-      },
-      shaderType: {
-        type: 'string',
-        description: 'Type of shader',
-        enum: ['spatial', 'canvas_item', 'particles', 'sky', 'fog'],
-      },
-      renderMode: {
-        type: 'array',
-        description: 'Render modes (e.g., ["unshaded", "cull_disabled"])',
-        items: { type: 'string' },
-      },
-      vertexCode: {
-        type: 'string',
-        description: 'Code for vertex() function',
-      },
-      fragmentCode: {
-        type: 'string',
-        description: 'Code for fragment() function',
-      },
-      lightCode: {
-        type: 'string',
-        description: 'Code for light() function',
-      },
-    },
-    required: ['projectPath', 'shaderPath', 'shaderType'],
-  },
+  inputSchema: toMcpSchema(CreateShaderSchema),
 };
 
 export const handleCreateShader = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'shaderPath',
-    'shaderType',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(CreateShaderSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, shaderPath, and shaderType',
     ]);
   }
 
-  const typedArgs = preparedArgs as CreateShaderArgs;
+  const typedArgs: CreateShaderInput = validation.data;
 
   // Validate shader path extension
   if (!typedArgs.shaderPath.endsWith('.gdshader')) {

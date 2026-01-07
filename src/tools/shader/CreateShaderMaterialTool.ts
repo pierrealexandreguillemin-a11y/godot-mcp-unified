@@ -1,52 +1,32 @@
 /**
  * Create Shader Material Tool
  * Creates a ShaderMaterial resource file (.tres) that references a shader
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createSuccessResponse,
-} from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
+} from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import { logDebug } from '../../utils/Logger';
-
-export interface CreateShaderMaterialArgs extends BaseToolArgs {
-  projectPath: string;
-  materialPath: string;
-  shaderPath: string;
-  parameters?: Record<string, unknown>;
-}
+import { logDebug } from '../../utils/Logger.js';
+import {
+  CreateShaderMaterialSchema,
+  CreateShaderMaterialInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const createShaderMaterialDefinition: ToolDefinition = {
   name: 'create_shader_material',
   description: 'Create a ShaderMaterial resource that references a shader file',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      materialPath: {
-        type: 'string',
-        description: 'Path for the material file (e.g., "materials/my_mat.tres")',
-      },
-      shaderPath: {
-        type: 'string',
-        description: 'Path to the shader file (e.g., "shaders/my_shader.gdshader")',
-      },
-      parameters: {
-        type: 'object',
-        description: 'Shader parameters to set (uniform values)',
-      },
-    },
-    required: ['projectPath', 'materialPath', 'shaderPath'],
-  },
+  inputSchema: toMcpSchema(CreateShaderMaterialSchema),
 };
 
 // Format value for Godot resource file
@@ -82,18 +62,15 @@ const formatValue = (value: unknown): string => {
 export const handleCreateShaderMaterial = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'materialPath',
-    'shaderPath',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(CreateShaderMaterialSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, materialPath, and shaderPath',
     ]);
   }
 
-  const typedArgs = preparedArgs as CreateShaderMaterialArgs;
+  const typedArgs: CreateShaderMaterialInput = validation.data;
 
   // Validate material path extension
   if (!typedArgs.materialPath.endsWith('.tres') && !typedArgs.materialPath.endsWith('.res')) {

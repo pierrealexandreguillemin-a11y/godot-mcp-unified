@@ -1,21 +1,21 @@
 /**
  * Stop Project Tool
  * Stops the currently running Godot project
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse } from '../../server/types';
-import { createJsonResponse } from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
-import { stopActiveProcess, hasActiveProcess } from '../../core/ProcessManager';
+import { ToolDefinition, ToolResponse } from '../../server/types.js';
+import { createJsonResponse } from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { stopActiveProcess, hasActiveProcess } from '../../core/ProcessManager.js';
+import { StopProjectSchema, toMcpSchema } from '../../core/ZodSchemas.js';
 
 export const stopProjectDefinition: ToolDefinition = {
   name: 'stop_project',
   description: 'Stop the currently running Godot project',
-  inputSchema: {
-    type: 'object',
-    properties: {},
-    required: [],
-  },
+  inputSchema: toMcpSchema(StopProjectSchema),
 };
 
 export const handleStopProject = async (): Promise<ToolResponse> => {

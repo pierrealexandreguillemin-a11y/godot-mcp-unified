@@ -2,13 +2,15 @@
  * Stop Debug Stream Tool
  * Stops the WebSocket server for debug output streaming
  *
- * ISO/IEC 25010 compliant - strict typing
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
 import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import { createJsonResponse } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { debugStreamServer } from '../../debug/DebugStreamServer.js';
+import { StopDebugStreamSchema, toMcpSchema } from '../../core/ZodSchemas.js';
 
 export interface StopDebugStreamResult {
   message: string;
@@ -18,11 +20,7 @@ export interface StopDebugStreamResult {
 export const stopDebugStreamDefinition: ToolDefinition = {
   name: 'stop_debug_stream',
   description: 'Stop the WebSocket server for debug output streaming',
-  inputSchema: {
-    type: 'object',
-    properties: {},
-    required: [],
-  },
+  inputSchema: toMcpSchema(StopDebugStreamSchema),
 };
 
 export const handleStopDebugStream = async (_args: BaseToolArgs): Promise<ToolResponse> => {

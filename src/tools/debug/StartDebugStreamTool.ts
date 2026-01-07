@@ -2,18 +2,20 @@
  * Start Debug Stream Tool
  * Starts the WebSocket server for real-time debug output streaming
  *
- * ISO/IEC 25010 compliant - strict typing
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
 import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import { prepareToolArgs, createJsonResponse } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { debugStreamServer, DEFAULT_DEBUG_STREAM_PORT } from '../../debug/DebugStreamServer.js';
-
-export interface StartDebugStreamArgs extends BaseToolArgs {
-  port?: number;
-  pollIntervalMs?: number;
-}
+import {
+  StartDebugStreamSchema,
+  StartDebugStreamInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export interface StartDebugStreamResult {
   url: string;
@@ -25,25 +27,22 @@ export const startDebugStreamDefinition: ToolDefinition = {
   name: 'start_debug_stream',
   description:
     'Start a WebSocket server for real-time debug output streaming. Connect with any WebSocket client to receive live Godot debug messages.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      port: {
-        type: 'number',
-        description: `Port number for the WebSocket server (default: ${DEFAULT_DEBUG_STREAM_PORT})`,
-      },
-      pollIntervalMs: {
-        type: 'number',
-        description: 'Polling interval in milliseconds for debug output (default: 100)',
-      },
-    },
-    required: [],
-  },
+  inputSchema: toMcpSchema(StartDebugStreamSchema),
 };
 
 export const handleStartDebugStream = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
-  const typedArgs = preparedArgs as StartDebugStreamArgs;
+
+  // Zod validation
+  const validation = safeValidateInput(StartDebugStreamSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
+      'Port must be between 1 and 65535',
+      'Poll interval must be between 10ms and 10000ms',
+    ]);
+  }
+
+  const typedArgs: StartDebugStreamInput = validation.data;
 
   const port = typedArgs.port ?? DEFAULT_DEBUG_STREAM_PORT;
   const pollIntervalMs = typedArgs.pollIntervalMs ?? 100;

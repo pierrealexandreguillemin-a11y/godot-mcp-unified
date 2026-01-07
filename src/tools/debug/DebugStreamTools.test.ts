@@ -49,28 +49,28 @@ describe('Debug Stream Tools', () => {
       const result = await handleStartDebugStream({ port: 99999 });
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Invalid port');
+      expect(result.content[0].text).toMatch(/Invalid port|Validation failed.*port/);
     });
 
     it('should return error for port below 1', async () => {
       const result = await handleStartDebugStream({ port: 0 });
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Invalid port');
+      expect(result.content[0].text).toMatch(/Invalid port|Validation failed.*port/);
     });
 
     it('should return error for invalid poll interval', async () => {
       const result = await handleStartDebugStream({ port: testPort, pollIntervalMs: 5 });
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Invalid poll interval');
+      expect(result.content[0].text).toMatch(/Invalid poll interval|Validation failed.*pollIntervalMs/);
     });
 
     it('should return error for poll interval too high', async () => {
       const result = await handleStartDebugStream({ port: testPort, pollIntervalMs: 20000 });
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Invalid poll interval');
+      expect(result.content[0].text).toMatch(/Invalid poll interval|Validation failed.*pollIntervalMs/);
     });
 
     it('should accept custom poll interval', async () => {

@@ -56,7 +56,7 @@ describe('UI Tools', () => {
         containerType: 'invalid',
       });
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Invalid container type');
+      expect(result.content[0].text).toContain('containerType: Invalid option');
     });
 
     it('should return error for invalid project path', async () => {
@@ -120,7 +120,7 @@ describe('UI Tools', () => {
         controlType: 'invalid',
       });
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Invalid control type');
+      expect(result.content[0].text).toContain('controlType: Invalid option');
     });
 
     it('should return error for invalid project path', async () => {

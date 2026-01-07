@@ -1,94 +1,33 @@
 /**
  * Create Control Tool
  * Creates UI Control nodes (Button, Label, LineEdit, TextureRect, etc.)
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createSuccessResponse,
-} from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
-import { detectGodotPath } from '../../core/PathManager';
-import { executeOperation } from '../../core/GodotExecutor';
-import { logDebug } from '../../utils/Logger';
-
-export interface CreateControlArgs extends BaseToolArgs {
-  projectPath: string;
-  scenePath: string;
-  nodeName: string;
-  parentNodePath?: string;
-  controlType: 'button' | 'label' | 'line_edit' | 'text_edit' | 'rich_text' | 'texture_rect' | 'color_rect' | 'progress_bar' | 'slider_h' | 'slider_v' | 'spin_box' | 'check_box' | 'check_button' | 'option_button' | 'menu_button';
-  text?: string;
-  placeholderText?: string;
-  texturePath?: string;
-  color?: { r: number; g: number; b: number; a?: number };
-  minValue?: number;
-  maxValue?: number;
-  value?: number;
-}
+} from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { detectGodotPath } from '../../core/PathManager.js';
+import { executeOperation } from '../../core/GodotExecutor.js';
+import { logDebug } from '../../utils/Logger.js';
+import {
+  CreateControlSchema,
+  CreateControlInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const createControlDefinition: ToolDefinition = {
   name: 'create_control',
   description: 'Create a UI Control node (Button, Label, LineEdit, etc.)',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the scene file (relative to project)',
-      },
-      nodeName: {
-        type: 'string',
-        description: 'Name for the Control node',
-      },
-      parentNodePath: {
-        type: 'string',
-        description: 'Path to parent node (default: root)',
-      },
-      controlType: {
-        type: 'string',
-        description: 'Type of control',
-        enum: ['button', 'label', 'line_edit', 'text_edit', 'rich_text', 'texture_rect', 'color_rect', 'progress_bar', 'slider_h', 'slider_v', 'spin_box', 'check_box', 'check_button', 'option_button', 'menu_button'],
-      },
-      text: {
-        type: 'string',
-        description: 'Text content (for Button, Label, etc.)',
-      },
-      placeholderText: {
-        type: 'string',
-        description: 'Placeholder text (for LineEdit, TextEdit)',
-      },
-      texturePath: {
-        type: 'string',
-        description: 'Path to texture (for TextureRect)',
-      },
-      color: {
-        type: 'object',
-        description: 'Color { r, g, b, a } (for ColorRect)',
-      },
-      minValue: {
-        type: 'number',
-        description: 'Minimum value (for ProgressBar, Slider, SpinBox)',
-      },
-      maxValue: {
-        type: 'number',
-        description: 'Maximum value (for ProgressBar, Slider, SpinBox)',
-      },
-      value: {
-        type: 'number',
-        description: 'Current value (for ProgressBar, Slider, SpinBox)',
-      },
-    },
-    required: ['projectPath', 'scenePath', 'nodeName', 'controlType'],
-  },
+  inputSchema: toMcpSchema(CreateControlSchema),
 };
 
 // Map control type to Godot class name
@@ -113,19 +52,15 @@ const controlTypeToClass: Record<string, string> = {
 export const handleCreateControl = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'scenePath',
-    'nodeName',
-    'controlType',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(CreateControlSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, scenePath, nodeName, and controlType',
     ]);
   }
 
-  const typedArgs = preparedArgs as CreateControlArgs;
+  const typedArgs: CreateControlInput = validation.data;
 
   // Validate control type
   if (!controlTypeToClass[typedArgs.controlType]) {

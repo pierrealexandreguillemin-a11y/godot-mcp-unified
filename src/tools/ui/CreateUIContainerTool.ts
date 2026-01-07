@@ -1,75 +1,33 @@
 /**
  * Create UI Container Tool
  * Creates Container nodes (VBoxContainer, HBoxContainer, GridContainer, etc.)
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createSuccessResponse,
-} from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
-import { detectGodotPath } from '../../core/PathManager';
-import { executeOperation } from '../../core/GodotExecutor';
-import { logDebug } from '../../utils/Logger';
-
-export interface CreateUIContainerArgs extends BaseToolArgs {
-  projectPath: string;
-  scenePath: string;
-  nodeName: string;
-  parentNodePath?: string;
-  containerType: 'vbox' | 'hbox' | 'grid' | 'center' | 'margin' | 'panel' | 'scroll' | 'split_h' | 'split_v' | 'tab' | 'flow';
-  columns?: number;
-  customMinimumSize?: { x: number; y: number };
-  anchorsPreset?: 'full_rect' | 'center' | 'top_left' | 'top_right' | 'bottom_left' | 'bottom_right';
-}
+} from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { detectGodotPath } from '../../core/PathManager.js';
+import { executeOperation } from '../../core/GodotExecutor.js';
+import { logDebug } from '../../utils/Logger.js';
+import {
+  CreateUIContainerSchema,
+  CreateUIContainerInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const createUIContainerDefinition: ToolDefinition = {
   name: 'create_ui_container',
   description: 'Create a Container node for UI layout (VBox, HBox, Grid, etc.)',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the scene file (relative to project)',
-      },
-      nodeName: {
-        type: 'string',
-        description: 'Name for the Container node',
-      },
-      parentNodePath: {
-        type: 'string',
-        description: 'Path to parent node (default: root)',
-      },
-      containerType: {
-        type: 'string',
-        description: 'Type of container',
-        enum: ['vbox', 'hbox', 'grid', 'center', 'margin', 'panel', 'scroll', 'split_h', 'split_v', 'tab', 'flow'],
-      },
-      columns: {
-        type: 'number',
-        description: 'Number of columns (for GridContainer, default: 1)',
-      },
-      customMinimumSize: {
-        type: 'object',
-        description: 'Custom minimum size { x, y }',
-      },
-      anchorsPreset: {
-        type: 'string',
-        description: 'Anchors preset for positioning',
-        enum: ['full_rect', 'center', 'top_left', 'top_right', 'bottom_left', 'bottom_right'],
-      },
-    },
-    required: ['projectPath', 'scenePath', 'nodeName', 'containerType'],
-  },
+  inputSchema: toMcpSchema(CreateUIContainerSchema),
 };
 
 // Map container type to Godot class name
@@ -90,19 +48,15 @@ const containerTypeToClass: Record<string, string> = {
 export const handleCreateUIContainer = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'scenePath',
-    'nodeName',
-    'containerType',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(CreateUIContainerSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, scenePath, nodeName, and containerType',
     ]);
   }
 
-  const typedArgs = preparedArgs as CreateUIContainerArgs;
+  const typedArgs: CreateUIContainerInput = validation.data;
 
   // Validate container type
   if (!containerTypeToClass[typedArgs.containerType]) {

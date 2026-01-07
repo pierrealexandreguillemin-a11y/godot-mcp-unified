@@ -1,83 +1,46 @@
 /**
  * Bake Navigation Mesh Tool
  * Creates NavigationPolygon (2D) or NavigationMesh (3D) resources
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createSuccessResponse,
-} from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
+} from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import { logDebug } from '../../utils/Logger';
-
-export interface BakeNavigationMeshArgs extends BaseToolArgs {
-  projectPath: string;
-  meshPath: string;
-  is3D?: boolean;
-  agentRadius?: number;
-  agentHeight?: number;
-  agentMaxClimb?: number;
-  agentMaxSlope?: number;
-}
+import { logDebug } from '../../utils/Logger.js';
+import {
+  BakeNavigationMeshSchema,
+  BakeNavigationMeshInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const bakeNavigationMeshDefinition: ToolDefinition = {
   name: 'bake_navigation_mesh',
   description: 'Create a NavigationPolygon (2D) or NavigationMesh (3D) resource',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      meshPath: {
-        type: 'string',
-        description: 'Path for the navigation mesh resource (e.g., "navigation/nav_mesh.tres")',
-      },
-      is3D: {
-        type: 'boolean',
-        description: 'Create 3D navigation mesh (default: false for 2D)',
-      },
-      agentRadius: {
-        type: 'number',
-        description: 'Agent radius for pathfinding (default: 0.5)',
-      },
-      agentHeight: {
-        type: 'number',
-        description: 'Agent height for 3D pathfinding (default: 1.5)',
-      },
-      agentMaxClimb: {
-        type: 'number',
-        description: 'Maximum climb height for 3D (default: 0.25)',
-      },
-      agentMaxSlope: {
-        type: 'number',
-        description: 'Maximum slope angle in degrees for 3D (default: 45)',
-      },
-    },
-    required: ['projectPath', 'meshPath'],
-  },
+  inputSchema: toMcpSchema(BakeNavigationMeshSchema),
 };
 
 export const handleBakeNavigationMesh = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'meshPath',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(BakeNavigationMeshSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath and meshPath',
     ]);
   }
 
-  const typedArgs = preparedArgs as BakeNavigationMeshArgs;
+  const typedArgs: BakeNavigationMeshInput = validation.data;
 
   // Validate mesh path extension
   if (!typedArgs.meshPath.endsWith('.tres') && !typedArgs.meshPath.endsWith('.res')) {

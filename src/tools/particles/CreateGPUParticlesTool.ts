@@ -1,105 +1,47 @@
 /**
  * Create GPU Particles Tool
  * Creates GPUParticles2D or GPUParticles3D nodes
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createSuccessResponse,
-} from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
-import { detectGodotPath } from '../../core/PathManager';
-import { executeOperation } from '../../core/GodotExecutor';
-import { logDebug } from '../../utils/Logger';
-
-export interface CreateGPUParticlesArgs extends BaseToolArgs {
-  projectPath: string;
-  scenePath: string;
-  nodeName: string;
-  parentNodePath?: string;
-  is3D?: boolean;
-  amount?: number;
-  lifetime?: number;
-  oneShot?: boolean;
-  preprocess?: number;
-  emitting?: boolean;
-  materialPath?: string;
-}
+} from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { detectGodotPath } from '../../core/PathManager.js';
+import { executeOperation } from '../../core/GodotExecutor.js';
+import { logDebug } from '../../utils/Logger.js';
+import {
+  CreateGPUParticlesSchema,
+  CreateGPUParticlesInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const createGPUParticlesDefinition: ToolDefinition = {
   name: 'create_gpu_particles',
   description: 'Create a GPUParticles2D or GPUParticles3D node for particle effects',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the scene file (relative to project)',
-      },
-      nodeName: {
-        type: 'string',
-        description: 'Name for the GPUParticles node',
-      },
-      parentNodePath: {
-        type: 'string',
-        description: 'Path to parent node (default: root)',
-      },
-      is3D: {
-        type: 'boolean',
-        description: 'Create 3D particles (default: false for 2D)',
-      },
-      amount: {
-        type: 'number',
-        description: 'Number of particles (default: 8)',
-      },
-      lifetime: {
-        type: 'number',
-        description: 'Lifetime in seconds (default: 1.0)',
-      },
-      oneShot: {
-        type: 'boolean',
-        description: 'Emit only once (default: false)',
-      },
-      preprocess: {
-        type: 'number',
-        description: 'Preprocess time in seconds (default: 0)',
-      },
-      emitting: {
-        type: 'boolean',
-        description: 'Start emitting immediately (default: true)',
-      },
-      materialPath: {
-        type: 'string',
-        description: 'Path to ParticleProcessMaterial resource',
-      },
-    },
-    required: ['projectPath', 'scenePath', 'nodeName'],
-  },
+  inputSchema: toMcpSchema(CreateGPUParticlesSchema),
 };
 
 export const handleCreateGPUParticles = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'scenePath',
-    'nodeName',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(CreateGPUParticlesSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, scenePath, and nodeName',
     ]);
   }
 
-  const typedArgs = preparedArgs as CreateGPUParticlesArgs;
+  const typedArgs: CreateGPUParticlesInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

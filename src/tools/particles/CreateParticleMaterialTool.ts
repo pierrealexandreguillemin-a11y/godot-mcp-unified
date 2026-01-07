@@ -1,114 +1,46 @@
 /**
  * Create Particle Material Tool
  * Creates a ParticleProcessMaterial resource for GPU particles
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createSuccessResponse,
-} from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
+} from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import { logDebug } from '../../utils/Logger';
-
-export interface CreateParticleMaterialArgs extends BaseToolArgs {
-  projectPath: string;
-  materialPath: string;
-  emissionShape?: 'point' | 'sphere' | 'sphere_surface' | 'box' | 'ring';
-  direction?: { x: number; y: number; z: number };
-  spread?: number;
-  gravity?: { x: number; y: number; z: number };
-  initialVelocityMin?: number;
-  initialVelocityMax?: number;
-  angularVelocityMin?: number;
-  angularVelocityMax?: number;
-  scaleMin?: number;
-  scaleMax?: number;
-  color?: { r: number; g: number; b: number; a?: number };
-}
+import { logDebug } from '../../utils/Logger.js';
+import {
+  CreateParticleMaterialSchema,
+  CreateParticleMaterialInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const createParticleMaterialDefinition: ToolDefinition = {
   name: 'create_particle_material',
   description: 'Create a ParticleProcessMaterial resource for configuring GPU particle behavior',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      materialPath: {
-        type: 'string',
-        description: 'Path for the material file (e.g., "particles/fire_mat.tres")',
-      },
-      emissionShape: {
-        type: 'string',
-        description: 'Emission shape: point, sphere, sphere_surface, box, ring',
-        enum: ['point', 'sphere', 'sphere_surface', 'box', 'ring'],
-      },
-      direction: {
-        type: 'object',
-        description: 'Emission direction (default: { x: 0, y: -1, z: 0 } for upward)',
-      },
-      spread: {
-        type: 'number',
-        description: 'Spread angle in degrees (default: 45)',
-      },
-      gravity: {
-        type: 'object',
-        description: 'Gravity vector (default: { x: 0, y: 98, z: 0 })',
-      },
-      initialVelocityMin: {
-        type: 'number',
-        description: 'Minimum initial velocity (default: 0)',
-      },
-      initialVelocityMax: {
-        type: 'number',
-        description: 'Maximum initial velocity (default: 0)',
-      },
-      angularVelocityMin: {
-        type: 'number',
-        description: 'Minimum angular velocity in degrees/sec',
-      },
-      angularVelocityMax: {
-        type: 'number',
-        description: 'Maximum angular velocity in degrees/sec',
-      },
-      scaleMin: {
-        type: 'number',
-        description: 'Minimum particle scale (default: 1)',
-      },
-      scaleMax: {
-        type: 'number',
-        description: 'Maximum particle scale (default: 1)',
-      },
-      color: {
-        type: 'object',
-        description: 'Particle color { r, g, b, a }',
-      },
-    },
-    required: ['projectPath', 'materialPath'],
-  },
+  inputSchema: toMcpSchema(CreateParticleMaterialSchema),
 };
 
 export const handleCreateParticleMaterial = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'materialPath',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(CreateParticleMaterialSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath and materialPath',
     ]);
   }
 
-  const typedArgs = preparedArgs as CreateParticleMaterialArgs;
+  const typedArgs: CreateParticleMaterialInput = validation.data;
 
   // Validate material path extension
   if (!typedArgs.materialPath.endsWith('.tres') && !typedArgs.materialPath.endsWith('.res')) {

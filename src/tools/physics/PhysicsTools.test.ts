@@ -114,7 +114,8 @@ describe('Physics Tools', () => {
         layers: [],
       });
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('non-empty array');
+      expect(result.content[0].text).toContain('layers');
+      expect(result.content[0].text).toContain('Too small');
     });
 
     it('should return error for invalid layer number', async () => {
@@ -124,7 +125,8 @@ describe('Physics Tools', () => {
         layers: [{ layer: 33, name: 'Invalid' }],
       });
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Invalid layer number');
+      expect(result.content[0].text).toContain('layer');
+      expect(result.content[0].text).toContain('Too big');
     });
 
     it('should return error for layer without name', async () => {
@@ -134,7 +136,8 @@ describe('Physics Tools', () => {
         layers: [{ layer: 1, name: '' }],
       });
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('must have a name');
+      expect(result.content[0].text).toContain('name');
+      expect(result.content[0].text).toContain('Too small');
     });
   });
 });

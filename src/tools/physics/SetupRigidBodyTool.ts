@@ -1,84 +1,47 @@
 /**
  * Setup RigidBody Tool
  * Configures physics properties for RigidBody2D or RigidBody3D nodes
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, SetupRigidBodyArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createSuccessResponse,
-} from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
-import { detectGodotPath } from '../../core/PathManager';
-import { executeOperation } from '../../core/GodotExecutor';
-import { logDebug } from '../../utils/Logger';
+} from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { detectGodotPath } from '../../core/PathManager.js';
+import { executeOperation } from '../../core/GodotExecutor.js';
+import { logDebug } from '../../utils/Logger.js';
+import {
+  SetupRigidBodySchema,
+  SetupRigidBodyInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const setupRigidBodyDefinition: ToolDefinition = {
   name: 'setup_rigidbody',
   description: 'Configure physics properties for a RigidBody2D or RigidBody3D node',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the scene file (relative to project)',
-      },
-      nodePath: {
-        type: 'string',
-        description: 'Path to the RigidBody node in the scene',
-      },
-      bodyType: {
-        type: 'string',
-        description: 'Body type: dynamic (default), static, or kinematic',
-        enum: ['dynamic', 'static', 'kinematic'],
-      },
-      mass: {
-        type: 'number',
-        description: 'Mass of the body in kg (default: 1.0)',
-      },
-      gravity_scale: {
-        type: 'number',
-        description: 'Gravity scale multiplier (default: 1.0, 0 = no gravity)',
-      },
-      linear_damp: {
-        type: 'number',
-        description: 'Linear damping to slow down linear velocity (default: 0.0)',
-      },
-      angular_damp: {
-        type: 'number',
-        description: 'Angular damping to slow down rotation (default: 0.0)',
-      },
-      physics_material: {
-        type: 'string',
-        description: 'Path to a PhysicsMaterial resource (optional)',
-      },
-    },
-    required: ['projectPath', 'scenePath', 'nodePath'],
-  },
+  inputSchema: toMcpSchema(SetupRigidBodySchema),
 };
 
 export const handleSetupRigidBody = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'scenePath',
-    'nodePath',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(SetupRigidBodySchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, scenePath, and nodePath',
     ]);
   }
 
-  const typedArgs = preparedArgs as SetupRigidBodyArgs;
+  const typedArgs: SetupRigidBodyInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

@@ -1,78 +1,47 @@
 /**
  * Create Collision Shape Tool
  * Creates a CollisionShape2D or CollisionShape3D node with a specified shape
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, CreateCollisionShapeArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createSuccessResponse,
-} from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
-import { detectGodotPath } from '../../core/PathManager';
-import { executeOperation } from '../../core/GodotExecutor';
-import { logDebug } from '../../utils/Logger';
+} from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { detectGodotPath } from '../../core/PathManager.js';
+import { executeOperation } from '../../core/GodotExecutor.js';
+import { logDebug } from '../../utils/Logger.js';
+import {
+  CreateCollisionShapeSchema,
+  CreateCollisionShapeInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const createCollisionShapeDefinition: ToolDefinition = {
   name: 'create_collision_shape',
   description: 'Create a CollisionShape2D or CollisionShape3D node with a specified shape type',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the scene file (relative to project)',
-      },
-      nodeName: {
-        type: 'string',
-        description: 'Name for the CollisionShape node',
-      },
-      parentNodePath: {
-        type: 'string',
-        description: 'Path to the parent node (should be a physics body like RigidBody2D, CharacterBody2D, etc.)',
-      },
-      shapeType: {
-        type: 'string',
-        description: '2D shapes: rectangle, circle, capsule, polygon. 3D shapes: box, sphere, capsule, cylinder, convex',
-        enum: ['rectangle', 'circle', 'capsule', 'polygon', 'box', 'sphere', 'cylinder', 'convex'],
-      },
-      is3D: {
-        type: 'boolean',
-        description: 'Whether to create a 3D collision shape (default: false for 2D)',
-      },
-      shapeParams: {
-        type: 'object',
-        description: 'Shape parameters: size (Vector2/Vector3), radius (number), height (number), points (Vector2[] for polygon)',
-      },
-    },
-    required: ['projectPath', 'scenePath', 'nodeName', 'parentNodePath', 'shapeType'],
-  },
+  inputSchema: toMcpSchema(CreateCollisionShapeSchema),
 };
 
 export const handleCreateCollisionShape = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'scenePath',
-    'nodeName',
-    'parentNodePath',
-    'shapeType',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(CreateCollisionShapeSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, scenePath, nodeName, parentNodePath, and shapeType',
     ]);
   }
 
-  const typedArgs = preparedArgs as CreateCollisionShapeArgs;
+  const typedArgs: CreateCollisionShapeInput = validation.data;
 
   // Validate shape type matches dimension (before project validation)
   const is3D = typedArgs.is3D ?? false;

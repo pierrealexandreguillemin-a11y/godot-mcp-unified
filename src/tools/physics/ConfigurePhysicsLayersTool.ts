@@ -1,72 +1,46 @@
 /**
  * Configure Physics Layers Tool
  * Configures physics layer names in project settings
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, ConfigurePhysicsLayersArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createSuccessResponse,
-} from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
-import { detectGodotPath } from '../../core/PathManager';
-import { executeOperation } from '../../core/GodotExecutor';
-import { logDebug } from '../../utils/Logger';
+} from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { detectGodotPath } from '../../core/PathManager.js';
+import { executeOperation } from '../../core/GodotExecutor.js';
+import { logDebug } from '../../utils/Logger.js';
+import {
+  ConfigurePhysicsLayersSchema,
+  ConfigurePhysicsLayersInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const configurePhysicsLayersDefinition: ToolDefinition = {
   name: 'configure_physics_layers',
   description: 'Configure physics collision layer names in project settings for 2D or 3D',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      dimension: {
-        type: 'string',
-        description: 'Physics dimension: 2d or 3d',
-        enum: ['2d', '3d'],
-      },
-      layers: {
-        type: 'array',
-        description: 'Array of layer configurations with layer number (1-32) and name',
-        items: {
-          type: 'object',
-          properties: {
-            layer: {
-              type: 'number',
-              description: 'Layer number (1-32)',
-            },
-            name: {
-              type: 'string',
-              description: 'Name for the layer',
-            },
-          },
-        },
-      },
-    },
-    required: ['projectPath', 'dimension', 'layers'],
-  },
+  inputSchema: toMcpSchema(ConfigurePhysicsLayersSchema),
 };
 
 export const handleConfigurePhysicsLayers = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'dimension',
-    'layers',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(ConfigurePhysicsLayersSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, dimension (2d/3d), and layers array',
     ]);
   }
 
-  const typedArgs = preparedArgs as ConfigurePhysicsLayersArgs;
+  const typedArgs: ConfigurePhysicsLayersInput = validation.data;
 
   // Validate layers (before project validation)
   if (!Array.isArray(typedArgs.layers) || typedArgs.layers.length === 0) {

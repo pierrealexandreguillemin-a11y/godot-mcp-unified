@@ -1,69 +1,46 @@
 /**
  * Create Audio Bus Tool
  * Creates an audio bus in the project's audio bus layout
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, CreateAudioBusArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createSuccessResponse,
-} from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
-import { detectGodotPath } from '../../core/PathManager';
-import { executeOperation } from '../../core/GodotExecutor';
-import { logDebug } from '../../utils/Logger';
+} from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { detectGodotPath } from '../../core/PathManager.js';
+import { executeOperation } from '../../core/GodotExecutor.js';
+import { logDebug } from '../../utils/Logger.js';
+import {
+  CreateAudioBusSchema,
+  CreateAudioBusInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const createAudioBusDefinition: ToolDefinition = {
   name: 'create_audio_bus',
   description: 'Create a new audio bus in the project audio bus layout',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      busName: {
-        type: 'string',
-        description: 'Name for the new audio bus',
-      },
-      parentBus: {
-        type: 'string',
-        description: 'Name of the parent bus to route to (default: "Master")',
-      },
-      volume: {
-        type: 'number',
-        description: 'Initial volume in dB (default: 0.0)',
-      },
-      solo: {
-        type: 'boolean',
-        description: 'Whether the bus is soloed (default: false)',
-      },
-      mute: {
-        type: 'boolean',
-        description: 'Whether the bus is muted (default: false)',
-      },
-    },
-    required: ['projectPath', 'busName'],
-  },
+  inputSchema: toMcpSchema(CreateAudioBusSchema),
 };
 
 export const handleCreateAudioBus = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'busName',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(CreateAudioBusSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath and busName',
     ]);
   }
 
-  const typedArgs = preparedArgs as CreateAudioBusArgs;
+  const typedArgs: CreateAudioBusInput = validation.data;
 
   // Validate bus name (before project validation)
   if (!typedArgs.busName || typedArgs.busName.trim() === '') {

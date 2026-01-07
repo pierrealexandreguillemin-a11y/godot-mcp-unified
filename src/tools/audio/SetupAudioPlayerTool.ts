@@ -1,83 +1,47 @@
 /**
  * Setup Audio Player Tool
  * Creates and configures an AudioStreamPlayer, AudioStreamPlayer2D, or AudioStreamPlayer3D node
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, SetupAudioPlayerArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createSuccessResponse,
-} from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
-import { detectGodotPath } from '../../core/PathManager';
-import { executeOperation } from '../../core/GodotExecutor';
-import { logDebug } from '../../utils/Logger';
+} from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { detectGodotPath } from '../../core/PathManager.js';
+import { executeOperation } from '../../core/GodotExecutor.js';
+import { logDebug } from '../../utils/Logger.js';
+import {
+  SetupAudioPlayerSchema,
+  SetupAudioPlayerInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const setupAudioPlayerDefinition: ToolDefinition = {
   name: 'setup_audio_player',
   description: 'Create and configure an AudioStreamPlayer node (2D or 3D)',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the scene file (relative to project)',
-      },
-      nodeName: {
-        type: 'string',
-        description: 'Name for the AudioStreamPlayer node',
-      },
-      parentNodePath: {
-        type: 'string',
-        description: 'Path to the parent node (optional, defaults to root)',
-      },
-      is3D: {
-        type: 'boolean',
-        description: 'Create AudioStreamPlayer3D instead of 2D (default: false for non-positional AudioStreamPlayer)',
-      },
-      streamPath: {
-        type: 'string',
-        description: 'Path to the audio stream resource (optional, relative to project)',
-      },
-      bus: {
-        type: 'string',
-        description: 'Audio bus to use (default: "Master")',
-      },
-      autoplay: {
-        type: 'boolean',
-        description: 'Whether to autoplay the stream (default: false)',
-      },
-      volumeDb: {
-        type: 'number',
-        description: 'Volume in decibels (default: 0.0)',
-      },
-    },
-    required: ['projectPath', 'scenePath', 'nodeName'],
-  },
+  inputSchema: toMcpSchema(SetupAudioPlayerSchema),
 };
 
 export const handleSetupAudioPlayer = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'scenePath',
-    'nodeName',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(SetupAudioPlayerSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, scenePath, and nodeName',
     ]);
   }
 
-  const typedArgs = preparedArgs as SetupAudioPlayerArgs;
+  const typedArgs: SetupAudioPlayerInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

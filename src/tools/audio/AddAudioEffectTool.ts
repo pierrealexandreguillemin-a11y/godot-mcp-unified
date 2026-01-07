@@ -1,71 +1,32 @@
 /**
  * Add Audio Effect Tool
  * Adds an audio effect to an audio bus
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, AddAudioEffectArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createSuccessResponse,
-} from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
-import { detectGodotPath } from '../../core/PathManager';
-import { executeOperation } from '../../core/GodotExecutor';
-import { logDebug } from '../../utils/Logger';
+} from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { detectGodotPath } from '../../core/PathManager.js';
+import { executeOperation } from '../../core/GodotExecutor.js';
+import { logDebug } from '../../utils/Logger.js';
+import {
+  AddAudioEffectSchema,
+  AddAudioEffectInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const addAudioEffectDefinition: ToolDefinition = {
   name: 'add_audio_effect',
   description: 'Add an audio effect to an audio bus',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      busName: {
-        type: 'string',
-        description: 'Name of the audio bus to add the effect to',
-      },
-      effectType: {
-        type: 'string',
-        description: 'Type of audio effect to add',
-        enum: [
-          'amplify',
-          'bandlimit',
-          'bandpass',
-          'chorus',
-          'compressor',
-          'delay',
-          'distortion',
-          'eq6',
-          'eq10',
-          'eq21',
-          'filter',
-          'highpass',
-          'highshelf',
-          'limiter',
-          'lowpass',
-          'lowshelf',
-          'notch',
-          'panner',
-          'phaser',
-          'pitch_shift',
-          'record',
-          'reverb',
-          'spectrum_analyzer',
-          'stereo_enhance',
-        ],
-      },
-      effectParams: {
-        type: 'object',
-        description: 'Optional parameters for the effect (varies by effect type)',
-      },
-    },
-    required: ['projectPath', 'busName', 'effectType'],
-  },
+  inputSchema: toMcpSchema(AddAudioEffectSchema),
 };
 
 // Map effect type to Godot class name
@@ -99,18 +60,15 @@ const effectTypeToClass: Record<string, string> = {
 export const handleAddAudioEffect = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'busName',
-    'effectType',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(AddAudioEffectSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, busName, and effectType',
     ]);
   }
 
-  const typedArgs = preparedArgs as AddAudioEffectArgs;
+  const typedArgs: AddAudioEffectInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

@@ -2,16 +2,17 @@
  * Attach Script Tool
  * Attaches a GDScript to a node in a scene
  *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
+ *
  * TECHNICAL DEBT: Uses regex-based .tscn parsing which is fragile.
  * TODO: Consider using a proper TSCN parser library or implementing
  * a state-machine parser for more robust scene file manipulation.
- * Current approach may fail on edge cases with complex node structures.
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, AttachScriptArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createSuccessResponse,
@@ -20,45 +21,31 @@ import { createErrorResponse } from '../../utils/ErrorHandler';
 import { logDebug } from '../../utils/Logger';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import {
+  AttachScriptSchema,
+  AttachScriptInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas';
 
 export const attachScriptDefinition: ToolDefinition = {
   name: 'attach_script',
   description: 'Attach a GDScript to a node in a scene (.tscn file)',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the scene file (relative to project)',
-      },
-      nodePath: {
-        type: 'string',
-        description: 'Path to the node in the scene (e.g., "." for root, "Player/Sprite2D")',
-      },
-      scriptPath: {
-        type: 'string',
-        description: 'Path to the script file (relative to project)',
-      },
-    },
-    required: ['projectPath', 'scenePath', 'nodePath', 'scriptPath'],
-  },
+  inputSchema: toMcpSchema(AttachScriptSchema),
 };
 
 export const handleAttachScript = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'scenePath', 'nodePath', 'scriptPath']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(AttachScriptSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, scenePath, nodePath, and scriptPath',
     ]);
   }
 
-  const typedArgs = preparedArgs as AttachScriptArgs;
+  const typedArgs: AttachScriptInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

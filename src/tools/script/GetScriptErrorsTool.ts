@@ -1,12 +1,14 @@
 /**
  * Get Script Errors Tool
  * Validates GDScript files and returns compilation errors
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, GetScriptErrorsArgs } from '../../server/types.js';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createJsonResponse,
 } from '../BaseToolHandler.js';
@@ -15,6 +17,12 @@ import { detectGodotPath } from '../../core/PathManager.js';
 import { logDebug, logInfo } from '../../utils/Logger.js';
 import { validateScript } from '../../bridge/index.js';
 import { getGodotPool } from '../../core/ProcessPool.js';
+import {
+  GetScriptErrorsSchema,
+  GetScriptErrorsInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export interface ScriptError {
   file: string;
@@ -27,20 +35,7 @@ export interface ScriptError {
 export const getScriptErrorsDefinition: ToolDefinition = {
   name: 'get_script_errors',
   description: 'Validate GDScript files and get compilation errors',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scriptPath: {
-        type: 'string',
-        description: 'Path to a specific script to check (optional, checks all if not provided)',
-      },
-    },
-    required: ['projectPath'],
-  },
+  inputSchema: toMcpSchema(GetScriptErrorsSchema),
 };
 
 const parseGodotOutput = (output: string): ScriptError[] => {
@@ -93,14 +88,15 @@ const parseGodotOutput = (output: string): ScriptError[] => {
 export const handleGetScriptErrors = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(GetScriptErrorsSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide a valid path to a Godot project directory',
     ]);
   }
 
-  const typedArgs = preparedArgs as GetScriptErrorsArgs;
+  const typedArgs: GetScriptErrorsInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

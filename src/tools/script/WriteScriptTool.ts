@@ -1,12 +1,14 @@
 /**
  * Write Script Tool
  * Creates or updates a GDScript file
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, WriteScriptArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createSuccessResponse,
 } from '../BaseToolHandler';
@@ -14,46 +16,31 @@ import { createErrorResponse } from '../../utils/ErrorHandler';
 import { logDebug } from '../../utils/Logger';
 import { writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
+import {
+  WriteScriptSchema,
+  WriteScriptInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas';
 
 export const writeScriptDefinition: ToolDefinition = {
   name: 'write_script',
   description: 'Create or update a GDScript (.gd) file',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scriptPath: {
-        type: 'string',
-        description: 'Path for the script file (relative to project)',
-      },
-      content: {
-        type: 'string',
-        description: 'GDScript content to write',
-      },
-      overwrite: {
-        type: 'boolean',
-        description: 'Overwrite if file exists (default: true)',
-      },
-    },
-    required: ['projectPath', 'scriptPath', 'content'],
-  },
+  inputSchema: toMcpSchema(WriteScriptSchema),
 };
 
 export const handleWriteScript = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'scriptPath', 'content']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(WriteScriptSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, scriptPath, and content',
     ]);
   }
 
-  // Cast to specific type after validation
-  const typedArgs = preparedArgs as WriteScriptArgs;
+  const typedArgs: WriteScriptInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

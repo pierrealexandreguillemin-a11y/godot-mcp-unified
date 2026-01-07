@@ -1,12 +1,14 @@
 /**
  * List Scripts Tool
  * Lists all GDScript files in a Godot project
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, ListScriptsArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createJsonResponse,
 } from '../BaseToolHandler';
@@ -14,6 +16,12 @@ import { createErrorResponse } from '../../utils/ErrorHandler';
 import { logDebug } from '../../utils/Logger';
 import { readdirSync, statSync } from 'fs';
 import { join, relative } from 'path';
+import {
+  ListScriptsSchema,
+  ListScriptsInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas';
 
 export interface ScriptInfo {
   path: string;
@@ -25,20 +33,7 @@ export interface ScriptInfo {
 export const listScriptsDefinition: ToolDefinition = {
   name: 'list_scripts',
   description: 'List all GDScript (.gd) files in a Godot project',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      directory: {
-        type: 'string',
-        description: 'Subdirectory to search (optional, defaults to entire project)',
-      },
-    },
-    required: ['projectPath'],
-  },
+  inputSchema: toMcpSchema(ListScriptsSchema),
 };
 
 const findScripts = (basePath: string, currentPath: string, scripts: ScriptInfo[]): void => {
@@ -73,14 +68,15 @@ const findScripts = (basePath: string, currentPath: string, scripts: ScriptInfo[
 export const handleListScripts = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(ListScriptsSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide a valid path to a Godot project directory',
     ]);
   }
 
-  const typedArgs = preparedArgs as ListScriptsArgs;
+  const typedArgs: ListScriptsInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

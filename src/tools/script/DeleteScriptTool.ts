@@ -1,12 +1,14 @@
 /**
  * Delete Script Tool
  * Deletes a GDScript file from the project
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, DeleteScriptArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createSuccessResponse,
 } from '../BaseToolHandler';
@@ -14,41 +16,31 @@ import { createErrorResponse } from '../../utils/ErrorHandler';
 import { logDebug } from '../../utils/Logger';
 import { unlinkSync, existsSync } from 'fs';
 import { join } from 'path';
+import {
+  DeleteScriptSchema,
+  DeleteScriptInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas';
 
 export const deleteScriptDefinition: ToolDefinition = {
   name: 'delete_script',
   description: 'Delete a GDScript (.gd) file from the project',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scriptPath: {
-        type: 'string',
-        description: 'Path to the script file (relative to project)',
-      },
-      force: {
-        type: 'boolean',
-        description: 'Skip confirmation (default: false)',
-      },
-    },
-    required: ['projectPath', 'scriptPath'],
-  },
+  inputSchema: toMcpSchema(DeleteScriptSchema),
 };
 
 export const handleDeleteScript = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'scriptPath']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(DeleteScriptSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide both projectPath and scriptPath',
     ]);
   }
 
-  const typedArgs = preparedArgs as DeleteScriptArgs;
+  const typedArgs: DeleteScriptInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

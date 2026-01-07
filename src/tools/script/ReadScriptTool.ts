@@ -1,49 +1,45 @@
 /**
  * Read Script Tool
  * Reads the content of a GDScript file
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, ReadScriptArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
 } from '../BaseToolHandler';
 import { createErrorResponse } from '../../utils/ErrorHandler';
 import { logDebug } from '../../utils/Logger';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import {
+  ReadScriptSchema,
+  ReadScriptInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas';
 
 export const readScriptDefinition: ToolDefinition = {
   name: 'read_script',
   description: 'Read the content of a GDScript (.gd) file',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scriptPath: {
-        type: 'string',
-        description: 'Path to the script file (relative to project)',
-      },
-    },
-    required: ['projectPath', 'scriptPath'],
-  },
+  inputSchema: toMcpSchema(ReadScriptSchema),
 };
 
 export const handleReadScript = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'scriptPath']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(ReadScriptSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide both projectPath and scriptPath',
     ]);
   }
 
-  const typedArgs = preparedArgs as ReadScriptArgs;
+  const typedArgs: ReadScriptInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

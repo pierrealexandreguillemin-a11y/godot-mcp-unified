@@ -2,13 +2,13 @@
  * List Scenes Tool
  * Lists all scenes (.tscn, .scn) in a Godot project
  *
- * ISO/IEC 25010 compliant - strict typing
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, ProjectToolArgs } from '../../server/types.js';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createJsonResponse,
 } from '../BaseToolHandler.js';
@@ -16,11 +16,12 @@ import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { logDebug } from '../../utils/Logger.js';
 import { readdirSync, statSync } from 'fs';
 import { join, extname, relative } from 'path';
-
-export interface ListScenesArgs extends ProjectToolArgs {
-  directory?: string;
-  recursive?: boolean;
-}
+import {
+  ListScenesSchema,
+  ListScenesInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export interface SceneInfo {
   path: string;
@@ -41,24 +42,7 @@ export interface ListScenesResult {
 export const listScenesDefinition: ToolDefinition = {
   name: 'list_scenes',
   description: 'List all scenes (.tscn, .scn) in a Godot project',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      directory: {
-        type: 'string',
-        description: 'Subdirectory to search (relative to project, default: entire project)',
-      },
-      recursive: {
-        type: 'boolean',
-        description: 'Search recursively in subdirectories (default: true)',
-      },
-    },
-    required: ['projectPath'],
-  },
+  inputSchema: toMcpSchema(ListScenesSchema),
 };
 
 /**
@@ -117,14 +101,15 @@ function scanForScenes(
 export const handleListScenes = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(ListScenesSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide a valid path to a Godot project directory',
     ]);
   }
 
-  const typedArgs = preparedArgs as ListScenesArgs;
+  const typedArgs: ListScenesInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

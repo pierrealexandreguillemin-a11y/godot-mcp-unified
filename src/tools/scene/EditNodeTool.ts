@@ -1,12 +1,14 @@
 /**
  * Edit Node Tool
  * Edits properties of existing nodes in Godot scenes
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, EditNodeArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createSuccessResponse,
@@ -15,50 +17,31 @@ import { createErrorResponse } from '../../utils/ErrorHandler';
 import { detectGodotPath } from '../../core/PathManager';
 import { executeOperation } from '../../core/GodotExecutor';
 import { logDebug } from '../../utils/Logger';
+import {
+  EditNodeSchema,
+  EditNodeInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas';
 
 export const editNodeDefinition: ToolDefinition = {
   name: 'edit_node',
   description: 'Edit properties of an existing node in a Godot scene',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the scene file (relative to project)',
-      },
-      nodePath: {
-        type: 'string',
-        description: 'Path to the node to edit (e.g., "Player", "UI/HealthBar")',
-      },
-      properties: {
-        type: 'object',
-        description: 'Properties to set on the node',
-      },
-    },
-    required: ['projectPath', 'scenePath', 'nodePath', 'properties'],
-  },
+  inputSchema: toMcpSchema(EditNodeSchema),
 };
 
 export const handleEditNode = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'scenePath',
-    'nodePath',
-    'properties',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(EditNodeSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, scenePath, nodePath, and properties',
     ]);
   }
 
-  const typedArgs = preparedArgs as EditNodeArgs;
+  const typedArgs: EditNodeInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

@@ -2,13 +2,13 @@
  * Instance Scene Tool
  * Adds a scene instance as a child node in another scene
  *
- * ISO/IEC 25010 compliant - strict typing
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, SceneToolArgs } from '../../server/types.js';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createSuccessResponse,
@@ -18,55 +18,31 @@ import { logDebug } from '../../utils/Logger.js';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join, basename } from 'path';
 import { parseTscn, serializeTscn, findNodeByPath, addExtResource, TscnNode } from '../../core/TscnParser.js';
-
-export interface InstanceSceneArgs extends SceneToolArgs {
-  instancePath: string;
-  parentNodePath?: string;
-  instanceName?: string;
-}
+import {
+  InstanceSceneSchema,
+  InstanceSceneInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const instanceSceneDefinition: ToolDefinition = {
   name: 'instance_scene',
   description: 'Add a scene instance as a child node in another scene',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the parent scene file (relative to project)',
-      },
-      instancePath: {
-        type: 'string',
-        description: 'Path to the scene to instance (relative to project)',
-      },
-      parentNodePath: {
-        type: 'string',
-        description: 'Path to the parent node (default: root node ".")',
-      },
-      instanceName: {
-        type: 'string',
-        description: 'Name for the instance node (default: scene filename without extension)',
-      },
-    },
-    required: ['projectPath', 'scenePath', 'instancePath'],
-  },
+  inputSchema: toMcpSchema(InstanceSceneSchema),
 };
 
 export const handleInstanceScene = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'scenePath', 'instancePath']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(InstanceSceneSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, scenePath, and instancePath',
     ]);
   }
 
-  const typedArgs = preparedArgs as InstanceSceneArgs;
+  const typedArgs: InstanceSceneInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

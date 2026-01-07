@@ -2,13 +2,13 @@
  * Get Node Tree Tool
  * Returns the complete node hierarchy of a scene
  *
- * ISO/IEC 25010 compliant - strict typing
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, SceneToolArgs } from '../../server/types.js';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createJsonResponse,
@@ -18,6 +18,12 @@ import { logDebug } from '../../utils/Logger.js';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { parseTscn, TscnDocument, TscnNode } from '../../core/TscnParser.js';
+import {
+  GetNodeTreeSchema,
+  GetNodeTreeInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export interface NodeTreeNode {
   name: string;
@@ -32,29 +38,8 @@ export interface NodeTreeNode {
 export const getNodeTreeDefinition: ToolDefinition = {
   name: 'get_node_tree',
   description: 'Get the complete node hierarchy of a scene (.tscn file)',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the scene file (relative to project)',
-      },
-      maxDepth: {
-        type: 'number',
-        description: 'Maximum depth to traverse (default: unlimited)',
-      },
-    },
-    required: ['projectPath', 'scenePath'],
-  },
+  inputSchema: toMcpSchema(GetNodeTreeSchema),
 };
-
-interface GetNodeTreeArgs extends SceneToolArgs {
-  maxDepth?: number;
-}
 
 /**
  * Build tree structure from flat TSCN nodes
@@ -186,14 +171,15 @@ function formatTreeAsAscii(node: NodeTreeNode, prefix: string = '', isLast: bool
 export const handleGetNodeTree = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'scenePath']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(GetNodeTreeSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath and scenePath',
     ]);
   }
 
-  const typedArgs = preparedArgs as GetNodeTreeArgs;
+  const typedArgs: GetNodeTreeInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

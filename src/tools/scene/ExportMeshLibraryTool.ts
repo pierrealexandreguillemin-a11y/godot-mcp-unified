@@ -1,12 +1,14 @@
 /**
  * Export Mesh Library Tool
  * Exports 3D scenes as MeshLibrary resources for GridMap usage
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, ExportMeshLibraryArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createSuccessResponse,
@@ -15,46 +17,31 @@ import { createErrorResponse } from '../../utils/ErrorHandler';
 import { detectGodotPath } from '../../core/PathManager';
 import { executeOperation } from '../../core/GodotExecutor';
 import { logDebug } from '../../utils/Logger';
+import {
+  ExportMeshLibrarySchema,
+  ExportMeshLibraryInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas';
 
 export const exportMeshLibraryDefinition: ToolDefinition = {
   name: 'export_mesh_library',
   description: 'Export a 3D scene as a MeshLibrary resource for GridMap',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the 3D scene file (relative to project)',
-      },
-      outputPath: {
-        type: 'string',
-        description: 'Path for the output MeshLibrary resource (relative to project)',
-      },
-      meshItemNames: {
-        type: 'array',
-        items: {
-          type: 'string',
-        },
-        description: 'Names of specific mesh items to include (optional)',
-      },
-    },
-    required: ['projectPath', 'scenePath', 'outputPath'],
-  },
+  inputSchema: toMcpSchema(ExportMeshLibrarySchema),
 };
 
 export const handleExportMeshLibrary = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'scenePath', 'outputPath']);
-  if (validationError) {
-    return createErrorResponse(validationError, ['Provide projectPath, scenePath, and outputPath']);
+  // Zod validation
+  const validation = safeValidateInput(ExportMeshLibrarySchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
+      'Provide projectPath, scenePath, and outputPath',
+    ]);
   }
 
-  const typedArgs = preparedArgs as ExportMeshLibraryArgs;
+  const typedArgs: ExportMeshLibraryInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

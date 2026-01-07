@@ -1,12 +1,14 @@
 /**
  * Remove Node Tool
  * Removes nodes from existing scenes in Godot projects
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, RemoveNodeArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createSuccessResponse,
@@ -15,39 +17,31 @@ import { createErrorResponse } from '../../utils/ErrorHandler';
 import { detectGodotPath } from '../../core/PathManager';
 import { executeOperation } from '../../core/GodotExecutor';
 import { logDebug } from '../../utils/Logger';
+import {
+  RemoveNodeSchema,
+  RemoveNodeInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas';
 
 export const removeNodeDefinition: ToolDefinition = {
   name: 'remove_node',
   description: 'Remove a node from an existing scene in a Godot project',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the scene file (relative to project)',
-      },
-      nodePath: {
-        type: 'string',
-        description: 'Path to the node to remove (e.g., "Player", "UI/HealthBar")',
-      },
-    },
-    required: ['projectPath', 'scenePath', 'nodePath'],
-  },
+  inputSchema: toMcpSchema(RemoveNodeSchema),
 };
 
 export const handleRemoveNode = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'scenePath', 'nodePath']);
-  if (validationError) {
-    return createErrorResponse(validationError, ['Provide projectPath, scenePath, and nodePath']);
+  // Zod validation
+  const validation = safeValidateInput(RemoveNodeSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
+      'Provide projectPath, scenePath, and nodePath',
+    ]);
   }
 
-  const typedArgs = preparedArgs as RemoveNodeArgs;
+  const typedArgs: RemoveNodeInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

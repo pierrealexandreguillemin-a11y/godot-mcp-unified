@@ -2,13 +2,13 @@
  * Move Node Tool
  * Moves a node to a different parent in the scene tree
  *
- * ISO/IEC 25010 compliant - strict typing
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, NodeToolArgs } from '../../server/types.js';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createSuccessResponse,
@@ -18,49 +18,31 @@ import { logDebug } from '../../utils/Logger.js';
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { parseTscn, serializeTscn, findNodeByPath } from '../../core/TscnParser.js';
-
-export interface MoveNodeArgs extends NodeToolArgs {
-  newParentPath: string;
-}
+import {
+  MoveNodeSchema,
+  MoveNodeInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const moveNodeDefinition: ToolDefinition = {
   name: 'move_node',
   description: 'Move a node to a different parent in the scene tree',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the scene file (relative to project)',
-      },
-      nodePath: {
-        type: 'string',
-        description: 'Path to the node to move (e.g., "OldParent/MyNode")',
-      },
-      newParentPath: {
-        type: 'string',
-        description: 'Path to the new parent node (e.g., "NewParent" or "." for root)',
-      },
-    },
-    required: ['projectPath', 'scenePath', 'nodePath', 'newParentPath'],
-  },
+  inputSchema: toMcpSchema(MoveNodeSchema),
 };
 
 export const handleMoveNode = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'scenePath', 'nodePath', 'newParentPath']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(MoveNodeSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, scenePath, nodePath, and newParentPath',
     ]);
   }
 
-  const typedArgs = preparedArgs as MoveNodeArgs;
+  const typedArgs: MoveNodeInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

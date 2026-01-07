@@ -1,12 +1,14 @@
 /**
  * Load Sprite Tool
  * Loads sprites and textures into Sprite2D nodes in Godot scenes
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, LoadSpriteArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   validateFilePath,
@@ -16,50 +18,31 @@ import { createErrorResponse } from '../../utils/ErrorHandler';
 import { detectGodotPath } from '../../core/PathManager';
 import { executeOperation } from '../../core/GodotExecutor';
 import { logDebug } from '../../utils/Logger';
+import {
+  LoadSpriteSchema,
+  LoadSpriteInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas';
 
 export const loadSpriteDefinition: ToolDefinition = {
   name: 'load_sprite',
   description: 'Load a sprite/texture into a Sprite2D node in a Godot scene',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the scene file (relative to project)',
-      },
-      nodePath: {
-        type: 'string',
-        description: 'Path to the Sprite2D node in the scene',
-      },
-      texturePath: {
-        type: 'string',
-        description: 'Path to the texture file (relative to project)',
-      },
-    },
-    required: ['projectPath', 'scenePath', 'nodePath', 'texturePath'],
-  },
+  inputSchema: toMcpSchema(LoadSpriteSchema),
 };
 
 export const handleLoadSprite = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'scenePath',
-    'nodePath',
-    'texturePath',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(LoadSpriteSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, scenePath, nodePath, and texturePath',
     ]);
   }
 
-  const typedArgs = preparedArgs as LoadSpriteArgs;
+  const typedArgs: LoadSpriteInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

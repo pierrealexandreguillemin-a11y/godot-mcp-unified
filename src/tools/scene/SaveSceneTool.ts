@@ -1,12 +1,14 @@
 /**
  * Save Scene Tool
  * Saves scenes with options for creating variants
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, SaveSceneArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createSuccessResponse,
@@ -15,39 +17,31 @@ import { createErrorResponse } from '../../utils/ErrorHandler';
 import { detectGodotPath } from '../../core/PathManager';
 import { executeOperation } from '../../core/GodotExecutor';
 import { logDebug } from '../../utils/Logger';
+import {
+  SaveSceneSchema,
+  SaveSceneInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas';
 
 export const saveSceneDefinition: ToolDefinition = {
   name: 'save_scene',
   description: 'Save a scene, optionally as a new variant',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the scene file (relative to project)',
-      },
-      newPath: {
-        type: 'string',
-        description: 'Optional: New path to save as variant (relative to project)',
-      },
-    },
-    required: ['projectPath', 'scenePath'],
-  },
+  inputSchema: toMcpSchema(SaveSceneSchema),
 };
 
 export const handleSaveScene = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'scenePath']);
-  if (validationError) {
-    return createErrorResponse(validationError, ['Provide projectPath and scenePath']);
+  // Zod validation
+  const validation = safeValidateInput(SaveSceneSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
+      'Provide projectPath and scenePath',
+    ]);
   }
 
-  const typedArgs = preparedArgs as SaveSceneArgs;
+  const typedArgs: SaveSceneInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

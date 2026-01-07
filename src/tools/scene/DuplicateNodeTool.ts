@@ -2,13 +2,13 @@
  * Duplicate Node Tool
  * Duplicates an existing node in a scene
  *
- * ISO/IEC 25010 compliant - strict typing
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, NodeToolArgs } from '../../server/types.js';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createSuccessResponse,
@@ -18,49 +18,31 @@ import { logDebug } from '../../utils/Logger.js';
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { parseTscn, serializeTscn, findNodeByPath, TscnNode } from '../../core/TscnParser.js';
-
-export interface DuplicateNodeArgs extends NodeToolArgs {
-  newName?: string;
-}
+import {
+  DuplicateNodeSchema,
+  DuplicateNodeInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const duplicateNodeDefinition: ToolDefinition = {
   name: 'duplicate_node',
   description: 'Duplicate an existing node in a scene (.tscn file)',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the scene file (relative to project)',
-      },
-      nodePath: {
-        type: 'string',
-        description: 'Path to the node to duplicate (e.g., "Player/Sprite2D")',
-      },
-      newName: {
-        type: 'string',
-        description: 'Name for the duplicated node (default: original_name + "2")',
-      },
-    },
-    required: ['projectPath', 'scenePath', 'nodePath'],
-  },
+  inputSchema: toMcpSchema(DuplicateNodeSchema),
 };
 
 export const handleDuplicateNode = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'scenePath', 'nodePath']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(DuplicateNodeSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, scenePath, and nodePath',
     ]);
   }
 
-  const typedArgs = preparedArgs as DuplicateNodeArgs;
+  const typedArgs: DuplicateNodeInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

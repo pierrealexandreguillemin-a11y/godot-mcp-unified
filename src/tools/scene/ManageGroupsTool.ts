@@ -2,13 +2,13 @@
  * Manage Groups Tool
  * Add or remove nodes from groups in a scene
  *
- * ISO/IEC 25010 compliant - strict typing
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, NodeToolArgs } from '../../server/types.js';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createSuccessResponse,
@@ -19,56 +19,31 @@ import { logDebug } from '../../utils/Logger.js';
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { parseTscn, serializeTscn, findNodeByPath } from '../../core/TscnParser.js';
-
-export interface ManageGroupsArgs extends NodeToolArgs {
-  action: 'add' | 'remove' | 'list';
-  groups?: string[];
-}
+import {
+  ManageGroupsSchema,
+  ManageGroupsInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const manageGroupsDefinition: ToolDefinition = {
   name: 'manage_groups',
   description: 'Add or remove nodes from groups in a scene',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the scene file (relative to project)',
-      },
-      nodePath: {
-        type: 'string',
-        description: 'Path to the node',
-      },
-      action: {
-        type: 'string',
-        enum: ['add', 'remove', 'list'],
-        description: 'Action to perform',
-      },
-      groups: {
-        type: 'array',
-        items: { type: 'string' },
-        description: 'Group names (required for add/remove)',
-      },
-    },
-    required: ['projectPath', 'scenePath', 'nodePath', 'action'],
-  },
+  inputSchema: toMcpSchema(ManageGroupsSchema),
 };
 
 export const handleManageGroups = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'scenePath', 'nodePath', 'action']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(ManageGroupsSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, scenePath, nodePath, and action',
     ]);
   }
 
-  const typedArgs = preparedArgs as ManageGroupsArgs;
+  const typedArgs: ManageGroupsInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

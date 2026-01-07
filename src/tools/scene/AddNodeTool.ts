@@ -1,12 +1,14 @@
 /**
  * Add Node Tool
  * Adds nodes to existing scenes in Godot projects
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, AddNodeArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createSuccessResponse,
@@ -15,58 +17,31 @@ import { createErrorResponse } from '../../utils/ErrorHandler';
 import { detectGodotPath } from '../../core/PathManager';
 import { executeOperation } from '../../core/GodotExecutor';
 import { logDebug } from '../../utils/Logger';
+import {
+  AddNodeSchema,
+  AddNodeInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas';
 
 export const addNodeDefinition: ToolDefinition = {
   name: 'add_node',
   description: 'Add a node to an existing scene in a Godot project',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the scene file (relative to project)',
-      },
-      nodeType: {
-        type: 'string',
-        description: 'Type of the node to add (e.g., Node2D, Sprite2D, RigidBody2D)',
-      },
-      nodeName: {
-        type: 'string',
-        description: 'Name for the new node',
-      },
-      parentNodePath: {
-        type: 'string',
-        description: 'Path to the parent node (optional, defaults to root)',
-      },
-      properties: {
-        type: 'object',
-        description: 'Additional properties to set on the node (optional)',
-      },
-    },
-    required: ['projectPath', 'scenePath', 'nodeType', 'nodeName'],
-  },
+  inputSchema: toMcpSchema(AddNodeSchema),
 };
 
 export const handleAddNode = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'scenePath',
-    'nodeType',
-    'nodeName',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(AddNodeSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, scenePath, nodeType, and nodeName',
     ]);
   }
 
-  const typedArgs = preparedArgs as AddNodeArgs;
+  const typedArgs: AddNodeInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

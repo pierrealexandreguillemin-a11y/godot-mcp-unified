@@ -60,8 +60,8 @@ describe('Scene Tools', () => {
           newName: '',
         });
         expect(isErrorResponse(result)).toBe(true);
-        // Empty string triggers validation error
-        expect(getResponseText(result)).toMatch(/required|empty/i);
+        // Empty string triggers validation error (Zod says "Too small")
+        expect(getResponseText(result)).toMatch(/required|empty|too small|>=1/i);
       });
 
       it('should return error for invalid node name characters', async () => {

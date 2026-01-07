@@ -1,12 +1,14 @@
 /**
  * Create Scene Tool
  * Creates new scenes in Godot projects
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, CreateSceneArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createSuccessResponse,
 } from '../BaseToolHandler';
@@ -14,49 +16,52 @@ import { createErrorResponse } from '../../utils/ErrorHandler';
 import { detectGodotPath } from '../../core/PathManager';
 import { executeOperation } from '../../core/GodotExecutor';
 import { logDebug } from '../../utils/Logger';
+import {
+  CreateSceneSchema,
+  CreateSceneInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas';
+
+// ============================================================================
+// Tool Definition (auto-generated from Zod schema)
+// ============================================================================
 
 export const createSceneDefinition: ToolDefinition = {
   name: 'create_scene',
   description: 'Create a new scene in a Godot project',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path for the new scene file (relative to project)',
-      },
-      rootNodeType: {
-        type: 'string',
-        description: 'Type of the root node (default: Node2D)',
-      },
-    },
-    required: ['projectPath', 'scenePath'],
-  },
+  inputSchema: toMcpSchema(CreateSceneSchema),
 };
 
+// ============================================================================
+// Tool Handler
+// ============================================================================
+
 export const handleCreateScene = async (args: BaseToolArgs): Promise<ToolResponse> => {
+  // Step 1: Prepare args (normalize paths, camelCase)
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'scenePath']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Step 2: Validate with Zod (replaces validateBasicArgs + type assertion)
+  const validation = safeValidateInput(CreateSceneSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide valid paths for both the project and the scene',
+      'projectPath: Path to the Godot project directory',
+      'scenePath: Path for the new scene file (relative to project)',
     ]);
   }
 
-  const typedArgs = preparedArgs as CreateSceneArgs;
+  // Step 3: Typed args from Zod (no manual type assertion needed!)
+  const typedArgs: CreateSceneInput = validation.data;
 
+  // Step 4: Validate project exists
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {
     return projectValidationError;
   }
 
   try {
-    // Ensure Godot path is available
+    // Step 5: Ensure Godot path is available
     const godotPath = await detectGodotPath();
     if (!godotPath) {
       return createErrorResponse('Could not find a valid Godot executable path', [
@@ -67,13 +72,14 @@ export const handleCreateScene = async (args: BaseToolArgs): Promise<ToolRespons
 
     logDebug(`Creating scene: ${typedArgs.scenePath} in project: ${typedArgs.projectPath}`);
 
-    // Prepare parameters for the operation
+    // Step 6: Prepare parameters for the operation
+    // Note: rootNodeType has default 'Node2D' from Zod schema
     const params = {
       scenePath: typedArgs.scenePath,
-      rootNodeType: typedArgs.rootNodeType || 'Node2D',
+      rootNodeType: typedArgs.rootNodeType, // Already defaulted by Zod
     };
 
-    // Execute the operation
+    // Step 7: Execute the operation
     const { stdout, stderr } = await executeOperation(
       'create_scene',
       params,

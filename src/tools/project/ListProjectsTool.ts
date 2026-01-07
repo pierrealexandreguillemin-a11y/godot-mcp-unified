@@ -1,46 +1,43 @@
 /**
  * List Projects Tool
  * Lists Godot projects in a directory
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
 import { existsSync } from 'fs';
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, ListProjectsArgs } from '../../server/types';
-import { prepareToolArgs, validateBasicArgs } from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
-import { findGodotProjects } from '../../utils/FileUtils';
-import { logDebug } from '../../utils/Logger';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
+import { prepareToolArgs } from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { findGodotProjects } from '../../utils/FileUtils.js';
+import { logDebug } from '../../utils/Logger.js';
+import {
+  ListProjectsSchema,
+  ListProjectsInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const listProjectsDefinition: ToolDefinition = {
   name: 'list_projects',
   description: 'List Godot projects in a directory',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      directory: {
-        type: 'string',
-        description: 'Directory to search for Godot projects',
-      },
-      recursive: {
-        type: 'boolean',
-        description: 'Whether to search recursively (default: false)',
-      },
-    },
-    required: ['directory'],
-  },
+  inputSchema: toMcpSchema(ListProjectsSchema),
 };
 
 export const handleListProjects = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['directory']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(ListProjectsSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide a valid directory path to search for Godot projects',
     ]);
   }
 
-  const typedArgs = preparedArgs as ListProjectsArgs;
+  const typedArgs: ListProjectsInput = validation.data;
 
   try {
     logDebug(`Listing Godot projects in directory: ${typedArgs.directory}`);

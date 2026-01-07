@@ -2,13 +2,13 @@
  * Validate Project Tool
  * Comprehensive validation of a Godot project
  *
- * ISO/IEC 25010 compliant - strict typing
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, ProjectToolArgs } from '../../server/types.js';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createJsonResponse,
 } from '../BaseToolHandler.js';
@@ -18,6 +18,12 @@ import { logDebug } from '../../utils/Logger.js';
 import { getGodotPool } from '../../core/ProcessPool.js';
 import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
 import { join, extname } from 'path';
+import {
+  ValidateProjectSchema,
+  ValidateProjectInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export interface ValidationIssue {
   type: 'error' | 'warning' | 'info';
@@ -47,47 +53,21 @@ export interface ValidationResult {
 export const validateProjectDefinition: ToolDefinition = {
   name: 'validate_project',
   description: 'Comprehensive validation of a Godot project (scripts, scenes, resources)',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      checkScripts: {
-        type: 'boolean',
-        description: 'Validate GDScript files (default: true)',
-      },
-      checkScenes: {
-        type: 'boolean',
-        description: 'Check scene file integrity (default: true)',
-      },
-      checkResources: {
-        type: 'boolean',
-        description: 'Verify resource references (default: true)',
-      },
-    },
-    required: ['projectPath'],
-  },
+  inputSchema: toMcpSchema(ValidateProjectSchema),
 };
-
-interface ValidateProjectArgs extends ProjectToolArgs {
-  checkScripts?: boolean;
-  checkScenes?: boolean;
-  checkResources?: boolean;
-}
 
 export const handleValidateProject = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(ValidateProjectSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide the path to the Godot project',
     ]);
   }
 
-  const typedArgs = preparedArgs as ValidateProjectArgs;
+  const typedArgs: ValidateProjectInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

@@ -2,13 +2,13 @@
  * Export Project Tool
  * Exports a Godot project to various platforms
  *
- * ISO/IEC 25010 compliant - strict typing
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, ProjectToolArgs } from '../../server/types.js';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createSuccessResponse,
 } from '../BaseToolHandler.js';
@@ -18,55 +18,32 @@ import { logDebug } from '../../utils/Logger.js';
 import { getGodotPool } from '../../core/ProcessPool.js';
 import { existsSync, mkdirSync } from 'fs';
 import { dirname, join } from 'path';
-
-export type ExportMode = 'release' | 'debug';
-
-export interface ExportProjectArgs extends ProjectToolArgs {
-  preset: string;
-  outputPath: string;
-  mode?: ExportMode;
-}
+import {
+  ExportProjectSchema,
+  ExportProjectInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const exportProjectDefinition: ToolDefinition = {
   name: 'export_project',
   description: 'Export a Godot project to a specified platform preset',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      preset: {
-        type: 'string',
-        description: 'Export preset name (must be configured in export_presets.cfg)',
-      },
-      outputPath: {
-        type: 'string',
-        description: 'Output path for the exported project (relative to project or absolute)',
-      },
-      mode: {
-        type: 'string',
-        enum: ['release', 'debug'],
-        description: 'Export mode (default: release)',
-      },
-    },
-    required: ['projectPath', 'preset', 'outputPath'],
-  },
+  inputSchema: toMcpSchema(ExportProjectSchema),
 };
 
 export const handleExportProject = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'preset', 'outputPath']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(ExportProjectSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, preset, and outputPath',
       'Preset must match a name in export_presets.cfg',
     ]);
   }
 
-  const typedArgs = preparedArgs as ExportProjectArgs;
+  const typedArgs: ExportProjectInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

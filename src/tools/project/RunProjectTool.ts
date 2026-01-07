@@ -1,35 +1,31 @@
 /**
  * Run Project Tool
  * Handles running Godot projects in debug mode
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
 import { spawn } from 'child_process';
 
-import { prepareToolArgs, validateBasicArgs } from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
-import { isGodotProject } from '../../utils/FileUtils';
-import { detectGodotPath } from '../../core/PathManager';
-import { getActiveProcess, setActiveProcess } from '../../core/ProcessManager';
-import { logDebug } from '../../utils/Logger';
-import { ToolResponse, ToolDefinition, BaseToolArgs, RunProjectArgs } from '../../server/types';
+import { prepareToolArgs } from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { isGodotProject } from '../../utils/FileUtils.js';
+import { detectGodotPath } from '../../core/PathManager.js';
+import { getActiveProcess, setActiveProcess } from '../../core/ProcessManager.js';
+import { logDebug } from '../../utils/Logger.js';
+import { ToolResponse, ToolDefinition, BaseToolArgs } from '../../server/types.js';
+import {
+  RunProjectSchema,
+  RunProjectInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const runProjectDefinition: ToolDefinition = {
   name: 'run_project',
   description: 'Run the Godot project and capture output',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scene: {
-        type: 'string',
-        description: 'Optional: Specific scene to run',
-      },
-    },
-    required: ['projectPath'],
-  },
+  inputSchema: toMcpSchema(RunProjectSchema),
 };
 
 /**
@@ -39,14 +35,15 @@ export const handleRunProject = async (args: BaseToolArgs): Promise<ToolResponse
   // Validate and normalize arguments
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(RunProjectSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide a valid path to a Godot project directory',
     ]);
   }
 
-  const typedArgs = preparedArgs as RunProjectArgs;
+  const typedArgs: RunProjectInput = validation.data;
 
   try {
     // Validate project

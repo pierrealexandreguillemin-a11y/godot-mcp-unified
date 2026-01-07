@@ -2,13 +2,13 @@
  * Set Project Setting Tool
  * Modifies a setting in project.godot
  *
- * ISO/IEC 25010 compliant - strict typing
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, ProjectToolArgs } from '../../server/types.js';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createSuccessResponse,
 } from '../BaseToolHandler.js';
@@ -16,38 +16,17 @@ import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { logDebug } from '../../utils/Logger.js';
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
-
-export interface SetProjectSettingArgs extends ProjectToolArgs {
-  key: string;
-  value: string;
-  section?: string;
-}
+import {
+  SetProjectSettingSchema,
+  SetProjectSettingInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const setProjectSettingDefinition: ToolDefinition = {
   name: 'set_project_setting',
   description: 'Set or modify a setting in project.godot',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      key: {
-        type: 'string',
-        description: 'Setting key (e.g., "config/name" for [application] section)',
-      },
-      value: {
-        type: 'string',
-        description: 'Value to set (will be quoted if string)',
-      },
-      section: {
-        type: 'string',
-        description: 'Section name (e.g., "application"). Required for new keys.',
-      },
-    },
-    required: ['projectPath', 'key', 'value'],
-  },
+  inputSchema: toMcpSchema(SetProjectSettingSchema),
 };
 
 interface ParsedLine {
@@ -142,14 +121,15 @@ function serializeLines(lines: ParsedLine[]): string {
 export const handleSetProjectSetting = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'key', 'value']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(SetProjectSettingSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, key, and value',
     ]);
   }
 
-  const typedArgs = preparedArgs as SetProjectSettingArgs;
+  const typedArgs: SetProjectSettingInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

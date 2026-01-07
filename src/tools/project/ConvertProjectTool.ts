@@ -2,13 +2,13 @@
  * Convert Project Tool
  * Converts a Godot 3.x project to Godot 4.x format
  *
- * ISO/IEC 25010 compliant - strict typing
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
 import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
@@ -17,47 +17,31 @@ import { logDebug } from '../../utils/Logger.js';
 import { getGodotPool } from '../../core/ProcessPool.js';
 import { existsSync } from 'fs';
 import { join } from 'path';
-
-export interface ConvertProjectArgs extends BaseToolArgs {
-  sourcePath: string;
-  targetPath?: string;
-  noConvertSign?: boolean;
-}
+import {
+  ConvertProjectSchema,
+  ConvertProjectInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const convertProjectDefinition: ToolDefinition = {
   name: 'convert_3to4',
   description: 'Convert a Godot 3.x project to Godot 4.x format',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      sourcePath: {
-        type: 'string',
-        description: 'Path to the Godot 3.x project directory',
-      },
-      targetPath: {
-        type: 'string',
-        description: 'Optional output path for converted project (default: converts in place)',
-      },
-      noConvertSign: {
-        type: 'boolean',
-        description: 'Skip conversion signature (default: false)',
-      },
-    },
-    required: ['sourcePath'],
-  },
+  inputSchema: toMcpSchema(ConvertProjectSchema),
 };
 
 export const handleConvertProject = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['sourcePath']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(ConvertProjectSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide the path to the Godot 3.x project',
     ]);
   }
 
-  const typedArgs = preparedArgs as ConvertProjectArgs;
+  const typedArgs: ConvertProjectInput = validation.data;
 
   // Verify source project exists
   const projectGodotPath = join(typedArgs.sourcePath, 'project.godot');

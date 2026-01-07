@@ -2,13 +2,13 @@
  * Generate Docs Tool
  * Generates documentation for a Godot project
  *
- * ISO/IEC 25010 compliant - strict typing
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, ProjectToolArgs } from '../../server/types.js';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createSuccessResponse,
 } from '../BaseToolHandler.js';
@@ -18,47 +18,31 @@ import { logDebug } from '../../utils/Logger.js';
 import { getGodotPool } from '../../core/ProcessPool.js';
 import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
-
-export interface GenerateDocsArgs extends ProjectToolArgs {
-  outputPath?: string;
-  format?: 'xml' | 'rst';
-}
+import {
+  GenerateDocsSchema,
+  GenerateDocsInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const generateDocsDefinition: ToolDefinition = {
   name: 'generate_docs',
   description: 'Generate documentation for a Godot project using --doctool',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      outputPath: {
-        type: 'string',
-        description: 'Output directory for documentation (default: docs/ in project)',
-      },
-      format: {
-        type: 'string',
-        enum: ['xml', 'rst'],
-        description: 'Documentation format (default: xml)',
-      },
-    },
-    required: ['projectPath'],
-  },
+  inputSchema: toMcpSchema(GenerateDocsSchema),
 };
 
 export const handleGenerateDocs = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(GenerateDocsSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide the path to the Godot project',
     ]);
   }
 
-  const typedArgs = preparedArgs as GenerateDocsArgs;
+  const typedArgs: GenerateDocsInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

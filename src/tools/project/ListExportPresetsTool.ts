@@ -2,13 +2,13 @@
  * List Export Presets Tool
  * Lists all export presets configured in a Godot project
  *
- * ISO/IEC 25010 compliant - strict typing
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, ProjectToolArgs } from '../../server/types.js';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createJsonResponse,
 } from '../BaseToolHandler.js';
@@ -16,10 +16,12 @@ import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { logDebug } from '../../utils/Logger.js';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-
-export interface ListExportPresetsArgs extends ProjectToolArgs {
-  // No additional args needed
-}
+import {
+  ListExportPresetsSchema,
+  ListExportPresetsInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export interface ExportPresetInfo {
   index: number;
@@ -40,16 +42,7 @@ export interface ListExportPresetsResult {
 export const listExportPresetsDefinition: ToolDefinition = {
   name: 'list_export_presets',
   description: 'List all export presets configured in a Godot project (from export_presets.cfg)',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-    },
-    required: ['projectPath'],
-  },
+  inputSchema: toMcpSchema(ListExportPresetsSchema),
 };
 
 /**
@@ -140,14 +133,15 @@ function parseExportPresets(content: string): ExportPresetInfo[] {
 export const handleListExportPresets = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(ListExportPresetsSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide a valid path to a Godot project directory',
     ]);
   }
 
-  const typedArgs = preparedArgs as ListExportPresetsArgs;
+  const typedArgs: ListExportPresetsInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

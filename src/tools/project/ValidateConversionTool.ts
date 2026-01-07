@@ -2,13 +2,13 @@
  * Validate Conversion Tool
  * Validates if a Godot 3.x project can be converted to 4.x without actually converting
  *
- * ISO/IEC 25010 compliant - strict typing
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
 import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   createJsonResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
@@ -17,10 +17,12 @@ import { logDebug } from '../../utils/Logger.js';
 import { getGodotPool } from '../../core/ProcessPool.js';
 import { existsSync } from 'fs';
 import { join } from 'path';
-
-export interface ValidateConversionArgs extends BaseToolArgs {
-  sourcePath: string;
-}
+import {
+  ValidateConversionSchema,
+  ValidateConversionInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export interface ConversionIssue {
   type: 'error' | 'warning' | 'info';
@@ -42,16 +44,7 @@ export interface ValidateConversionResult {
 export const validateConversionDefinition: ToolDefinition = {
   name: 'validate_conversion_3to4',
   description: 'Validate if a Godot 3.x project can be converted to 4.x without actually converting',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      sourcePath: {
-        type: 'string',
-        description: 'Path to the Godot 3.x project directory',
-      },
-    },
-    required: ['sourcePath'],
-  },
+  inputSchema: toMcpSchema(ValidateConversionSchema),
 };
 
 /**
@@ -111,14 +104,15 @@ function parseValidationOutput(output: string): ConversionIssue[] {
 export const handleValidateConversion = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['sourcePath']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(ValidateConversionSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide the path to the Godot 3.x project',
     ]);
   }
 
-  const typedArgs = preparedArgs as ValidateConversionArgs;
+  const typedArgs: ValidateConversionInput = validation.data;
 
   // Verify source project exists
   const projectGodotPath = join(typedArgs.sourcePath, 'project.godot');

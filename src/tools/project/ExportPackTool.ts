@@ -2,13 +2,13 @@
  * Export Pack Tool
  * Exports a Godot project as PCK or ZIP file (data only, no executable)
  *
- * ISO/IEC 25010 compliant - strict typing
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, ProjectToolArgs } from '../../server/types.js';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createSuccessResponse,
 } from '../BaseToolHandler.js';
@@ -18,47 +18,32 @@ import { logDebug } from '../../utils/Logger.js';
 import { getGodotPool } from '../../core/ProcessPool.js';
 import { existsSync, mkdirSync, statSync } from 'fs';
 import { dirname, join, extname } from 'path';
-
-export interface ExportPackArgs extends ProjectToolArgs {
-  preset: string;
-  outputPath: string;
-}
+import {
+  ExportPackSchema,
+  ExportPackInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const exportPackDefinition: ToolDefinition = {
   name: 'export_pack',
   description: 'Export a Godot project as PCK or ZIP file (data only, faster than full export)',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      preset: {
-        type: 'string',
-        description: 'Export preset name (must be configured in export_presets.cfg)',
-      },
-      outputPath: {
-        type: 'string',
-        description: 'Output path for the pack file (.pck or .zip)',
-      },
-    },
-    required: ['projectPath', 'preset', 'outputPath'],
-  },
+  inputSchema: toMcpSchema(ExportPackSchema),
 };
 
 export const handleExportPack = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'preset', 'outputPath']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(ExportPackSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, preset, and outputPath',
       'Output should end with .pck or .zip',
     ]);
   }
 
-  const typedArgs = preparedArgs as ExportPackArgs;
+  const typedArgs: ExportPackInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

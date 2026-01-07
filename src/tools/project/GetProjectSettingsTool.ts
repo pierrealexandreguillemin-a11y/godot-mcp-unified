@@ -2,13 +2,13 @@
  * Get Project Settings Tool
  * Reads and parses project.godot settings
  *
- * ISO/IEC 25010 compliant - strict typing
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, ProjectToolArgs } from '../../server/types.js';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createJsonResponse,
 } from '../BaseToolHandler.js';
@@ -16,11 +16,12 @@ import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { logDebug } from '../../utils/Logger.js';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-
-export interface GetProjectSettingsArgs extends ProjectToolArgs {
-  section?: string;
-  key?: string;
-}
+import {
+  GetProjectSettingsSchema,
+  GetProjectSettingsInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export interface ProjectSetting {
   section: string;
@@ -39,24 +40,7 @@ export interface ProjectSettingsResult {
 export const getProjectSettingsDefinition: ToolDefinition = {
   name: 'get_project_settings',
   description: 'Read and parse project.godot settings. Can filter by section or specific key.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      section: {
-        type: 'string',
-        description: 'Filter by section name (e.g., "application", "display", "rendering")',
-      },
-      key: {
-        type: 'string',
-        description: 'Filter by specific key path (e.g., "application/config/name")',
-      },
-    },
-    required: ['projectPath'],
-  },
+  inputSchema: toMcpSchema(GetProjectSettingsSchema),
 };
 
 /**
@@ -115,14 +99,15 @@ function parseProjectGodot(content: string): { settings: ProjectSetting[]; confi
 export const handleGetProjectSettings = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(GetProjectSettingsSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide a valid path to a Godot project directory',
     ]);
   }
 
-  const typedArgs = preparedArgs as GetProjectSettingsArgs;
+  const typedArgs: GetProjectSettingsInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

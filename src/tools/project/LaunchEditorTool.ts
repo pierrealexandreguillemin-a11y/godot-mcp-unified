@@ -1,45 +1,45 @@
 /**
  * Launch Editor Tool
  * Launches the Godot editor for a specific project
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, LaunchEditorArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createSuccessResponse,
-} from '../BaseToolHandler';
-import { detectGodotPath } from '../../core/PathManager';
-import { launchGodotEditor } from '../../core/ProcessManager';
-import { createErrorResponse } from '../../utils/ErrorHandler';
+} from '../BaseToolHandler.js';
+import { detectGodotPath } from '../../core/PathManager.js';
+import { launchGodotEditor } from '../../core/ProcessManager.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import {
+  LaunchEditorSchema,
+  LaunchEditorInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const launchEditorDefinition: ToolDefinition = {
   name: 'launch_editor',
   description: 'Launch Godot editor for a specific project',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-    },
-    required: ['projectPath'],
-  },
+  inputSchema: toMcpSchema(LaunchEditorSchema),
 };
 
 export const handleLaunchEditor = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(LaunchEditorSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide a valid path to a Godot project directory',
     ]);
   }
 
-  const typedArgs = preparedArgs as LaunchEditorArgs;
+  const typedArgs: LaunchEditorInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

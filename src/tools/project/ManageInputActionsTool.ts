@@ -2,13 +2,13 @@
  * Manage Input Actions Tool
  * Add, remove, or list input actions in project.godot
  *
- * ISO/IEC 25010 compliant - strict typing
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, ProjectToolArgs } from '../../server/types.js';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createSuccessResponse,
   createJsonResponse,
@@ -17,6 +17,12 @@ import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { logDebug } from '../../utils/Logger.js';
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import {
+  ManageInputActionsSchema,
+  ManageInputActionsInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export type InputActionType = 'key' | 'mouse_button' | 'joypad_button' | 'joypad_axis';
 
@@ -34,56 +40,10 @@ export interface InputAction {
   events: InputEvent[];
 }
 
-export interface ManageInputActionsArgs extends ProjectToolArgs {
-  action: 'add' | 'remove' | 'list';
-  name?: string;
-  events?: InputEvent[];
-  deadzone?: number;
-}
-
 export const manageInputActionsDefinition: ToolDefinition = {
   name: 'manage_input_actions',
   description: 'Add, remove, or list input actions in project.godot',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      action: {
-        type: 'string',
-        enum: ['add', 'remove', 'list'],
-        description: 'Action to perform',
-      },
-      name: {
-        type: 'string',
-        description: 'Input action name (required for add/remove)',
-      },
-      events: {
-        type: 'array',
-        description: 'Input events for add action',
-        items: {
-          type: 'object',
-          properties: {
-            type: {
-              type: 'string',
-              enum: ['key', 'mouse_button', 'joypad_button', 'joypad_axis'],
-            },
-            keycode: { type: 'string', description: 'Key code (e.g., "KEY_SPACE", "KEY_W")' },
-            button: { type: 'number', description: 'Mouse or joypad button index' },
-            axis: { type: 'number', description: 'Joypad axis index' },
-            axisValue: { type: 'number', description: 'Axis value (-1 or 1)' },
-          },
-        },
-      },
-      deadzone: {
-        type: 'number',
-        description: 'Deadzone for the action (default: 0.5)',
-      },
-    },
-    required: ['projectPath', 'action'],
-  },
+  inputSchema: toMcpSchema(ManageInputActionsSchema),
 };
 
 /**
@@ -218,14 +178,15 @@ function serializeInputAction(action: InputAction): string {
 export const handleManageInputActions = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'action']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(ManageInputActionsSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath and action (add, remove, or list)',
     ]);
   }
 
-  const typedArgs = preparedArgs as ManageInputActionsArgs;
+  const typedArgs: ManageInputActionsInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

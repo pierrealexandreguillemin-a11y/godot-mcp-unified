@@ -2,13 +2,13 @@
  * Manage Autoloads Tool
  * Add, remove, or list autoload singletons in project.godot
  *
- * ISO/IEC 25010 compliant - strict typing
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, ProjectToolArgs } from '../../server/types.js';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createSuccessResponse,
   createJsonResponse,
@@ -17,14 +17,12 @@ import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { logDebug } from '../../utils/Logger.js';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
-
-export type AutoloadAction = 'add' | 'remove' | 'list';
-
-export interface ManageAutoloadsArgs extends ProjectToolArgs {
-  action: AutoloadAction;
-  name?: string;
-  path?: string;
-}
+import {
+  ManageAutoloadsSchema,
+  ManageAutoloadsInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export interface AutoloadEntry {
   name: string;
@@ -35,29 +33,7 @@ export interface AutoloadEntry {
 export const manageAutoloadsDefinition: ToolDefinition = {
   name: 'manage_autoloads',
   description: 'Add, remove, or list autoload singletons in project.godot',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      action: {
-        type: 'string',
-        enum: ['add', 'remove', 'list'],
-        description: 'Action to perform',
-      },
-      name: {
-        type: 'string',
-        description: 'Autoload name (required for add/remove)',
-      },
-      path: {
-        type: 'string',
-        description: 'Path to the script or scene (required for add, relative to project)',
-      },
-    },
-    required: ['projectPath', 'action'],
-  },
+  inputSchema: toMcpSchema(ManageAutoloadsSchema),
 };
 
 /**
@@ -139,14 +115,15 @@ function parseAutoloads(autoloadSection: Map<string, string> | undefined): Autol
 export const handleManageAutoloads = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'action']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(ManageAutoloadsSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath and action (add, remove, or list)',
     ]);
   }
 
-  const typedArgs = preparedArgs as ManageAutoloadsArgs;
+  const typedArgs: ManageAutoloadsInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

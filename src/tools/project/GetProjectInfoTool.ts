@@ -1,10 +1,13 @@
 /**
  * Get Project Info Tool
  * Retrieves metadata about a Godot project
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, GetProjectInfoArgs } from '../../server/types.js';
-import { prepareToolArgs, validateBasicArgs, validateProjectPath } from '../BaseToolHandler.js';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
+import { prepareToolArgs, validateProjectPath } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { getProjectStructure } from '../../utils/FileUtils.js';
 import { detectGodotPath } from '../../core/PathManager.js';
@@ -12,33 +15,31 @@ import { logDebug } from '../../utils/Logger.js';
 import { getGodotPool } from '../../core/ProcessPool.js';
 import { readFileSync } from 'fs';
 import { join, basename } from 'path';
+import {
+  GetProjectInfoSchema,
+  GetProjectInfoInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const getProjectInfoDefinition: ToolDefinition = {
   name: 'get_project_info',
   description: 'Retrieve metadata about a Godot project',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-    },
-    required: ['projectPath'],
-  },
+  inputSchema: toMcpSchema(GetProjectInfoSchema),
 };
 
 export const handleGetProjectInfo = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(GetProjectInfoSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide a valid path to a Godot project directory',
     ]);
   }
 
-  const typedArgs = preparedArgs as GetProjectInfoArgs;
+  const typedArgs: GetProjectInfoInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

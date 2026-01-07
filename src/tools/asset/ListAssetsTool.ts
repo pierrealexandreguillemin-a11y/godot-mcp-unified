@@ -2,13 +2,13 @@
  * List Assets Tool
  * Lists all assets (images, audio, 3D models, fonts) in a Godot project
  *
- * ISO/IEC 25010 compliant - strict typing
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
 import { ToolDefinition, ToolResponse, BaseToolArgs, ProjectToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createJsonResponse,
 } from '../BaseToolHandler.js';
@@ -16,6 +16,12 @@ import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { logDebug } from '../../utils/Logger.js';
 import { readdirSync, statSync, existsSync } from 'fs';
 import { join, extname, relative } from 'path';
+import {
+  ListAssetsSchema,
+  ListAssetsInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export type AssetCategory = 'texture' | 'audio' | 'model' | 'font';
 
@@ -74,29 +80,7 @@ const ALL_ASSET_EXTENSIONS = new Set(
 export const listAssetsDefinition: ToolDefinition = {
   name: 'list_assets',
   description: 'List all assets (images, audio, 3D models, fonts) in a Godot project',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      directory: {
-        type: 'string',
-        description: 'Subdirectory to search (relative to project, default: entire project)',
-      },
-      recursive: {
-        type: 'boolean',
-        description: 'Search recursively in subdirectories (default: true)',
-      },
-      category: {
-        type: 'string',
-        enum: ['all', 'texture', 'audio', 'model', 'font'],
-        description: 'Filter by asset category (default: all)',
-      },
-    },
-    required: ['projectPath'],
-  },
+  inputSchema: toMcpSchema(ListAssetsSchema),
 };
 
 /**
@@ -187,22 +171,16 @@ function scanForAssets(
 export const handleListAssets = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation (replaces validateBasicArgs + manual category check)
+  const validation = safeValidateInput(ListAssetsSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide a valid path to a Godot project directory',
-    ]);
-  }
-
-  const typedArgs = preparedArgs as ListAssetsArgs;
-
-  // Validate category if provided
-  const validCategories = ['all', 'texture', 'audio', 'model', 'font'];
-  if (typedArgs.category && !validCategories.includes(typedArgs.category)) {
-    return createErrorResponse(`Invalid category: ${typedArgs.category}`, [
       'Valid categories: all, texture, audio, model, font',
     ]);
   }
+
+  const typedArgs: ListAssetsInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

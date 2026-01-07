@@ -39,7 +39,7 @@ describe('Asset Tools', () => {
         category: 'invalid_category',
       });
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Invalid category');
+      expect(result.content[0].text).toMatch(/Invalid category|Validation failed.*category/i);
     });
 
     it('should accept recursive parameter', async () => {
@@ -135,7 +135,7 @@ describe('Asset Tools', () => {
         assetPaths: [],
       });
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('cannot be empty');
+      expect(result.content[0].text).toMatch(/cannot be empty|Validation failed.*assetPaths/i);
     });
 
     it('should return error when assetPaths is not an array', async () => {
@@ -144,7 +144,7 @@ describe('Asset Tools', () => {
         assetPaths: 'not-an-array',
       });
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('must be an array');
+      expect(result.content[0].text).toMatch(/must be an array|Validation failed.*assetPaths.*array/i);
     });
 
     it('should return error for invalid method', async () => {
@@ -154,7 +154,7 @@ describe('Asset Tools', () => {
         method: 'invalid_method',
       });
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Invalid method');
+      expect(result.content[0].text).toMatch(/Invalid method|Validation failed.*method/i);
     });
 
     it('should return error for invalid project path', async () => {

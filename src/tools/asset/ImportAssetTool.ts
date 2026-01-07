@@ -2,13 +2,13 @@
  * Import Asset Tool
  * Copies an external file into the Godot project
  *
- * ISO/IEC 25010 compliant - strict typing
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, ProjectToolArgs } from '../../server/types.js';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createSuccessResponse,
 } from '../BaseToolHandler.js';
@@ -16,12 +16,12 @@ import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { logDebug } from '../../utils/Logger.js';
 import { existsSync, copyFileSync, mkdirSync, statSync } from 'fs';
 import { join, dirname, basename, extname } from 'path';
-
-export interface ImportAssetArgs extends ProjectToolArgs {
-  sourcePath: string;
-  destinationPath: string;
-  overwrite?: boolean;
-}
+import {
+  ImportAssetSchema,
+  ImportAssetInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 // Supported asset extensions for import validation
 const SUPPORTED_EXTENSIONS = new Set([
@@ -38,42 +38,21 @@ const SUPPORTED_EXTENSIONS = new Set([
 export const importAssetDefinition: ToolDefinition = {
   name: 'import_asset',
   description: 'Copy an external asset file into a Godot project. Godot will automatically import it on next scan.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      sourcePath: {
-        type: 'string',
-        description: 'Absolute path to the source file to import',
-      },
-      destinationPath: {
-        type: 'string',
-        description: 'Destination path relative to project (e.g., "assets/sprites/player.png")',
-      },
-      overwrite: {
-        type: 'boolean',
-        description: 'Overwrite if destination already exists (default: false)',
-      },
-    },
-    required: ['projectPath', 'sourcePath', 'destinationPath'],
-  },
+  inputSchema: toMcpSchema(ImportAssetSchema),
 };
 
 export const handleImportAsset = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  // Validate required arguments
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'sourcePath', 'destinationPath']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(ImportAssetSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, sourcePath, and destinationPath',
     ]);
   }
 
-  const typedArgs = preparedArgs as ImportAssetArgs;
+  const typedArgs: ImportAssetInput = validation.data;
 
   // Validate source file exists
   if (!existsSync(typedArgs.sourcePath)) {

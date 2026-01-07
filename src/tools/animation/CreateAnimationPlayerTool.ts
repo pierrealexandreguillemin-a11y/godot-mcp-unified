@@ -1,12 +1,14 @@
 /**
  * Create Animation Player Tool
  * Creates an AnimationPlayer node in a scene
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, CreateAnimationPlayerArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createSuccessResponse,
@@ -15,49 +17,31 @@ import { createErrorResponse } from '../../utils/ErrorHandler';
 import { detectGodotPath } from '../../core/PathManager';
 import { executeOperation } from '../../core/GodotExecutor';
 import { logDebug } from '../../utils/Logger';
+import {
+  CreateAnimationPlayerSchema,
+  CreateAnimationPlayerInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas';
 
 export const createAnimationPlayerDefinition: ToolDefinition = {
   name: 'create_animation_player',
   description: 'Create an AnimationPlayer node in a scene for managing animations',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the scene file (relative to project)',
-      },
-      nodeName: {
-        type: 'string',
-        description: 'Name for the AnimationPlayer node',
-      },
-      parentNodePath: {
-        type: 'string',
-        description: 'Path to the parent node (optional, defaults to root)',
-      },
-    },
-    required: ['projectPath', 'scenePath', 'nodeName'],
-  },
+  inputSchema: toMcpSchema(CreateAnimationPlayerSchema),
 };
 
 export const handleCreateAnimationPlayer = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'scenePath',
-    'nodeName',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(CreateAnimationPlayerSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, scenePath, and nodeName',
     ]);
   }
 
-  const typedArgs = preparedArgs as CreateAnimationPlayerArgs;
+  const typedArgs: CreateAnimationPlayerInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

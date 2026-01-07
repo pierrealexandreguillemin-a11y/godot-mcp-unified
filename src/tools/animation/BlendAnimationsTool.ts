@@ -2,7 +2,8 @@
  * Blend Animations Tool
  * Configures blend spaces (BlendSpace1D/2D) for smooth animation transitions
  *
- * ISO/IEC 25010 compliant - strict typing
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
 import {
@@ -11,11 +12,9 @@ import {
   BaseToolArgs,
   BlendPoint1D,
   BlendPoint2D,
-  BlendAnimationsArgs,
 } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createJsonResponse,
@@ -24,9 +23,15 @@ import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { executeOperation } from '../../core/GodotExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
+import {
+  BlendAnimationsSchema,
+  BlendAnimationsInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 // Re-export for consumers
-export type { BlendPoint1D, BlendPoint2D, BlendAnimationsArgs };
+export type { BlendPoint1D, BlendPoint2D };
 
 export interface BlendAnimationsResult {
   animTreePath: string;
@@ -40,92 +45,21 @@ export const blendAnimationsDefinition: ToolDefinition = {
   name: 'blend_animations',
   description:
     'Configure BlendSpace1D or BlendSpace2D for smooth animation blending based on parameters',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the scene file (relative to project)',
-      },
-      animTreePath: {
-        type: 'string',
-        description: 'Path to the AnimationTree node in the scene',
-      },
-      blendSpaceName: {
-        type: 'string',
-        description: 'Name for the blend space node in the tree',
-      },
-      type: {
-        type: 'string',
-        description: 'Blend space type: 1d or 2d',
-        enum: ['1d', '2d'],
-      },
-      points: {
-        type: 'array',
-        description:
-          'Blend points: for 1D: {animation, position}, for 2D: {animation, positionX, positionY}',
-        items: {
-          type: 'object',
-          properties: {
-            animation: { type: 'string', description: 'Animation name' },
-            position: { type: 'number', description: '1D position' },
-            positionX: { type: 'number', description: '2D X position' },
-            positionY: { type: 'number', description: '2D Y position' },
-          },
-        },
-      },
-      minSpace: {
-        type: 'number',
-        description: 'Minimum value for blend parameter (default: -1)',
-      },
-      maxSpace: {
-        type: 'number',
-        description: 'Maximum value for blend parameter (default: 1)',
-      },
-      minSpaceY: {
-        type: 'number',
-        description: '2D only: minimum Y value (default: -1)',
-      },
-      maxSpaceY: {
-        type: 'number',
-        description: '2D only: maximum Y value (default: 1)',
-      },
-      blendMode: {
-        type: 'string',
-        description: 'Blend mode: interpolated, discrete, or carry',
-        enum: ['interpolated', 'discrete', 'carry'],
-      },
-      sync: {
-        type: 'boolean',
-        description: 'Synchronize animation lengths (default: false)',
-      },
-    },
-    required: ['projectPath', 'scenePath', 'animTreePath', 'blendSpaceName', 'type', 'points'],
-  },
+  inputSchema: toMcpSchema(BlendAnimationsSchema),
 };
 
 export const handleBlendAnimations = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'scenePath',
-    'animTreePath',
-    'blendSpaceName',
-    'type',
-    'points',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(BlendAnimationsSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, scenePath, animTreePath, blendSpaceName, type, and points',
     ]);
   }
 
-  const typedArgs = preparedArgs as BlendAnimationsArgs;
+  const typedArgs: BlendAnimationsInput = validation.data;
 
   // Validate scenePath extension
   if (!typedArgs.scenePath.endsWith('.tscn') && !typedArgs.scenePath.endsWith('.scn')) {

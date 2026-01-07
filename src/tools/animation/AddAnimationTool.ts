@@ -1,12 +1,14 @@
 /**
  * Add Animation Tool
  * Adds a new animation to an AnimationPlayer
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, AddAnimationArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createSuccessResponse,
@@ -15,58 +17,31 @@ import { createErrorResponse } from '../../utils/ErrorHandler';
 import { detectGodotPath } from '../../core/PathManager';
 import { executeOperation } from '../../core/GodotExecutor';
 import { logDebug } from '../../utils/Logger';
+import {
+  AddAnimationSchema,
+  AddAnimationInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas';
 
 export const addAnimationDefinition: ToolDefinition = {
   name: 'add_animation',
   description: 'Add a new animation to an AnimationPlayer node',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the scene file (relative to project)',
-      },
-      playerNodePath: {
-        type: 'string',
-        description: 'Path to the AnimationPlayer node in the scene',
-      },
-      animationName: {
-        type: 'string',
-        description: 'Name for the new animation',
-      },
-      length: {
-        type: 'number',
-        description: 'Duration of the animation in seconds (default: 1.0)',
-      },
-      loop: {
-        type: 'boolean',
-        description: 'Whether the animation should loop (default: false)',
-      },
-    },
-    required: ['projectPath', 'scenePath', 'playerNodePath', 'animationName'],
-  },
+  inputSchema: toMcpSchema(AddAnimationSchema),
 };
 
 export const handleAddAnimation = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'scenePath',
-    'playerNodePath',
-    'animationName',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(AddAnimationSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, scenePath, playerNodePath, and animationName',
     ]);
   }
 
-  const typedArgs = preparedArgs as AddAnimationArgs;
+  const typedArgs: AddAnimationInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

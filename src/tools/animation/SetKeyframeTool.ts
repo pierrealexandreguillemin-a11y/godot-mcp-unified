@@ -1,12 +1,14 @@
 /**
  * Set Keyframe Tool
  * Sets a keyframe value at a specific time in an animation track
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, SetKeyframeArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createSuccessResponse,
@@ -15,73 +17,31 @@ import { createErrorResponse } from '../../utils/ErrorHandler';
 import { detectGodotPath } from '../../core/PathManager';
 import { executeOperation } from '../../core/GodotExecutor';
 import { logDebug } from '../../utils/Logger';
+import {
+  SetKeyframeSchema,
+  SetKeyframeInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas';
 
 export const setKeyframeDefinition: ToolDefinition = {
   name: 'set_keyframe',
   description: 'Set a keyframe value at a specific time in an animation track',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the scene file (relative to project)',
-      },
-      playerNodePath: {
-        type: 'string',
-        description: 'Path to the AnimationPlayer node in the scene',
-      },
-      animationName: {
-        type: 'string',
-        description: 'Name of the animation',
-      },
-      trackIndex: {
-        type: 'number',
-        description: 'Index of the track (0-based)',
-      },
-      time: {
-        type: 'number',
-        description: 'Time position in seconds for the keyframe',
-      },
-      value: {
-        type: 'object',
-        description: 'Value for the keyframe (type depends on track type: number, Vector2, Vector3, Color, etc.)',
-      },
-      transition: {
-        type: 'number',
-        description: 'Transition type: 0=LINEAR, 1=SINE, 2=QUINT, 3=QUART, 4=QUAD, 5=EXPO, 6=ELASTIC, 7=CUBIC, 8=CIRC, 9=BOUNCE, 10=BACK, 11=SPRING (default: 0)',
-      },
-      easing: {
-        type: 'number',
-        description: 'Easing type: 0=EASE_IN, 1=EASE_OUT, 2=EASE_IN_OUT, 3=EASE_OUT_IN (default: 0)',
-      },
-    },
-    required: ['projectPath', 'scenePath', 'playerNodePath', 'animationName', 'trackIndex', 'time', 'value'],
-  },
+  inputSchema: toMcpSchema(SetKeyframeSchema),
 };
 
 export const handleSetKeyframe = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'scenePath',
-    'playerNodePath',
-    'animationName',
-    'trackIndex',
-    'time',
-    'value',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(SetKeyframeSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, scenePath, playerNodePath, animationName, trackIndex, time, and value',
     ]);
   }
 
-  const typedArgs = preparedArgs as SetKeyframeArgs;
+  const typedArgs: SetKeyframeInput = validation.data;
 
   // Validate track index (before project validation)
   if (typedArgs.trackIndex < 0) {

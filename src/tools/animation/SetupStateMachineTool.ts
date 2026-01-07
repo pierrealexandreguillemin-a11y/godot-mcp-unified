@@ -2,7 +2,8 @@
  * Setup State Machine Tool
  * Configures an AnimationNodeStateMachine for animation state transitions
  *
- * ISO/IEC 25010 compliant - strict typing
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
 import {
@@ -11,11 +12,9 @@ import {
   BaseToolArgs,
   StateMachineState,
   StateMachineTransition,
-  SetupStateMachineArgs,
 } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createJsonResponse,
@@ -24,9 +23,15 @@ import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { executeOperation } from '../../core/GodotExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
+import {
+  SetupStateMachineSchema,
+  SetupStateMachineInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 // Re-export for consumers
-export type { StateMachineState, StateMachineTransition, SetupStateMachineArgs };
+export type { StateMachineState, StateMachineTransition };
 
 export interface SetupStateMachineResult {
   animTreePath: string;
@@ -40,79 +45,21 @@ export const setupStateMachineDefinition: ToolDefinition = {
   name: 'setup_state_machine',
   description:
     'Configure an AnimationNodeStateMachine with states and transitions for animation control',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the scene file (relative to project)',
-      },
-      animTreePath: {
-        type: 'string',
-        description: 'Path to the AnimationTree node in the scene',
-      },
-      states: {
-        type: 'array',
-        description:
-          'Array of state definitions: {name: string, animation?: string, blendPosition?: number}',
-        items: {
-          type: 'object',
-          properties: {
-            name: { type: 'string', description: 'State name' },
-            animation: { type: 'string', description: 'Animation name to play' },
-            blendPosition: { type: 'number', description: 'Position in blend space' },
-          },
-        },
-      },
-      transitions: {
-        type: 'array',
-        description:
-          'Array of transitions: {from: string, to: string, autoAdvance?: boolean, advanceCondition?: string, xfadeTime?: number, switchMode?: string}',
-        items: {
-          type: 'object',
-          properties: {
-            from: { type: 'string', description: 'Source state name' },
-            to: { type: 'string', description: 'Target state name' },
-            autoAdvance: { type: 'boolean', description: 'Auto-advance when animation ends' },
-            advanceCondition: { type: 'string', description: 'Condition expression' },
-            xfadeTime: { type: 'number', description: 'Cross-fade duration in seconds' },
-            switchMode: {
-              type: 'string',
-              description: 'immediate, sync, or at_end',
-              enum: ['immediate', 'sync', 'at_end'],
-            },
-          },
-        },
-      },
-      startState: {
-        type: 'string',
-        description: 'Initial state name (optional)',
-      },
-    },
-    required: ['projectPath', 'scenePath', 'animTreePath', 'states'],
-  },
+  inputSchema: toMcpSchema(SetupStateMachineSchema),
 };
 
 export const handleSetupStateMachine = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'scenePath',
-    'animTreePath',
-    'states',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(SetupStateMachineSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, scenePath, animTreePath, and states',
     ]);
   }
 
-  const typedArgs = preparedArgs as SetupStateMachineArgs;
+  const typedArgs: SetupStateMachineInput = validation.data;
 
   // Validate scenePath extension
   if (!typedArgs.scenePath.endsWith('.tscn') && !typedArgs.scenePath.endsWith('.scn')) {

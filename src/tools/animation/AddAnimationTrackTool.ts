@@ -1,12 +1,14 @@
 /**
  * Add Animation Track Tool
  * Adds a track to an existing animation
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, AddAnimationTrackArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createSuccessResponse,
@@ -15,65 +17,31 @@ import { createErrorResponse } from '../../utils/ErrorHandler';
 import { detectGodotPath } from '../../core/PathManager';
 import { executeOperation } from '../../core/GodotExecutor';
 import { logDebug } from '../../utils/Logger';
+import {
+  AddAnimationTrackSchema,
+  AddAnimationTrackInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas';
 
 export const addAnimationTrackDefinition: ToolDefinition = {
   name: 'add_animation_track',
   description: 'Add a track to an existing animation for animating node properties',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the scene file (relative to project)',
-      },
-      playerNodePath: {
-        type: 'string',
-        description: 'Path to the AnimationPlayer node in the scene',
-      },
-      animationName: {
-        type: 'string',
-        description: 'Name of the animation to add the track to',
-      },
-      trackType: {
-        type: 'string',
-        description: 'Type of track: value, position_2d, position_3d, rotation_2d, rotation_3d, scale_2d, scale_3d, method, bezier, audio, animation',
-        enum: ['value', 'position_2d', 'position_3d', 'rotation_2d', 'rotation_3d', 'scale_2d', 'scale_3d', 'method', 'bezier', 'audio', 'animation'],
-      },
-      nodePath: {
-        type: 'string',
-        description: 'Path to the node being animated (relative to AnimationPlayer)',
-      },
-      property: {
-        type: 'string',
-        description: 'Property to animate (for value tracks, e.g., "modulate", "position")',
-      },
-    },
-    required: ['projectPath', 'scenePath', 'playerNodePath', 'animationName', 'trackType', 'nodePath'],
-  },
+  inputSchema: toMcpSchema(AddAnimationTrackSchema),
 };
 
 export const handleAddAnimationTrack = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'scenePath',
-    'playerNodePath',
-    'animationName',
-    'trackType',
-    'nodePath',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(AddAnimationTrackSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, scenePath, playerNodePath, animationName, trackType, and nodePath',
     ]);
   }
 
-  const typedArgs = preparedArgs as AddAnimationTrackArgs;
+  const typedArgs: AddAnimationTrackInput = validation.data;
 
   // Validate track type requires property for value tracks (before project validation)
   if (typedArgs.trackType === 'value' && !typedArgs.property) {

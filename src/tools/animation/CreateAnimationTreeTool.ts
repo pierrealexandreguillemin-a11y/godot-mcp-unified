@@ -2,13 +2,13 @@
  * Create Animation Tree Tool
  * Creates an AnimationTree node for advanced animation blending and state machines
  *
- * ISO/IEC 25010 compliant - strict typing
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, SceneToolArgs } from '../../server/types.js';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createJsonResponse,
@@ -17,14 +17,12 @@ import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { executeOperation } from '../../core/GodotExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
-
-export interface CreateAnimationTreeArgs extends SceneToolArgs {
-  nodeName: string;
-  parentNodePath?: string;
-  animPlayerPath?: string;
-  rootMotionTrack?: string;
-  processCallback?: 'idle' | 'physics' | 'manual';
-}
+import {
+  CreateAnimationTreeSchema,
+  CreateAnimationTreeInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export interface CreateAnimationTreeResult {
   nodeName: string;
@@ -37,58 +35,21 @@ export const createAnimationTreeDefinition: ToolDefinition = {
   name: 'create_animation_tree',
   description:
     'Create an AnimationTree node for advanced animation control including state machines and blend spaces',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the scene file (relative to project)',
-      },
-      nodeName: {
-        type: 'string',
-        description: 'Name for the AnimationTree node',
-      },
-      parentNodePath: {
-        type: 'string',
-        description: 'Path to the parent node (optional, defaults to root)',
-      },
-      animPlayerPath: {
-        type: 'string',
-        description: 'Path to the AnimationPlayer node to control (relative to AnimationTree)',
-      },
-      rootMotionTrack: {
-        type: 'string',
-        description: 'Track path for root motion extraction (optional)',
-      },
-      processCallback: {
-        type: 'string',
-        description: 'Process callback mode: idle, physics, or manual (default: idle)',
-        enum: ['idle', 'physics', 'manual'],
-      },
-    },
-    required: ['projectPath', 'scenePath', 'nodeName'],
-  },
+  inputSchema: toMcpSchema(CreateAnimationTreeSchema),
 };
 
 export const handleCreateAnimationTree = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'scenePath',
-    'nodeName',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(CreateAnimationTreeSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, scenePath, and nodeName',
     ]);
   }
 
-  const typedArgs = preparedArgs as CreateAnimationTreeArgs;
+  const typedArgs: CreateAnimationTreeInput = validation.data;
 
   // Validate nodeName - Godot node names cannot contain / : @ or be empty
   const invalidNodeNameChars = /[/:@]/;

@@ -128,7 +128,7 @@ export class GodotLSPClient extends EventEmitter {
       });
 
       this.socket.on('data', (data) => {
-        this.handleData(data);
+        this.handleData(Buffer.isBuffer(data) ? data : Buffer.from(data));
       });
 
       this.socket.on('error', (error) => {

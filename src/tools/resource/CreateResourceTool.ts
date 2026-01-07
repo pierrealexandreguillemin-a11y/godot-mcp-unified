@@ -2,13 +2,13 @@
  * Create Resource Tool
  * Creates .tres resource files (materials, styles, etc.)
  *
- * ISO/IEC 25010 compliant - strict typing
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, ProjectToolArgs } from '../../server/types.js';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createSuccessResponse,
 } from '../BaseToolHandler.js';
@@ -16,6 +16,12 @@ import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { logDebug } from '../../utils/Logger.js';
 import { writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
+import {
+  CreateResourceSchema,
+  CreateResourceInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export type ResourceType =
   | 'StandardMaterial3D'
@@ -31,51 +37,10 @@ export type ResourceType =
   | 'Animation'
   | 'AnimationLibrary';
 
-export interface CreateResourceArgs extends ProjectToolArgs {
-  resourcePath: string;
-  resourceType: ResourceType;
-  properties?: Record<string, unknown>;
-}
-
 export const createResourceDefinition: ToolDefinition = {
   name: 'create_resource',
   description: 'Create a .tres resource file (materials, styles, etc.)',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      resourcePath: {
-        type: 'string',
-        description: 'Path for the resource file (relative to project, e.g., "materials/player.tres")',
-      },
-      resourceType: {
-        type: 'string',
-        enum: [
-          'StandardMaterial3D',
-          'ShaderMaterial',
-          'StyleBoxFlat',
-          'StyleBoxTexture',
-          'Theme',
-          'Environment',
-          'Sky',
-          'Gradient',
-          'Curve',
-          'AudioBusLayout',
-          'Animation',
-          'AnimationLibrary',
-        ],
-        description: 'Type of resource to create',
-      },
-      properties: {
-        type: 'object',
-        description: 'Optional properties to set on the resource',
-      },
-    },
-    required: ['projectPath', 'resourcePath', 'resourceType'],
-  },
+  inputSchema: toMcpSchema(CreateResourceSchema),
 };
 
 /**
@@ -219,14 +184,15 @@ function generateTresContent(resourceType: ResourceType, properties: Record<stri
 export const handleCreateResource = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'resourcePath', 'resourceType']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(CreateResourceSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, resourcePath, and resourceType',
     ]);
   }
 
-  const typedArgs = preparedArgs as CreateResourceArgs;
+  const typedArgs: CreateResourceInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

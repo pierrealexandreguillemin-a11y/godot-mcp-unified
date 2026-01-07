@@ -1,33 +1,32 @@
 /**
  * Update Project UIDs Tool
  * Updates UID references in a Godot project by resaving resources (for Godot 4.4+)
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, UpdateProjectUidsArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createSuccessResponse,
-} from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
-import { detectGodotPath } from '../../core/PathManager';
-import { executeOperation, getGodotVersion, isGodot44OrLater } from '../../core/GodotExecutor';
-import { logDebug } from '../../utils/Logger';
+} from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { detectGodotPath } from '../../core/PathManager.js';
+import { executeOperation, getGodotVersion, isGodot44OrLater } from '../../core/GodotExecutor.js';
+import { logDebug } from '../../utils/Logger.js';
+import {
+  UpdateProjectUidsSchema,
+  UpdateProjectUidsInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const updateProjectUidsDefinition: ToolDefinition = {
   name: 'update_project_uids',
   description: 'Update UID references in a Godot project by resaving resources (for Godot 4.4+)',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-    },
-    required: ['projectPath'],
-  },
+  inputSchema: toMcpSchema(UpdateProjectUidsSchema),
 };
 
 /**
@@ -37,14 +36,15 @@ export const handleUpdateProjectUids = async (args: BaseToolArgs): Promise<ToolR
   // Validate and normalize arguments
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(UpdateProjectUidsSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide a valid path to a Godot project directory',
     ]);
   }
 
-  const typedArgs = preparedArgs as UpdateProjectUidsArgs;
+  const typedArgs: UpdateProjectUidsInput = validation.data;
 
   // Validate project path
   const projectValidation = validateProjectPath(typedArgs.projectPath);

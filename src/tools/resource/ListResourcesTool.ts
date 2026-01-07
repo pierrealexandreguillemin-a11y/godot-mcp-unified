@@ -2,13 +2,13 @@
  * List Resources Tool
  * Lists all resources (.tres, .res) in a Godot project
  *
- * ISO/IEC 25010 compliant - strict typing
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, ProjectToolArgs } from '../../server/types.js';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createJsonResponse,
 } from '../BaseToolHandler.js';
@@ -16,12 +16,12 @@ import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { logDebug } from '../../utils/Logger.js';
 import { readdirSync, statSync, readFileSync } from 'fs';
 import { join, extname, relative } from 'path';
-
-export interface ListResourcesArgs extends ProjectToolArgs {
-  directory?: string;
-  recursive?: boolean;
-  resourceType?: string;
-}
+import {
+  ListResourcesSchema,
+  ListResourcesInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export interface ResourceInfo {
   path: string;
@@ -44,28 +44,7 @@ export interface ListResourcesResult {
 export const listResourcesDefinition: ToolDefinition = {
   name: 'list_resources',
   description: 'List all resources (.tres, .res) in a Godot project',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      directory: {
-        type: 'string',
-        description: 'Subdirectory to search (relative to project, default: entire project)',
-      },
-      recursive: {
-        type: 'boolean',
-        description: 'Search recursively in subdirectories (default: true)',
-      },
-      resourceType: {
-        type: 'string',
-        description: 'Filter by resource type (e.g., "PackedScene", "Texture2D", "Material")',
-      },
-    },
-    required: ['projectPath'],
-  },
+  inputSchema: toMcpSchema(ListResourcesSchema),
 };
 
 /**
@@ -152,14 +131,15 @@ function scanForResources(
 export const handleListResources = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(ListResourcesSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide a valid path to a Godot project directory',
     ]);
   }
 
-  const typedArgs = preparedArgs as ListResourcesArgs;
+  const typedArgs: ListResourcesInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

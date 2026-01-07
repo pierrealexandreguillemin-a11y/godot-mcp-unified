@@ -1,12 +1,14 @@
 /**
  * Get UID Tool
  * Gets UIDs for files in Godot projects (for Godot 4.4+)
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, GetUidArgs } from '../../server/types.js';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateFilePath,
   createSuccessResponse,
@@ -16,6 +18,12 @@ import { detectGodotPath } from '../../core/PathManager.js';
 import { executeOperation } from '../../core/GodotExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
 import { getGodotPool } from '../../core/ProcessPool.js';
+import {
+  GetUidSchema,
+  GetUidInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 /**
  * Check if Godot version is 4.4 or later
@@ -33,31 +41,21 @@ const isGodot44OrLater = (version: string): boolean => {
 export const getUidDefinition: ToolDefinition = {
   name: 'get_uid',
   description: 'Get the UID for a specific file in a Godot project (for Godot 4.4+)',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      filePath: {
-        type: 'string',
-        description: 'Path to the file (relative to project) for which to get the UID',
-      },
-    },
-    required: ['projectPath', 'filePath'],
-  },
+  inputSchema: toMcpSchema(GetUidSchema),
 };
 
 export const handleGetUid = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'filePath']);
-  if (validationError) {
-    return createErrorResponse(validationError, ['Provide projectPath and filePath']);
+  // Zod validation
+  const validation = safeValidateInput(GetUidSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
+      'Provide projectPath and filePath',
+    ]);
   }
 
-  const typedArgs = preparedArgs as GetUidArgs;
+  const typedArgs: GetUidInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

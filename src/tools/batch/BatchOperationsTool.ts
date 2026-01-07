@@ -2,18 +2,24 @@
  * Batch Operations Tool
  * Execute multiple MCP tools in sequence with error handling
  *
- * ISO/IEC 25010 compliant - strict typing
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
 import { ToolDefinition, ToolResponse, BaseToolArgs, ProjectToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createJsonResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { logDebug, logError } from '../../utils/Logger.js';
+import {
+  BatchOperationsSchema,
+  BatchOperationsInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 // Lazy import to avoid circular dependency
 let toolRegistryModule: typeof import('../ToolRegistry.js') | null = null;
@@ -63,45 +69,7 @@ export const batchOperationsDefinition: ToolDefinition = {
   name: 'batch_operations',
   description:
     'Execute multiple MCP tools in sequence with error handling. Useful for complex workflows like creating a scene with multiple nodes and scripts.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      operations: {
-        type: 'array',
-        description: 'Array of tool operations to execute sequentially',
-        items: {
-          type: 'object',
-          properties: {
-            tool: {
-              type: 'string',
-              description: 'Name of the MCP tool to execute (required)',
-            },
-            args: {
-              type: 'object',
-              description: 'Arguments to pass to the tool (required, projectPath is auto-injected)',
-            },
-            id: {
-              type: 'string',
-              description: 'Optional identifier for this operation (for reference in results)',
-            },
-          },
-        },
-      },
-      stopOnError: {
-        type: 'boolean',
-        description: 'Stop execution on first error (default: true)',
-      },
-      maxOperations: {
-        type: 'number',
-        description: `Maximum number of operations to execute (default: ${MAX_OPERATIONS}, max: ${MAX_OPERATIONS})`,
-      },
-    },
-    required: ['projectPath', 'operations'],
-  },
+  inputSchema: toMcpSchema(BatchOperationsSchema),
 };
 
 /**
@@ -208,40 +176,19 @@ async function executeOperation(
 export const handleBatchOperations = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  // Validate required args
-  const validationError = validateBasicArgs(preparedArgs, ['projectPath', 'operations']);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation (replaces validateBasicArgs + array/empty checks)
+  const validation = safeValidateInput(BatchOperationsSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide a valid projectPath',
-      'Provide an array of operations to execute',
+      'Provide an array of operations to execute (1-100 items)',
     ]);
   }
 
-  const typedArgs = preparedArgs as BatchOperationsArgs;
+  const typedArgs: BatchOperationsInput = validation.data;
 
-  // Validate operations is an array
-  if (!Array.isArray(typedArgs.operations)) {
-    return createErrorResponse('operations must be an array', [
-      'Provide an array of { tool, args } objects',
-    ]);
-  }
-
-  // Validate operations is not empty
-  if (typedArgs.operations.length === 0) {
-    return createErrorResponse('operations array cannot be empty', [
-      'Provide at least one operation to execute',
-    ]);
-  }
-
-  // Validate max operations limit
-  const requestedMax = typedArgs.maxOperations ?? MAX_OPERATIONS;
-  if (typeof requestedMax !== 'number' || !Number.isFinite(requestedMax) || requestedMax < 1) {
-    return createErrorResponse('Invalid maxOperations value', [
-      'maxOperations must be a positive integer',
-      `Maximum allowed: ${MAX_OPERATIONS}`,
-    ]);
-  }
-  const maxOps = Math.min(requestedMax, MAX_OPERATIONS);
+  // Business logic validation: max operations limit
+  const maxOps = Math.min(typedArgs.maxOperations ?? MAX_OPERATIONS, MAX_OPERATIONS);
   if (typedArgs.operations.length > maxOps) {
     return createErrorResponse(
       `Too many operations: ${typedArgs.operations.length} exceeds limit of ${maxOps}`,

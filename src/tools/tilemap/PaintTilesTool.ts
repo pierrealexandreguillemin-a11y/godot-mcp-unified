@@ -1,89 +1,47 @@
 /**
  * Paint Tiles Tool
  * Paints multiple tiles in a TileMapLayer in a single operation
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, PaintTilesArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createSuccessResponse,
-} from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
-import { detectGodotPath } from '../../core/PathManager';
-import { executeOperation } from '../../core/GodotExecutor';
-import { logDebug } from '../../utils/Logger';
+} from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { detectGodotPath } from '../../core/PathManager.js';
+import { executeOperation } from '../../core/GodotExecutor.js';
+import { logDebug } from '../../utils/Logger.js';
+import {
+  PaintTilesSchema,
+  PaintTilesInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const paintTilesDefinition: ToolDefinition = {
   name: 'paint_tiles',
   description: 'Paint multiple tiles in a TileMapLayer in a single batch operation',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the scene file (relative to project)',
-      },
-      tilemapNodePath: {
-        type: 'string',
-        description: 'Path to the TileMapLayer node in the scene',
-      },
-      layer: {
-        type: 'number',
-        description: 'Layer index for multi-layer tilemaps (optional, default: 0)',
-      },
-      tiles: {
-        type: 'array',
-        description: 'Array of tile placements with position, sourceId, atlasCoords, and optional alternativeTile',
-        items: {
-          type: 'object',
-          properties: {
-            position: {
-              type: 'object',
-              description: 'Grid position { x, y }',
-            },
-            sourceId: {
-              type: 'number',
-              description: 'Source ID in the TileSet',
-            },
-            atlasCoords: {
-              type: 'object',
-              description: 'Atlas coordinates { x, y }',
-            },
-            alternativeTile: {
-              type: 'number',
-              description: 'Alternative tile index (optional)',
-            },
-          },
-        },
-      },
-    },
-    required: ['projectPath', 'scenePath', 'tilemapNodePath', 'tiles'],
-  },
+  inputSchema: toMcpSchema(PaintTilesSchema),
 };
 
 export const handlePaintTiles = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'scenePath',
-    'tilemapNodePath',
-    'tiles',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(PaintTilesSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, scenePath, tilemapNodePath, and tiles array',
     ]);
   }
 
-  const typedArgs = preparedArgs as PaintTilesArgs;
+  const typedArgs: PaintTilesInput = validation.data;
 
   // Validate tiles array (before project validation)
   if (!Array.isArray(typedArgs.tiles) || typedArgs.tiles.length === 0) {

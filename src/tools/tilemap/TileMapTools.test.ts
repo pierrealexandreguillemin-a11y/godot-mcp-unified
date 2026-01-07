@@ -35,7 +35,7 @@ describe('TileMap Tools', () => {
         tileSize: 'invalid',
       });
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Invalid tileSize');
+      expect(result.content[0].text).toContain('tileSize: Invalid input');
     });
 
     it('should return error for non-positive tileSize', async () => {
@@ -105,7 +105,7 @@ describe('TileMap Tools', () => {
         atlasCoords: { x: 0, y: 0 },
       });
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Invalid position');
+      expect(result.content[0].text).toContain('position: Invalid input');
     });
 
     it('should return error for invalid atlasCoords format', async () => {
@@ -118,7 +118,7 @@ describe('TileMap Tools', () => {
         atlasCoords: 'invalid',
       });
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Invalid atlasCoords');
+      expect(result.content[0].text).toContain('atlasCoords: Invalid input');
     });
   });
 
@@ -141,7 +141,7 @@ describe('TileMap Tools', () => {
         tiles: [],
       });
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('non-empty array');
+      expect(result.content[0].text).toContain('tiles: Too small');
     });
 
     it('should return error for tile with invalid position', async () => {
@@ -152,7 +152,7 @@ describe('TileMap Tools', () => {
         tiles: [{ position: 'invalid', sourceId: 0, atlasCoords: { x: 0, y: 0 } }],
       });
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Invalid position');
+      expect(result.content[0].text).toContain('position: Invalid input');
     });
   });
 });

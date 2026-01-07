@@ -1,66 +1,46 @@
 /**
  * Create TileSet Tool
  * Creates a TileSet resource for use with TileMapLayers
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, CreateTileSetArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createSuccessResponse,
-} from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
-import { detectGodotPath } from '../../core/PathManager';
-import { executeOperation } from '../../core/GodotExecutor';
-import { logDebug } from '../../utils/Logger';
+} from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { detectGodotPath } from '../../core/PathManager.js';
+import { executeOperation } from '../../core/GodotExecutor.js';
+import { logDebug } from '../../utils/Logger.js';
+import {
+  CreateTileSetSchema,
+  CreateTileSetInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const createTileSetDefinition: ToolDefinition = {
   name: 'create_tileset',
   description: 'Create a TileSet resource with specified tile size and optional texture atlas',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      tilesetPath: {
-        type: 'string',
-        description: 'Path for the new TileSet resource file (relative to project, e.g., "res://tilesets/main.tres")',
-      },
-      tileSize: {
-        type: 'object',
-        description: 'Size of each tile in pixels (e.g., { x: 16, y: 16 })',
-        properties: {
-          x: { type: 'number' },
-          y: { type: 'number' },
-        },
-      },
-      texturePath: {
-        type: 'string',
-        description: 'Path to the texture atlas image (optional, relative to project)',
-      },
-    },
-    required: ['projectPath', 'tilesetPath', 'tileSize'],
-  },
+  inputSchema: toMcpSchema(CreateTileSetSchema),
 };
 
 export const handleCreateTileSet = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'tilesetPath',
-    'tileSize',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(CreateTileSetSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, tilesetPath, and tileSize',
     ]);
   }
 
-  const typedArgs = preparedArgs as CreateTileSetArgs;
+  const typedArgs: CreateTileSetInput = validation.data;
 
   // Validate tile size (before project validation)
   if (!typedArgs.tileSize || typeof typedArgs.tileSize.x !== 'number' || typeof typedArgs.tileSize.y !== 'number') {

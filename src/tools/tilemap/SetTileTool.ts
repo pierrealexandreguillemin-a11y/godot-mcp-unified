@@ -1,90 +1,47 @@
 /**
  * Set Tile Tool
  * Sets a single tile in a TileMapLayer at a specified position
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, SetTileArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createSuccessResponse,
-} from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
-import { detectGodotPath } from '../../core/PathManager';
-import { executeOperation } from '../../core/GodotExecutor';
-import { logDebug } from '../../utils/Logger';
+} from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { detectGodotPath } from '../../core/PathManager.js';
+import { executeOperation } from '../../core/GodotExecutor.js';
+import { logDebug } from '../../utils/Logger.js';
+import {
+  SetTileSchema,
+  SetTileInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const setTileDefinition: ToolDefinition = {
   name: 'set_tile',
   description: 'Set a single tile in a TileMapLayer at a specified grid position',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the scene file (relative to project)',
-      },
-      tilemapNodePath: {
-        type: 'string',
-        description: 'Path to the TileMapLayer node in the scene',
-      },
-      layer: {
-        type: 'number',
-        description: 'Layer index for multi-layer tilemaps (optional, default: 0)',
-      },
-      position: {
-        type: 'object',
-        description: 'Grid position for the tile (e.g., { x: 5, y: 3 })',
-        properties: {
-          x: { type: 'number' },
-          y: { type: 'number' },
-        },
-      },
-      sourceId: {
-        type: 'number',
-        description: 'Source ID in the TileSet (usually 0 for single-source tilesets)',
-      },
-      atlasCoords: {
-        type: 'object',
-        description: 'Atlas coordinates of the tile in the tileset (e.g., { x: 0, y: 0 })',
-        properties: {
-          x: { type: 'number' },
-          y: { type: 'number' },
-        },
-      },
-      alternativeTile: {
-        type: 'number',
-        description: 'Alternative tile index (optional, default: 0)',
-      },
-    },
-    required: ['projectPath', 'scenePath', 'tilemapNodePath', 'position', 'sourceId', 'atlasCoords'],
-  },
+  inputSchema: toMcpSchema(SetTileSchema),
 };
 
 export const handleSetTile = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'scenePath',
-    'tilemapNodePath',
-    'position',
-    'sourceId',
-    'atlasCoords',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(SetTileSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, scenePath, tilemapNodePath, position, sourceId, and atlasCoords',
     ]);
   }
 
-  const typedArgs = preparedArgs as SetTileArgs;
+  const typedArgs: SetTileInput = validation.data;
 
   // Validate position (before project validation)
   if (!typedArgs.position || typeof typedArgs.position.x !== 'number' || typeof typedArgs.position.y !== 'number') {

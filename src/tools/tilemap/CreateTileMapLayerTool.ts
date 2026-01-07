@@ -1,72 +1,47 @@
 /**
  * Create TileMapLayer Tool
  * Creates a TileMapLayer node with a specified TileSet
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs, CreateTileMapLayerArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createSuccessResponse,
-} from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
-import { detectGodotPath } from '../../core/PathManager';
-import { executeOperation } from '../../core/GodotExecutor';
-import { logDebug } from '../../utils/Logger';
+} from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { detectGodotPath } from '../../core/PathManager.js';
+import { executeOperation } from '../../core/GodotExecutor.js';
+import { logDebug } from '../../utils/Logger.js';
+import {
+  CreateTileMapLayerSchema,
+  CreateTileMapLayerInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const createTileMapLayerDefinition: ToolDefinition = {
   name: 'create_tilemap_layer',
   description: 'Create a TileMapLayer node in a scene with a specified TileSet',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the scene file (relative to project)',
-      },
-      nodeName: {
-        type: 'string',
-        description: 'Name for the TileMapLayer node',
-      },
-      parentNodePath: {
-        type: 'string',
-        description: 'Path to the parent node (optional, defaults to root)',
-      },
-      tilesetPath: {
-        type: 'string',
-        description: 'Path to the TileSet resource (relative to project)',
-      },
-      zIndex: {
-        type: 'number',
-        description: 'Z-index for rendering order (optional)',
-      },
-    },
-    required: ['projectPath', 'scenePath', 'nodeName', 'tilesetPath'],
-  },
+  inputSchema: toMcpSchema(CreateTileMapLayerSchema),
 };
 
 export const handleCreateTileMapLayer = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'scenePath',
-    'nodeName',
-    'tilesetPath',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(CreateTileMapLayerSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, scenePath, nodeName, and tilesetPath',
     ]);
   }
 
-  const typedArgs = preparedArgs as CreateTileMapLayerArgs;
+  const typedArgs: CreateTileMapLayerInput = validation.data;
 
   const projectValidationError = validateProjectPath(typedArgs.projectPath);
   if (projectValidationError) {

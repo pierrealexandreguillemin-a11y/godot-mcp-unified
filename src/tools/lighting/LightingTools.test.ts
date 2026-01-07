@@ -56,7 +56,7 @@ describe('Lighting Tools', () => {
         lightType: 'invalid',
       });
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Invalid light type');
+      expect(result.content[0].text).toContain('Validation failed');
     });
 
     it('should return error for invalid project path', async () => {

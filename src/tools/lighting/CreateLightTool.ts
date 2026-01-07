@@ -1,89 +1,33 @@
 /**
  * Create Light Tool
  * Creates Light2D or Light3D nodes (DirectionalLight, OmniLight, SpotLight, PointLight)
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   validateScenePath,
   createSuccessResponse,
-} from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
-import { detectGodotPath } from '../../core/PathManager';
-import { executeOperation } from '../../core/GodotExecutor';
-import { logDebug } from '../../utils/Logger';
-
-export interface CreateLightArgs extends BaseToolArgs {
-  projectPath: string;
-  scenePath: string;
-  nodeName: string;
-  parentNodePath?: string;
-  lightType: 'directional_3d' | 'omni_3d' | 'spot_3d' | 'point_2d' | 'directional_2d';
-  color?: { r: number; g: number; b: number };
-  energy?: number;
-  range?: number;
-  spotAngle?: number;
-  shadowEnabled?: boolean;
-  texturePath?: string;
-}
+} from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { detectGodotPath } from '../../core/PathManager.js';
+import { executeOperation } from '../../core/GodotExecutor.js';
+import { logDebug } from '../../utils/Logger.js';
+import {
+  CreateLightSchema,
+  CreateLightInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const createLightDefinition: ToolDefinition = {
   name: 'create_light',
   description: 'Create a Light2D or Light3D node for scene lighting',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      scenePath: {
-        type: 'string',
-        description: 'Path to the scene file (relative to project)',
-      },
-      nodeName: {
-        type: 'string',
-        description: 'Name for the Light node',
-      },
-      parentNodePath: {
-        type: 'string',
-        description: 'Path to parent node (default: root)',
-      },
-      lightType: {
-        type: 'string',
-        description: 'Type of light',
-        enum: ['directional_3d', 'omni_3d', 'spot_3d', 'point_2d', 'directional_2d'],
-      },
-      color: {
-        type: 'object',
-        description: 'Light color { r, g, b } (default: white)',
-      },
-      energy: {
-        type: 'number',
-        description: 'Light energy/intensity (default: 1.0)',
-      },
-      range: {
-        type: 'number',
-        description: 'Light range (for OmniLight3D, SpotLight3D)',
-      },
-      spotAngle: {
-        type: 'number',
-        description: 'Spot angle in degrees (for SpotLight3D)',
-      },
-      shadowEnabled: {
-        type: 'boolean',
-        description: 'Enable shadows (default: false)',
-      },
-      texturePath: {
-        type: 'string',
-        description: 'Path to light texture (for PointLight2D)',
-      },
-    },
-    required: ['projectPath', 'scenePath', 'nodeName', 'lightType'],
-  },
+  inputSchema: toMcpSchema(CreateLightSchema),
 };
 
 // Map light type to Godot class name
@@ -98,19 +42,15 @@ const lightTypeToClass: Record<string, string> = {
 export const handleCreateLight = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'scenePath',
-    'nodeName',
-    'lightType',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(CreateLightSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath, scenePath, nodeName, and lightType',
     ]);
   }
 
-  const typedArgs = preparedArgs as CreateLightArgs;
+  const typedArgs: CreateLightInput = validation.data;
 
   // Validate light type
   if (!lightTypeToClass[typedArgs.lightType]) {

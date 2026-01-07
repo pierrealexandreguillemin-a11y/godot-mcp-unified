@@ -1,109 +1,32 @@
 /**
  * Setup Environment Tool
  * Creates or configures WorldEnvironment with Environment resource
+ *
+ * ISO/IEC 5055 compliant - Zod validation
+ * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
-  validateBasicArgs,
   validateProjectPath,
   createSuccessResponse,
-} from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
+} from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import { logDebug } from '../../utils/Logger';
-
-export interface SetupEnvironmentArgs extends BaseToolArgs {
-  projectPath: string;
-  environmentPath: string;
-  backgroundMode?: 'clear_color' | 'custom_color' | 'sky' | 'canvas' | 'keep' | 'camera_feed';
-  backgroundColor?: { r: number; g: number; b: number };
-  ambientLightColor?: { r: number; g: number; b: number };
-  ambientLightEnergy?: number;
-  tonemapMode?: 'linear' | 'reinhard' | 'filmic' | 'aces';
-  glowEnabled?: boolean;
-  glowIntensity?: number;
-  fogEnabled?: boolean;
-  fogDensity?: number;
-  fogColor?: { r: number; g: number; b: number };
-  ssaoEnabled?: boolean;
-  ssrEnabled?: boolean;
-  sdfgiEnabled?: boolean;
-}
+import { logDebug } from '../../utils/Logger.js';
+import {
+  SetupEnvironmentSchema,
+  SetupEnvironmentInput,
+  toMcpSchema,
+  safeValidateInput,
+} from '../../core/ZodSchemas.js';
 
 export const setupEnvironmentDefinition: ToolDefinition = {
   name: 'setup_environment',
   description: 'Create an Environment resource for 3D scene settings (lighting, fog, post-processing)',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      projectPath: {
-        type: 'string',
-        description: 'Path to the Godot project directory',
-      },
-      environmentPath: {
-        type: 'string',
-        description: 'Path for the environment resource (e.g., "environments/main_env.tres")',
-      },
-      backgroundMode: {
-        type: 'string',
-        description: 'Background mode',
-        enum: ['clear_color', 'custom_color', 'sky', 'canvas', 'keep', 'camera_feed'],
-      },
-      backgroundColor: {
-        type: 'object',
-        description: 'Background color { r, g, b } (for custom_color mode)',
-      },
-      ambientLightColor: {
-        type: 'object',
-        description: 'Ambient light color { r, g, b }',
-      },
-      ambientLightEnergy: {
-        type: 'number',
-        description: 'Ambient light energy (default: 1.0)',
-      },
-      tonemapMode: {
-        type: 'string',
-        description: 'Tonemap mode',
-        enum: ['linear', 'reinhard', 'filmic', 'aces'],
-      },
-      glowEnabled: {
-        type: 'boolean',
-        description: 'Enable glow effect',
-      },
-      glowIntensity: {
-        type: 'number',
-        description: 'Glow intensity (default: 0.8)',
-      },
-      fogEnabled: {
-        type: 'boolean',
-        description: 'Enable volumetric fog',
-      },
-      fogDensity: {
-        type: 'number',
-        description: 'Fog density (default: 0.01)',
-      },
-      fogColor: {
-        type: 'object',
-        description: 'Fog color { r, g, b }',
-      },
-      ssaoEnabled: {
-        type: 'boolean',
-        description: 'Enable SSAO (Screen Space Ambient Occlusion)',
-      },
-      ssrEnabled: {
-        type: 'boolean',
-        description: 'Enable SSR (Screen Space Reflections)',
-      },
-      sdfgiEnabled: {
-        type: 'boolean',
-        description: 'Enable SDFGI (Signed Distance Field Global Illumination)',
-      },
-    },
-    required: ['projectPath', 'environmentPath'],
-  },
+  inputSchema: toMcpSchema(SetupEnvironmentSchema),
 };
 
 // Map background mode to Godot enum
@@ -127,17 +50,15 @@ const tonemapModeMap: Record<string, number> = {
 export const handleSetupEnvironment = async (args: BaseToolArgs): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
-  const validationError = validateBasicArgs(preparedArgs, [
-    'projectPath',
-    'environmentPath',
-  ]);
-  if (validationError) {
-    return createErrorResponse(validationError, [
+  // Zod validation
+  const validation = safeValidateInput(SetupEnvironmentSchema, preparedArgs);
+  if (!validation.success) {
+    return createErrorResponse(`Validation failed: ${validation.error}`, [
       'Provide projectPath and environmentPath',
     ]);
   }
 
-  const typedArgs = preparedArgs as SetupEnvironmentArgs;
+  const typedArgs: SetupEnvironmentInput = validation.data;
 
   // Validate environment path extension
   if (!typedArgs.environmentPath.endsWith('.tres') && !typedArgs.environmentPath.endsWith('.res')) {

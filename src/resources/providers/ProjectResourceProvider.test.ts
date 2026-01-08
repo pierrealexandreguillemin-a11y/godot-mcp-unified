@@ -133,11 +133,11 @@ describe('ProjectResourceProvider', () => {
         `${RESOURCE_URIS.PROJECT_SETTINGS}../../../etc/passwd`
       );
 
-      // Should return error content, not null (validation error)
-      if (result) {
-        const data = JSON.parse(result.text!);
-        expect(data.error).toBeDefined();
-      }
+      // Security: path traversal MUST return an error response, not null
+      expect(result).not.toBeNull();
+      expect(result!.text).toBeDefined();
+      const data = JSON.parse(result!.text!);
+      expect(data.error).toBeDefined();
     });
 
     it('validates section name against injection', async () => {
@@ -146,15 +146,15 @@ describe('ProjectResourceProvider', () => {
         `${RESOURCE_URIS.PROJECT_SETTINGS}<script>alert(1)</script>`
       );
 
-      if (result) {
-        const data = JSON.parse(result.text!);
-        expect(data.error).toBeDefined();
-      }
+      // Security: injection MUST return an error response, not null
+      expect(result).not.toBeNull();
+      expect(result!.text).toBeDefined();
+      const data = JSON.parse(result!.text!);
+      expect(data.error).toBeDefined();
     });
 
     it('accepts valid section names', async () => {
-      // This will return null because project doesn't exist,
-      // but it shouldn't return an error for valid section name
+      // Valid sections: may return null (no project) or result without security error
       const validSections = ['application', 'display', 'rendering', 'input'];
 
       for (const section of validSections) {
@@ -163,15 +163,15 @@ describe('ProjectResourceProvider', () => {
           `${RESOURCE_URIS.PROJECT_SETTINGS}${section}`
         );
 
-        // Should be null (no project) not an error content
-        // If it's not null, it should not have a validation error
-        if (result) {
-          const data = JSON.parse(result.text!);
-          // If there's an error, it shouldn't be about invalid section name
+        // Valid path: may return null (not found) or result without security error
+        if (result && result.text) {
+          const data = JSON.parse(result.text);
           if (data.error) {
+            // If there's an error, it should NOT be about invalid section
             expect(data.error).not.toContain('Invalid section');
           }
         }
+        // null result is acceptable for non-existent projects
       }
     });
   });

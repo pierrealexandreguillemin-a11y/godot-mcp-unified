@@ -174,11 +174,12 @@ describe('AssetsResourceProvider', () => {
           `${RESOURCE_URIS.UID}${pattern}`
         );
 
-        if (result) {
-          const data = JSON.parse(result.text!);
-          expect(data.error).toBeDefined();
-          expect(data.error.toLowerCase()).toMatch(/traversal|parent|forbidden/);
-        }
+        // Security: path traversal MUST return an error response, not null
+        expect(result).not.toBeNull();
+        expect(result!.text).toBeDefined();
+        const data = JSON.parse(result!.text!);
+        expect(data.error).toBeDefined();
+        expect(data.error.toLowerCase()).toMatch(/traversal|parent|forbidden/);
       });
     }
 
@@ -188,7 +189,9 @@ describe('AssetsResourceProvider', () => {
         `${RESOURCE_URIS.ASSETS_CATEGORY}<script>alert(1)</script>`
       );
 
+      // Security: injection MUST return an error response
       expect(result).not.toBeNull();
+      expect(result!.text).toBeDefined();
       const data = JSON.parse(result!.text!);
       expect(data.error).toBeDefined();
     });
@@ -199,12 +202,15 @@ describe('AssetsResourceProvider', () => {
         `${RESOURCE_URIS.UID}icon.png`
       );
 
-      if (result) {
-        const data = JSON.parse(result.text!);
+      // Valid path: may return null (not found) or result without security error
+      if (result && result.text) {
+        const data = JSON.parse(result.text);
         if (data.error) {
+          // If there's an error, it should NOT be a security error
           expect(data.error.toLowerCase()).not.toMatch(/traversal|parent|forbidden/);
         }
       }
+      // null result is acceptable for non-existent files
     });
   });
 });

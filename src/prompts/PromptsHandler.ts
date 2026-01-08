@@ -256,6 +256,86 @@ export const godotPrompts: MCPPrompt[] = [
       },
     ],
   },
+  {
+    name: 'create_projectile',
+    description: 'Generate a projectile scene with physics and damage',
+    arguments: [
+      {
+        name: 'projectileType',
+        description: 'Type: bullet, rocket, arrow, magic, grenade',
+        required: true,
+      },
+      {
+        name: 'is3D',
+        description: 'true for 3D, false for 2D',
+        required: false,
+      },
+    ],
+  },
+  {
+    name: 'scaffold_ui_system',
+    description: 'Generate a complete UI system with menus, HUD, and transitions',
+    arguments: [
+      {
+        name: 'projectName',
+        description: 'Name of the project',
+        required: true,
+      },
+      {
+        name: 'components',
+        description: 'Components: main_menu, pause_menu, hud, settings, loading',
+        required: false,
+      },
+    ],
+  },
+  {
+    name: 'debug_performance',
+    description: 'Analyze scene performance and identify bottlenecks',
+    arguments: [
+      {
+        name: 'scenePath',
+        description: 'Path to the scene to analyze',
+        required: true,
+      },
+      {
+        name: 'focus',
+        description: 'Focus: draw_calls, physics, scripts, memory',
+        required: false,
+      },
+    ],
+  },
+  {
+    name: 'convert_3to4',
+    description: 'Guide migration from Godot 3.x to Godot 4.x',
+    arguments: [
+      {
+        name: 'projectPath',
+        description: 'Path to the Godot 3.x project',
+        required: true,
+      },
+      {
+        name: 'focus',
+        description: 'Focus: gdscript, scenes, shaders, all',
+        required: false,
+      },
+    ],
+  },
+  {
+    name: 'refactor_scene',
+    description: 'Refactor scene structure and extract subscenes',
+    arguments: [
+      {
+        name: 'scenePath',
+        description: 'Path to the scene to refactor',
+        required: true,
+      },
+      {
+        name: 'action',
+        description: 'Action: extract_subscene, flatten, reorganize, optimize',
+        required: false,
+      },
+    ],
+  },
 ];
 
 /**
@@ -803,6 +883,259 @@ ${a.issue === 'performance' ? `   - Too many physics bodies
    - Best practices for Godot physics
 
 Use tools: get_project_settings, get_node_tree, set_project_setting`,
+          },
+        },
+      ],
+    }),
+
+    create_projectile: (a) => ({
+      description: `Create ${a.projectileType} projectile`,
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Create a ${a.projectileType} projectile for Godot 4.x (${a.is3D === 'true' ? '3D' : '2D'}).
+
+Please create:
+1. **Projectile Scene Structure**
+   - ${a.is3D === 'true' ? 'Area3D' : 'Area2D'} or ${a.is3D === 'true' ? 'RigidBody3D' : 'RigidBody2D'} root
+   - ${a.is3D === 'true' ? 'CollisionShape3D' : 'CollisionShape2D'}
+   - ${a.is3D === 'true' ? 'MeshInstance3D' : 'Sprite2D'} for visuals
+   - ${a.is3D === 'true' ? 'GPUParticles3D' : 'GPUParticles2D'} for trail
+
+2. **Projectile Script**
+   - @export speed, damage, lifetime
+   - Movement in _physics_process
+   - Collision detection
+   - Damage application on hit
+   - Auto-destroy after lifetime
+
+3. **Projectile-Specific Behavior**
+${a.projectileType === 'bullet' ? '   - Fast, straight trajectory\n   - Hitscan or physics-based\n   - Impact particles' : ''}
+${a.projectileType === 'rocket' ? '   - Slower with area damage\n   - Explosion on impact\n   - Smoke trail' : ''}
+${a.projectileType === 'arrow' ? '   - Arc trajectory (gravity)\n   - Stick on impact\n   - Quiver system' : ''}
+${a.projectileType === 'magic' ? '   - Homing capability\n   - Particle effects\n   - Mana cost integration' : ''}
+${a.projectileType === 'grenade' ? '   - Throw arc with physics\n   - Timed explosion\n   - Bounce behavior' : ''}
+
+4. **Signals**
+   - hit(target, damage)
+   - expired()
+
+Use tools: create_scene, add_node, write_script, setup_rigidbody, create_gpu_particles`,
+          },
+        },
+      ],
+    }),
+
+    scaffold_ui_system: (a) => ({
+      description: `Scaffold UI system: ${a.projectName}`,
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Create a complete UI system for "${a.projectName}".
+
+Components to include: ${a.components || 'main_menu, pause_menu, hud, settings'}
+
+Please create:
+1. **UI Structure**
+   - res://scenes/ui/
+     - main_menu.tscn
+     - pause_menu.tscn
+     - hud.tscn
+     - settings_menu.tscn
+     - loading_screen.tscn
+   - res://scripts/ui/
+     - UIManager.gd (autoload)
+     - BaseMenu.gd (base class)
+
+2. **UI Manager Autoload**
+   - Scene stack for navigation
+   - Transition animations
+   - Input mode switching
+   - Pause handling
+
+3. **Components**
+${a.components?.includes('main_menu') ? '   - Main menu with Play, Settings, Quit\n   - Button hover/click effects\n   - Background animation' : ''}
+${a.components?.includes('pause_menu') ? '   - Pause overlay with blur\n   - Resume, Settings, Main Menu\n   - Time scale handling' : ''}
+${a.components?.includes('hud') ? '   - Health/mana bars\n   - Score/currency display\n   - Minimap placeholder\n   - Responsive anchoring' : ''}
+${a.components?.includes('settings') ? '   - Audio volume sliders\n   - Graphics quality options\n   - Key rebinding\n   - Settings persistence' : ''}
+${a.components?.includes('loading') ? '   - Progress bar\n   - Loading tips\n   - Async scene loading' : ''}
+
+4. **Theme System**
+   - Base theme resource
+   - Consistent styling
+   - Font configuration
+
+Use tools: create_scene, add_node, write_script, create_ui_container, create_control`,
+          },
+        },
+      ],
+    }),
+
+    debug_performance: (a) => ({
+      description: `Debug performance: ${a.scenePath}`,
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Analyze performance of the scene at "${a.scenePath}".
+
+Focus area: ${a.focus || 'all'}
+
+Please analyze:
+1. **Scene Structure Analysis**
+   - Use get_node_tree to map all nodes
+   - Count nodes by type
+   - Identify deep hierarchies (>10 levels)
+
+2. **Performance Metrics to Check**
+${a.focus === 'draw_calls' || !a.focus ? `   - Draw call count (batch breaking)
+   - Material/shader variety
+   - Texture atlas usage
+   - CanvasGroup for 2D batching` : ''}
+${a.focus === 'physics' || !a.focus ? `   - Physics body count
+   - Collision shape complexity
+   - Physics tick rate
+   - Sleeping body ratio` : ''}
+${a.focus === 'scripts' || !a.focus ? `   - Scripts with _process/_physics_process
+   - Signal connection count
+   - Heavy operations in loops
+   - Memory allocations per frame` : ''}
+${a.focus === 'memory' || !a.focus ? `   - Loaded resource size
+   - Texture memory usage
+   - Instanced scene overhead
+   - Audio buffer usage` : ''}
+
+3. **Profiling Recommendations**
+   - Enable Godot's built-in profiler
+   - Check Frame Time breakdown
+   - Monitor GPU vs CPU bottleneck
+
+4. **Optimization Suggestions**
+   - Specific fixes with code examples
+   - Node consolidation opportunities
+   - Resource sharing recommendations
+   - LOD/culling setup if 3D
+
+Use tools: get_node_tree, get_project_settings`,
+          },
+        },
+      ],
+    }),
+
+    convert_3to4: (a) => ({
+      description: `Convert project to Godot 4: ${a.projectPath}`,
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Guide migration of Godot 3.x project at "${a.projectPath}" to Godot 4.x.
+
+Focus: ${a.focus || 'all'}
+
+Please help with:
+1. **Pre-Migration Checklist**
+   - Backup entire project
+   - Document current Godot 3.x version
+   - List all addons/plugins used
+   - Note custom GDNative/C# usage
+
+2. **Automated Conversion**
+   - Use Godot 4's project converter
+   - Run convert_project tool
+   - Run validate_conversion tool
+
+3. **Manual Fixes Required**
+${a.focus === 'gdscript' || !a.focus ? `   **GDScript Changes:**
+   - \`onready\` → \`@onready\`
+   - \`export\` → \`@export\`
+   - \`tool\` → \`@tool\`
+   - \`yield\` → \`await\`
+   - \`connect("signal", obj, "method")\` → \`signal.connect(method)\`
+   - Typed arrays: \`Array\` → \`Array[Type]\`
+   - \`setget\` → properties with get/set` : ''}
+${a.focus === 'scenes' || !a.focus ? `   **Scene Changes:**
+   - Node renames (Spatial→Node3D, KinematicBody→CharacterBody)
+   - Property renames
+   - Resource path updates
+   - UID system integration` : ''}
+${a.focus === 'shaders' || !a.focus ? `   **Shader Changes:**
+   - \`hint_color\` → \`source_color\`
+   - Uniform syntax updates
+   - Built-in variable renames
+   - Render mode changes` : ''}
+
+4. **Testing Checklist**
+   - Run project and check console
+   - Test all scenes load
+   - Verify gameplay mechanics
+   - Check visual fidelity
+
+Use tools: convert_project, validate_conversion, get_script_errors`,
+          },
+        },
+      ],
+    }),
+
+    refactor_scene: (a) => ({
+      description: `Refactor scene: ${a.scenePath}`,
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Refactor the scene at "${a.scenePath}".
+
+Action: ${a.action || 'analyze'}
+
+Please help with:
+1. **Scene Analysis**
+   - Use get_node_tree to examine structure
+   - Identify reusable components
+   - Find duplicate node patterns
+   - Check script organization
+
+2. **Refactoring Actions**
+${a.action === 'extract_subscene' || !a.action ? `   **Extract Subscenes:**
+   - Identify self-contained node groups
+   - Create new .tscn for each group
+   - Replace with instanced scenes
+   - Ensure signals still connect
+   - Update script references` : ''}
+${a.action === 'flatten' ? `   **Flatten Hierarchy:**
+   - Remove unnecessary container nodes
+   - Merge similar functionality
+   - Reduce nesting depth
+   - Simplify node paths in code` : ''}
+${a.action === 'reorganize' ? `   **Reorganize Structure:**
+   - Group nodes by function
+   - Apply naming conventions
+   - Order nodes logically
+   - Add organizational comments` : ''}
+${a.action === 'optimize' ? `   **Optimize for Performance:**
+   - Remove unused nodes
+   - Combine static geometry
+   - Setup visibility culling
+   - Configure processing modes` : ''}
+
+3. **Post-Refactor Steps**
+   - Update all script references
+   - Fix broken node paths
+   - Test functionality
+   - Update documentation
+
+4. **Best Practices Applied**
+   - Single responsibility per scene
+   - Meaningful node names
+   - Consistent structure patterns
+   - Proper scene composition
+
+Use tools: get_node_tree, create_scene, instance_scene, move_node`,
           },
         },
       ],

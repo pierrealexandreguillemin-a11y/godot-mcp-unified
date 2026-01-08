@@ -110,6 +110,36 @@ describe('PromptsHandler', () => {
       expect(prompt?.description).toContain('physics');
     });
 
+    it('includes create_projectile', () => {
+      const prompt = godotPrompts.find((p) => p.name === 'create_projectile');
+      expect(prompt).toBeDefined();
+      expect(prompt?.description).toContain('projectile');
+    });
+
+    it('includes scaffold_ui_system', () => {
+      const prompt = godotPrompts.find((p) => p.name === 'scaffold_ui_system');
+      expect(prompt).toBeDefined();
+      expect(prompt?.description).toContain('UI system');
+    });
+
+    it('includes debug_performance', () => {
+      const prompt = godotPrompts.find((p) => p.name === 'debug_performance');
+      expect(prompt).toBeDefined();
+      expect(prompt?.description).toContain('performance');
+    });
+
+    it('includes convert_3to4', () => {
+      const prompt = godotPrompts.find((p) => p.name === 'convert_3to4');
+      expect(prompt).toBeDefined();
+      expect(prompt?.description).toContain('migration');
+    });
+
+    it('includes refactor_scene', () => {
+      const prompt = godotPrompts.find((p) => p.name === 'refactor_scene');
+      expect(prompt).toBeDefined();
+      expect(prompt?.description).toContain('Refactor');
+    });
+
     it('all prompts have required properties', () => {
       for (const prompt of godotPrompts) {
         expect(prompt.name).toBeDefined();
@@ -144,9 +174,9 @@ describe('PromptsHandler', () => {
       expect(Array.isArray(prompts)).toBe(true);
     });
 
-    it('returns 15 prompts', () => {
+    it('returns 20 prompts', () => {
       const prompts = getAllPrompts();
-      expect(prompts.length).toBe(15);
+      expect(prompts.length).toBe(20);
     });
   });
 
@@ -676,6 +706,161 @@ describe('PromptsHandler', () => {
       });
     });
 
+    describe('create_projectile', () => {
+      it('generates messages for bullet', () => {
+        const result = generatePromptMessages('create_projectile', {
+          projectileType: 'bullet',
+        });
+
+        expect(result).not.toBeNull();
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('bullet');
+        expect(text).toContain('straight trajectory');
+      });
+
+      it('generates messages for rocket', () => {
+        const result = generatePromptMessages('create_projectile', {
+          projectileType: 'rocket',
+        });
+
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('area damage');
+      });
+
+      it('handles 3D mode', () => {
+        const result = generatePromptMessages('create_projectile', {
+          projectileType: 'arrow',
+          is3D: 'true',
+        });
+
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('Area3D');
+      });
+    });
+
+    describe('scaffold_ui_system', () => {
+      it('generates messages for UI system', () => {
+        const result = generatePromptMessages('scaffold_ui_system', {
+          projectName: 'MyGame',
+        });
+
+        expect(result).not.toBeNull();
+        expect(result?.description).toContain('MyGame');
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('MyGame');
+        expect(text).toContain('UI system');
+      });
+
+      it('includes components when specified', () => {
+        const result = generatePromptMessages('scaffold_ui_system', {
+          projectName: 'Test',
+          components: 'main_menu, hud',
+        });
+
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('Main menu');
+      });
+    });
+
+    describe('debug_performance', () => {
+      it('generates messages with scene path', () => {
+        const result = generatePromptMessages('debug_performance', {
+          scenePath: '/scenes/game.tscn',
+        });
+
+        expect(result).not.toBeNull();
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('/scenes/game.tscn');
+        expect(text).toContain('performance');
+      });
+
+      it('includes draw_calls focus', () => {
+        const result = generatePromptMessages('debug_performance', {
+          scenePath: '/test.tscn',
+          focus: 'draw_calls',
+        });
+
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('Draw call count');
+      });
+
+      it('includes memory focus', () => {
+        const result = generatePromptMessages('debug_performance', {
+          scenePath: '/test.tscn',
+          focus: 'memory',
+        });
+
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('Texture memory');
+      });
+    });
+
+    describe('convert_3to4', () => {
+      it('generates messages with project path', () => {
+        const result = generatePromptMessages('convert_3to4', {
+          projectPath: '/old/project',
+        });
+
+        expect(result).not.toBeNull();
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('/old/project');
+        expect(text).toContain('Godot 4');
+      });
+
+      it('includes gdscript focus', () => {
+        const result = generatePromptMessages('convert_3to4', {
+          projectPath: '/test',
+          focus: 'gdscript',
+        });
+
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('@onready');
+      });
+
+      it('includes shaders focus', () => {
+        const result = generatePromptMessages('convert_3to4', {
+          projectPath: '/test',
+          focus: 'shaders',
+        });
+
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('source_color');
+      });
+    });
+
+    describe('refactor_scene', () => {
+      it('generates messages with scene path', () => {
+        const result = generatePromptMessages('refactor_scene', {
+          scenePath: '/scenes/level.tscn',
+        });
+
+        expect(result).not.toBeNull();
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('/scenes/level.tscn');
+        expect(text).toContain('Refactor');
+      });
+
+      it('includes extract_subscene action', () => {
+        const result = generatePromptMessages('refactor_scene', {
+          scenePath: '/test.tscn',
+          action: 'extract_subscene',
+        });
+
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('Extract Subscenes');
+      });
+
+      it('includes flatten action', () => {
+        const result = generatePromptMessages('refactor_scene', {
+          scenePath: '/test.tscn',
+          action: 'flatten',
+        });
+
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('Flatten Hierarchy');
+      });
+    });
+
     describe('unknown prompt', () => {
       it('returns null for unknown prompt', () => {
         const result = generatePromptMessages('unknown_prompt', {});
@@ -705,6 +890,11 @@ describe('PromptsHandler', () => {
         { name: 'create_npc', args: { npcType: 'villager' } },
         { name: 'create_collectible', args: { itemType: 'coin' } },
         { name: 'debug_physics', args: { scenePath: '/test.tscn' } },
+        { name: 'create_projectile', args: { projectileType: 'bullet' } },
+        { name: 'scaffold_ui_system', args: { projectName: 'Test' } },
+        { name: 'debug_performance', args: { scenePath: '/test.tscn' } },
+        { name: 'convert_3to4', args: { projectPath: '/test' } },
+        { name: 'refactor_scene', args: { scenePath: '/test.tscn' } },
       ];
 
       for (const { name, args } of testCases) {

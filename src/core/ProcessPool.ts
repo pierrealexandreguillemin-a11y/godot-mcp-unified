@@ -3,10 +3,16 @@
  * Manages multiple Godot processes for parallel execution
  *
  * ISO/IEC 25010 compliant - efficient, reliable, maintainable
+ * ISO/IEC 27001 compliant - secure process execution without shell
+ *
+ * Security: Uses spawn without shell to prevent command injection (OWASP A01:2021)
  */
 
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
+import { PROCESS_POOL_CONFIG } from './config.js';
+import { auditLogger } from './AuditLogger.js';
+import { CircuitBreaker, CircuitOpenError, CircuitState } from './CircuitBreaker.js';
 
 export interface ProcessTask {
   id: string;
@@ -50,7 +56,53 @@ export interface PoolStats {
 }
 
 /**
+ * Dangerous shell metacharacters that indicate command injection attempt
+ * ISO/IEC 27001: Security control for command injection prevention
+ *
+ * NOTE: Backslash (\) is NOT blocked - required for Windows paths
+ * NOTE: Forward slash (/) is NOT blocked - required for Unix paths and arguments
+ */
+const SHELL_METACHARACTERS = /[;&|`$(){}[\]<>!*?#~\n\r]/;
+
+/**
+ * Additional dangerous patterns for arguments
+ * Blocks command chaining and redirection attempts
+ */
+const DANGEROUS_ARG_PATTERNS = /(\|\||&&|>>|<<|>[>&]?|<[<&]?)/;
+
+/**
+ * Validate command and arguments for injection attacks
+ * @throws Error if injection attempt detected
+ */
+export function validateCommandSecurity(command: string, args: string[]): void {
+  // Check command for shell metacharacters
+  if (SHELL_METACHARACTERS.test(command)) {
+    auditLogger.commandInjectionAttempt(command, args);
+    throw new Error('Invalid command: contains shell metacharacters');
+  }
+
+  // Check each argument for shell metacharacters and dangerous patterns
+  for (const arg of args) {
+    if (SHELL_METACHARACTERS.test(arg)) {
+      auditLogger.commandInjectionAttempt(command, args);
+      throw new Error('Invalid argument: contains shell metacharacters');
+    }
+    if (DANGEROUS_ARG_PATTERNS.test(arg)) {
+      auditLogger.commandInjectionAttempt(command, args);
+      throw new Error('Invalid argument: contains command chaining pattern');
+    }
+  }
+
+  // Ensure command doesn't contain path traversal (but allow in args for relative paths)
+  if (command.includes('..')) {
+    auditLogger.commandInjectionAttempt(command, args);
+    throw new Error('Invalid command: path traversal detected');
+  }
+}
+
+/**
  * Process pool for managing concurrent Godot operations
+ * Includes circuit breaker for fault tolerance (ISO/IEC 25010)
  */
 export class ProcessPool extends EventEmitter {
   private readonly config: PoolConfig;
@@ -60,14 +112,15 @@ export class ProcessPool extends EventEmitter {
   private failedTasks: number;
   private totalDuration: number;
   private isShuttingDown: boolean;
+  private readonly circuitBreaker: CircuitBreaker;
 
   constructor(config: Partial<PoolConfig> = {}) {
     super();
 
     this.config = {
-      maxWorkers: config.maxWorkers ?? 4,
-      taskTimeout: config.taskTimeout ?? 30000, // 30 seconds default
-      maxQueueSize: config.maxQueueSize ?? 100,
+      maxWorkers: config.maxWorkers ?? PROCESS_POOL_CONFIG.MAX_WORKERS,
+      taskTimeout: config.taskTimeout ?? PROCESS_POOL_CONFIG.DEFAULT_TASK_TIMEOUT_MS,
+      maxQueueSize: config.maxQueueSize ?? PROCESS_POOL_CONFIG.MAX_QUEUE_SIZE,
     };
 
     this.workers = [];
@@ -76,6 +129,20 @@ export class ProcessPool extends EventEmitter {
     this.failedTasks = 0;
     this.totalDuration = 0;
     this.isShuttingDown = false;
+
+    // Initialize circuit breaker for fault tolerance
+    this.circuitBreaker = new CircuitBreaker({
+      name: 'process-pool',
+      failureThreshold: PROCESS_POOL_CONFIG.CIRCUIT_BREAKER_FAILURE_THRESHOLD,
+      resetTimeout: PROCESS_POOL_CONFIG.CIRCUIT_BREAKER_RESET_TIMEOUT_MS,
+      successThreshold: PROCESS_POOL_CONFIG.CIRCUIT_BREAKER_SUCCESS_THRESHOLD,
+      failureWindow: PROCESS_POOL_CONFIG.CIRCUIT_BREAKER_FAILURE_WINDOW_MS,
+    });
+
+    // Forward circuit breaker events
+    this.circuitBreaker.on('open', (stats) => this.emit('circuitOpen', stats));
+    this.circuitBreaker.on('close', (stats) => this.emit('circuitClose', stats));
+    this.circuitBreaker.on('halfOpen', (stats) => this.emit('circuitHalfOpen', stats));
 
     // Initialize workers
     for (let i = 0; i < this.config.maxWorkers; i++) {
@@ -90,9 +157,32 @@ export class ProcessPool extends EventEmitter {
   }
 
   /**
+   * Get circuit breaker state
+   */
+  getCircuitState(): CircuitState {
+    return this.circuitBreaker.getState();
+  }
+
+  /**
+   * Reset circuit breaker manually
+   */
+  resetCircuit(): void {
+    this.circuitBreaker.reset();
+  }
+
+  /**
    * Execute a command in the process pool
+   * Protected by circuit breaker for fault tolerance
    */
   execute(command: string, args: string[], options: { cwd?: string; timeout?: number } = {}): Promise<ProcessResult> {
+    // Wrap execution with circuit breaker
+    return this.circuitBreaker.execute(() => this.executeInternal(command, args, options));
+  }
+
+  /**
+   * Internal execution logic (called through circuit breaker)
+   */
+  private executeInternal(command: string, args: string[], options: { cwd?: string; timeout?: number }): Promise<ProcessResult> {
     return new Promise((resolve, reject) => {
       if (this.isShuttingDown) {
         reject(new Error('Process pool is shutting down'));
@@ -175,13 +265,21 @@ export class ProcessPool extends EventEmitter {
     };
 
     try {
+      // Security: Validate command and args before execution (OWASP A01:2021)
+      validateCommandSecurity(task.command, task.args);
+
+      // Security: spawn WITHOUT shell to prevent command injection
+      // ISO/IEC 27001: Secure process execution
       const proc = spawn(task.command, task.args, {
         cwd: task.cwd,
-        shell: true,
+        shell: false, // CRITICAL: Never use shell:true
         windowsHide: true,
       });
 
       worker.process = proc;
+
+      // Audit: Log process spawn
+      auditLogger.processSpawn(task.command, proc.pid);
 
       proc.stdout?.on('data', (data: Buffer) => {
         stdout += data.toString();
@@ -203,6 +301,8 @@ export class ProcessPool extends EventEmitter {
       if (task.timeout && task.timeout > 0) {
         timeoutHandle = setTimeout(() => {
           if (!isCompleted) {
+            // Audit: Log process timeout
+            auditLogger.processTimeout(task.command, task.timeout!);
             proc.kill('SIGKILL');
             complete(null, new Error(`Task timed out after ${task.timeout}ms`));
           }
@@ -277,7 +377,7 @@ export class ProcessPool extends EventEmitter {
   /**
    * Gracefully shutdown the pool
    */
-  async shutdown(timeout: number = 10000): Promise<void> {
+  async shutdown(timeout: number = PROCESS_POOL_CONFIG.SHUTDOWN_TIMEOUT_MS): Promise<void> {
     this.isShuttingDown = true;
 
     // Cancel all queued tasks
@@ -289,7 +389,8 @@ export class ProcessPool extends EventEmitter {
       if (Date.now() - startTime > timeout) {
         // Force kill remaining processes
         for (const worker of this.workers) {
-          if (worker.process) {
+          if (worker.process && worker.currentTask) {
+            auditLogger.processKill(worker.currentTask.command, 'shutdown_timeout');
             worker.process.kill('SIGKILL');
           }
         }
@@ -306,7 +407,8 @@ export class ProcessPool extends EventEmitter {
    */
   forceKillAll(): void {
     for (const worker of this.workers) {
-      if (worker.process) {
+      if (worker.process && worker.currentTask) {
+        auditLogger.processKill(worker.currentTask.command, 'force_kill');
         worker.process.kill('SIGKILL');
       }
     }
@@ -359,15 +461,16 @@ export class ProcessPool extends EventEmitter {
 
 /**
  * Singleton pool for Godot operations
+ * Configuration from environment variables via config.ts
  */
 let godotPool: ProcessPool | null = null;
 
 export function getGodotPool(): ProcessPool {
   if (!godotPool) {
     godotPool = new ProcessPool({
-      maxWorkers: 4,
-      taskTimeout: 60000, // 1 minute for Godot operations
-      maxQueueSize: 50,
+      maxWorkers: PROCESS_POOL_CONFIG.MAX_WORKERS,
+      taskTimeout: PROCESS_POOL_CONFIG.DEFAULT_TASK_TIMEOUT_MS,
+      maxQueueSize: PROCESS_POOL_CONFIG.MAX_QUEUE_SIZE,
     });
   }
   return godotPool;

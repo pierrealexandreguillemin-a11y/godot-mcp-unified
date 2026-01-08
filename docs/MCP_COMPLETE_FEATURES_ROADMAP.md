@@ -19,9 +19,9 @@
 
 ## Analyse comparative
 
-### Notre MCP actuel (godot-mcp-unified v0.8.0)
+### Notre MCP actuel (godot-mcp-unified v0.9.0)
 
-**76 outils implémentés:**
+**76 outils implémentés + Infrastructure ISO:**
 
 | Catégorie | Nb | Status |
 |-----------|:--:|--------|
@@ -46,7 +46,28 @@
 | Resource | 4 | ✅ |
 | Signals | 3 | ✅ |
 | Groups | 3 | ✅ |
-| MCP Capabilities | Resources, Prompts, Logging | ✅ |
+| MCP Capabilities | Resources (20), Prompts, Logging | ✅ |
+
+**Infrastructure ISO/IEC:**
+
+| Composant | Standard | Status |
+|-----------|----------|--------|
+| config.ts | ISO 5055 (no magic numbers) | ✅ |
+| AuditLogger.ts | ISO 27001 (security events) | ✅ |
+| CircuitBreaker.ts | ISO 25010 (fault tolerance) | ✅ |
+| ProcessPool.ts | OWASP A01:2021 (injection) | ✅ |
+| Zod Validation | ISO 5055 (input validation) | ✅ |
+| Path Traversal | OWASP A01:2021 (access control) | ✅ |
+| TEST_PLAN | ISO 29119-2 (test process) | ✅ |
+
+**MCP Resources (20 URIs):**
+
+| Provider | Resources | Status |
+|----------|-----------|--------|
+| SceneScript | scenes, scripts, scene/*, script/* | ✅ |
+| Project | project/info, settings, export, version | ✅ |
+| Assets | assets, assets/*, resources, uid/* | ✅ |
+| Debug | debug/buffer, stats, errors | ✅ |
 
 ### MCPs concurrents - Features uniques
 
@@ -243,8 +264,8 @@ validate_gdscript        - Valider syntaxe GDScript
 | Outils à ajouter | 42 |
 | Outils total cible | 118 |
 | MCP Capabilities | Tools, Resources, Prompts, Logging |
-| Version actuelle | 0.8.0 |
-| Tests | 369 |
+| Version actuelle | 0.9.0 |
+| Tests | 1983 |
 
 ### Objectif final
 Un MCP permettant de créer en langage naturel:

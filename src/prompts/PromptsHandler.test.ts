@@ -68,6 +68,48 @@ describe('PromptsHandler', () => {
       expect(prompt).toBeDefined();
     });
 
+    it('includes scaffold_platformer', () => {
+      const prompt = godotPrompts.find((p) => p.name === 'scaffold_platformer');
+      expect(prompt).toBeDefined();
+      expect(prompt?.description).toContain('platformer');
+    });
+
+    it('includes scaffold_topdown', () => {
+      const prompt = godotPrompts.find((p) => p.name === 'scaffold_topdown');
+      expect(prompt).toBeDefined();
+      expect(prompt?.description).toContain('RPG');
+    });
+
+    it('includes scaffold_fps', () => {
+      const prompt = godotPrompts.find((p) => p.name === 'scaffold_fps');
+      expect(prompt).toBeDefined();
+      expect(prompt?.description).toContain('first-person');
+    });
+
+    it('includes scaffold_puzzle', () => {
+      const prompt = godotPrompts.find((p) => p.name === 'scaffold_puzzle');
+      expect(prompt).toBeDefined();
+      expect(prompt?.description).toContain('puzzle');
+    });
+
+    it('includes create_npc', () => {
+      const prompt = godotPrompts.find((p) => p.name === 'create_npc');
+      expect(prompt).toBeDefined();
+      expect(prompt?.description).toContain('NPC');
+    });
+
+    it('includes create_collectible', () => {
+      const prompt = godotPrompts.find((p) => p.name === 'create_collectible');
+      expect(prompt).toBeDefined();
+      expect(prompt?.description).toContain('collectible');
+    });
+
+    it('includes debug_physics', () => {
+      const prompt = godotPrompts.find((p) => p.name === 'debug_physics');
+      expect(prompt).toBeDefined();
+      expect(prompt?.description).toContain('physics');
+    });
+
     it('all prompts have required properties', () => {
       for (const prompt of godotPrompts) {
         expect(prompt.name).toBeDefined();
@@ -102,9 +144,9 @@ describe('PromptsHandler', () => {
       expect(Array.isArray(prompts)).toBe(true);
     });
 
-    it('returns 8 prompts', () => {
+    it('returns 15 prompts', () => {
       const prompts = getAllPrompts();
-      expect(prompts.length).toBe(8);
+      expect(prompts.length).toBe(15);
     });
   });
 
@@ -414,6 +456,226 @@ describe('PromptsHandler', () => {
       });
     });
 
+    describe('scaffold_platformer', () => {
+      it('generates messages with project name', () => {
+        const result = generatePromptMessages('scaffold_platformer', {
+          projectName: 'MyPlatformer',
+        });
+
+        expect(result).not.toBeNull();
+        expect(result?.description).toContain('MyPlatformer');
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('MyPlatformer');
+        expect(text).toContain('2D platformer');
+      });
+
+      it('includes features when specified', () => {
+        const result = generatePromptMessages('scaffold_platformer', {
+          projectName: 'Test',
+          features: 'parallax, enemies',
+        });
+
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('parallax');
+        expect(text).toContain('enemies');
+      });
+    });
+
+    describe('scaffold_topdown', () => {
+      it('generates messages for RPG project', () => {
+        const result = generatePromptMessages('scaffold_topdown', {
+          projectName: 'MyRPG',
+        });
+
+        expect(result).not.toBeNull();
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('MyRPG');
+        expect(text).toContain('top-down RPG');
+      });
+
+      it('includes inventory feature', () => {
+        const result = generatePromptMessages('scaffold_topdown', {
+          projectName: 'Test',
+          features: 'inventory',
+        });
+
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('Inventory');
+      });
+    });
+
+    describe('scaffold_fps', () => {
+      it('generates messages for FPS project', () => {
+        const result = generatePromptMessages('scaffold_fps', {
+          projectName: 'MyFPS',
+        });
+
+        expect(result).not.toBeNull();
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('MyFPS');
+        expect(text).toContain('first-person shooter');
+      });
+
+      it('includes weapons feature', () => {
+        const result = generatePromptMessages('scaffold_fps', {
+          projectName: 'Test',
+          features: 'weapons',
+        });
+
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('Weapon');
+      });
+    });
+
+    describe('scaffold_puzzle', () => {
+      it('generates messages for puzzle project', () => {
+        const result = generatePromptMessages('scaffold_puzzle', {
+          projectName: 'MyPuzzle',
+        });
+
+        expect(result).not.toBeNull();
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('MyPuzzle');
+        expect(text).toContain('puzzle game');
+      });
+
+      it('includes match3 puzzle type', () => {
+        const result = generatePromptMessages('scaffold_puzzle', {
+          projectName: 'Test',
+          puzzleType: 'match3',
+        });
+
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('Grid-based matching');
+      });
+
+      it('includes sokoban puzzle type', () => {
+        const result = generatePromptMessages('scaffold_puzzle', {
+          projectName: 'Test',
+          puzzleType: 'sokoban',
+        });
+
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('Push mechanics');
+      });
+    });
+
+    describe('create_npc', () => {
+      it('generates messages for shopkeeper', () => {
+        const result = generatePromptMessages('create_npc', {
+          npcType: 'shopkeeper',
+        });
+
+        expect(result).not.toBeNull();
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('shopkeeper');
+        expect(text).toContain('Buy/sell');
+      });
+
+      it('generates messages for quest_giver', () => {
+        const result = generatePromptMessages('create_npc', {
+          npcType: 'quest_giver',
+        });
+
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('Quest');
+      });
+
+      it('handles 3D mode', () => {
+        const result = generatePromptMessages('create_npc', {
+          npcType: 'villager',
+          is3D: 'true',
+        });
+
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('CharacterBody3D');
+      });
+    });
+
+    describe('create_collectible', () => {
+      it('generates messages for coin', () => {
+        const result = generatePromptMessages('create_collectible', {
+          itemType: 'coin',
+        });
+
+        expect(result).not.toBeNull();
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('coin');
+        expect(text).toContain('score');
+      });
+
+      it('generates messages for health', () => {
+        const result = generatePromptMessages('create_collectible', {
+          itemType: 'health',
+        });
+
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('Heal');
+      });
+
+      it('generates messages for powerup', () => {
+        const result = generatePromptMessages('create_collectible', {
+          itemType: 'powerup',
+        });
+
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('Temporary effect');
+      });
+    });
+
+    describe('debug_physics', () => {
+      it('generates messages with scene path', () => {
+        const result = generatePromptMessages('debug_physics', {
+          scenePath: '/scenes/level.tscn',
+        });
+
+        expect(result).not.toBeNull();
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('/scenes/level.tscn');
+        expect(text).toContain('physics');
+      });
+
+      it('includes collision issue type', () => {
+        const result = generatePromptMessages('debug_physics', {
+          scenePath: '/test.tscn',
+          issue: 'collision',
+        });
+
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('Missing collision shapes');
+      });
+
+      it('includes jitter issue type', () => {
+        const result = generatePromptMessages('debug_physics', {
+          scenePath: '/test.tscn',
+          issue: 'jitter',
+        });
+
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('Floating point precision');
+      });
+
+      it('includes tunneling issue type', () => {
+        const result = generatePromptMessages('debug_physics', {
+          scenePath: '/test.tscn',
+          issue: 'tunneling',
+        });
+
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('High velocity');
+      });
+
+      it('includes performance issue type', () => {
+        const result = generatePromptMessages('debug_physics', {
+          scenePath: '/test.tscn',
+          issue: 'performance',
+        });
+
+        const text = (result?.messages[0].content as { text: string }).text;
+        expect(text).toContain('Too many physics bodies');
+      });
+    });
+
     describe('unknown prompt', () => {
       it('returns null for unknown prompt', () => {
         const result = generatePromptMessages('unknown_prompt', {});
@@ -436,6 +698,13 @@ describe('PromptsHandler', () => {
         { name: 'setup_multiplayer', args: { architecture: 'p2p' } },
         { name: 'create_shader', args: { effect: 'outline' } },
         { name: 'optimize_scene', args: { scenePath: '/test.tscn' } },
+        { name: 'scaffold_platformer', args: { projectName: 'Test' } },
+        { name: 'scaffold_topdown', args: { projectName: 'Test' } },
+        { name: 'scaffold_fps', args: { projectName: 'Test' } },
+        { name: 'scaffold_puzzle', args: { projectName: 'Test' } },
+        { name: 'create_npc', args: { npcType: 'villager' } },
+        { name: 'create_collectible', args: { itemType: 'coin' } },
+        { name: 'debug_physics', args: { scenePath: '/test.tscn' } },
       ];
 
       for (const { name, args } of testCases) {

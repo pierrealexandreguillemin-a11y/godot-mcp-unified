@@ -144,6 +144,118 @@ export const godotPrompts: MCPPrompt[] = [
       },
     ],
   },
+  {
+    name: 'scaffold_platformer',
+    description: 'Generate a complete 2D platformer project structure',
+    arguments: [
+      {
+        name: 'projectName',
+        description: 'Name of the platformer project',
+        required: true,
+      },
+      {
+        name: 'features',
+        description: 'Features: parallax, enemies, collectibles, checkpoints',
+        required: false,
+      },
+    ],
+  },
+  {
+    name: 'scaffold_topdown',
+    description: 'Generate a top-down RPG project structure',
+    arguments: [
+      {
+        name: 'projectName',
+        description: 'Name of the RPG project',
+        required: true,
+      },
+      {
+        name: 'features',
+        description: 'Features: inventory, dialogue, quests, combat',
+        required: false,
+      },
+    ],
+  },
+  {
+    name: 'scaffold_fps',
+    description: 'Generate a 3D first-person shooter project structure',
+    arguments: [
+      {
+        name: 'projectName',
+        description: 'Name of the FPS project',
+        required: true,
+      },
+      {
+        name: 'features',
+        description: 'Features: weapons, enemies, pickups, multiplayer',
+        required: false,
+      },
+    ],
+  },
+  {
+    name: 'scaffold_puzzle',
+    description: 'Generate a puzzle game project structure',
+    arguments: [
+      {
+        name: 'projectName',
+        description: 'Name of the puzzle project',
+        required: true,
+      },
+      {
+        name: 'puzzleType',
+        description: 'Type: match3, sokoban, physics, logic',
+        required: false,
+      },
+    ],
+  },
+  {
+    name: 'create_npc',
+    description: 'Generate an interactive NPC with dialogue and behavior',
+    arguments: [
+      {
+        name: 'npcType',
+        description: 'Type: shopkeeper, quest_giver, villager, guard',
+        required: true,
+      },
+      {
+        name: 'is3D',
+        description: 'true for 3D, false for 2D',
+        required: false,
+      },
+    ],
+  },
+  {
+    name: 'create_collectible',
+    description: 'Generate a collectible item with pickup mechanics',
+    arguments: [
+      {
+        name: 'itemType',
+        description: 'Type: coin, health, powerup, key, ammo',
+        required: true,
+      },
+      {
+        name: 'is3D',
+        description: 'true for 3D, false for 2D',
+        required: false,
+      },
+    ],
+  },
+  {
+    name: 'debug_physics',
+    description: 'Diagnose and fix physics-related issues in a scene',
+    arguments: [
+      {
+        name: 'scenePath',
+        description: 'Path to the scene with physics issues',
+        required: true,
+      },
+      {
+        name: 'issue',
+        description: 'Issue type: collision, jitter, tunneling, performance',
+        required: false,
+      },
+    ],
+  },
 ];
 
 /**
@@ -384,6 +496,313 @@ Please:
    - Signal connections efficiency
 4. Provide specific optimization recommendations
 5. Show before/after structure if changes are needed`,
+          },
+        },
+      ],
+    }),
+
+    scaffold_platformer: (a) => ({
+      description: `Scaffold 2D platformer: ${a.projectName}`,
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Create a complete 2D platformer project structure for "${a.projectName}".
+
+Features to include: ${a.features || 'parallax, enemies, collectibles'}
+
+Please create:
+1. **Project Structure**
+   - res://scenes/
+     - main.tscn (main menu)
+     - game.tscn (game world)
+     - player/player.tscn
+     - enemies/ (enemy scenes)
+     - ui/ (HUD, pause menu)
+   - res://scripts/
+     - player/
+     - enemies/
+     - managers/
+   - res://assets/ (placeholder structure)
+
+2. **Core Systems**
+   - Player controller with move_and_slide()
+   - Camera follow with smoothing
+   - Game manager autoload
+   - Level transition system
+
+3. **Gameplay Elements**
+${a.features?.includes('parallax') ? '   - Parallax background layers' : ''}
+${a.features?.includes('enemies') ? '   - Basic enemy with patrol AI' : ''}
+${a.features?.includes('collectibles') ? '   - Collectible coins with counter' : ''}
+${a.features?.includes('checkpoints') ? '   - Checkpoint save system' : ''}
+
+Use tools: create_scene, add_node, write_script, attach_script, connect_signal`,
+          },
+        },
+      ],
+    }),
+
+    scaffold_topdown: (a) => ({
+      description: `Scaffold top-down RPG: ${a.projectName}`,
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Create a complete top-down RPG project structure for "${a.projectName}".
+
+Features to include: ${a.features || 'inventory, dialogue, combat'}
+
+Please create:
+1. **Project Structure**
+   - res://scenes/
+     - main_menu.tscn
+     - world.tscn
+     - player/player.tscn
+     - npcs/
+     - ui/
+   - res://scripts/
+     - player/
+     - npc/
+     - systems/
+   - res://data/ (JSON/Resource data)
+
+2. **Core Systems**
+   - 8-directional movement
+   - Camera with smooth follow
+   - Game state manager
+   - Save/Load system
+
+3. **RPG Features**
+${a.features?.includes('inventory') ? '   - Inventory system with slots\n   - Item pickup and use' : ''}
+${a.features?.includes('dialogue') ? '   - Dialogue box with choices\n   - NPC interaction system' : ''}
+${a.features?.includes('quests') ? '   - Quest tracking system\n   - Quest log UI' : ''}
+${a.features?.includes('combat') ? '   - Turn-based or action combat\n   - Health/damage system' : ''}
+
+Use tools: create_scene, add_node, write_script, create_resource`,
+          },
+        },
+      ],
+    }),
+
+    scaffold_fps: (a) => ({
+      description: `Scaffold 3D FPS: ${a.projectName}`,
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Create a complete 3D first-person shooter project structure for "${a.projectName}".
+
+Features to include: ${a.features || 'weapons, enemies, pickups'}
+
+Please create:
+1. **Project Structure**
+   - res://scenes/
+     - main_menu.tscn
+     - levels/
+     - player/fps_player.tscn
+     - weapons/
+     - enemies/
+     - ui/
+   - res://scripts/
+     - player/
+     - weapons/
+     - enemies/
+     - managers/
+
+2. **Core Systems**
+   - FPS controller (CharacterBody3D)
+   - Mouse look with sensitivity
+   - Weapon manager
+   - Health system
+
+3. **FPS Features**
+${a.features?.includes('weapons') ? '   - Weapon switching system\n   - Shooting with raycasts\n   - Recoil and spread' : ''}
+${a.features?.includes('enemies') ? '   - Enemy AI with NavMesh\n   - Damage and death' : ''}
+${a.features?.includes('pickups') ? '   - Ammo and health pickups\n   - Weapon pickups' : ''}
+${a.features?.includes('multiplayer') ? '   - Multiplayer spawning\n   - Network sync' : ''}
+
+Use tools: create_scene, add_node, write_script, setup_rigidbody, create_navigation_region`,
+          },
+        },
+      ],
+    }),
+
+    scaffold_puzzle: (a) => ({
+      description: `Scaffold puzzle game: ${a.projectName}`,
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Create a complete puzzle game project structure for "${a.projectName}".
+
+Puzzle type: ${a.puzzleType || 'logic'}
+
+Please create:
+1. **Project Structure**
+   - res://scenes/
+     - main_menu.tscn
+     - level_select.tscn
+     - levels/
+     - ui/
+   - res://scripts/
+     - puzzle/
+     - managers/
+   - res://data/levels/
+
+2. **Core Systems**
+   - Level loader
+   - Progress tracker
+   - Undo/Redo system
+   - Win condition checker
+
+3. **Puzzle-Specific Features**
+${a.puzzleType === 'match3' ? '   - Grid-based matching\n   - Tile swapping\n   - Cascade detection\n   - Score system' : ''}
+${a.puzzleType === 'sokoban' ? '   - Push mechanics\n   - Goal detection\n   - Move counter\n   - Reset level' : ''}
+${a.puzzleType === 'physics' ? '   - Physics-based interactions\n   - Object spawning\n   - Goal triggers' : ''}
+${a.puzzleType === 'logic' || !a.puzzleType ? '   - State-based puzzles\n   - Interactive elements\n   - Hint system' : ''}
+
+Use tools: create_scene, add_node, write_script, create_tilemap_layer`,
+          },
+        },
+      ],
+    }),
+
+    create_npc: (a) => ({
+      description: `Create ${a.npcType} NPC`,
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Create an interactive ${a.npcType} NPC for Godot 4.x (${a.is3D === 'true' ? '3D' : '2D'}).
+
+Please create:
+1. **NPC Scene Structure**
+   - ${a.is3D === 'true' ? 'CharacterBody3D' : 'CharacterBody2D'} root
+   - ${a.is3D === 'true' ? 'CollisionShape3D' : 'CollisionShape2D'}
+   - ${a.is3D === 'true' ? 'MeshInstance3D' : 'Sprite2D'} for visuals
+   - ${a.is3D === 'true' ? 'Area3D' : 'Area2D'} for interaction detection
+   - Label for name display
+
+2. **NPC Script with**
+   - Interaction detection (player in range)
+   - Dialogue trigger
+   - @export variables for customization
+   - State machine (idle, talking, busy)
+
+3. **Behavior for "${a.npcType}"**
+${a.npcType === 'shopkeeper' ? '   - Shop inventory display\n   - Buy/sell transactions\n   - Price display\n   - Currency check' : ''}
+${a.npcType === 'quest_giver' ? '   - Quest offering\n   - Quest status check\n   - Reward giving\n   - Multiple quest support' : ''}
+${a.npcType === 'villager' ? '   - Random idle dialogue\n   - Day/night schedule\n   - Wander behavior' : ''}
+${a.npcType === 'guard' ? '   - Patrol route\n   - Player detection\n   - Alert state\n   - Block passage' : ''}
+
+4. **Signals**
+   - interaction_started
+   - interaction_ended
+   - dialogue_finished
+
+Use tools: create_scene, add_node, write_script, attach_script, connect_signal`,
+          },
+        },
+      ],
+    }),
+
+    create_collectible: (a) => ({
+      description: `Create ${a.itemType} collectible`,
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Create a ${a.itemType} collectible item for Godot 4.x (${a.is3D === 'true' ? '3D' : '2D'}).
+
+Please create:
+1. **Collectible Scene Structure**
+   - ${a.is3D === 'true' ? 'Area3D' : 'Area2D'} root (for overlap detection)
+   - ${a.is3D === 'true' ? 'CollisionShape3D' : 'CollisionShape2D'}
+   - ${a.is3D === 'true' ? 'MeshInstance3D' : 'Sprite2D'} for visuals
+   - AnimationPlayer for effects
+
+2. **Visual Effects**
+   - Floating/bobbing animation
+   - Rotation (for 3D)
+   - Sparkle particles
+   - Collection animation
+
+3. **Collectible Script**
+   - @export value (amount, type)
+   - On body entered → collect
+   - Play collection effect
+   - Queue free after delay
+
+4. **Item-Specific Behavior**
+${a.itemType === 'coin' ? '   - Add to score/currency\n   - Coin sound effect\n   - Value display' : ''}
+${a.itemType === 'health' ? '   - Heal player\n   - Heal amount variable\n   - Only collect if not full' : ''}
+${a.itemType === 'powerup' ? '   - Temporary effect\n   - Duration timer\n   - Effect indicator' : ''}
+${a.itemType === 'key' ? '   - Add to inventory\n   - Unique key ID\n   - Check for door unlock' : ''}
+${a.itemType === 'ammo' ? '   - Add to weapon ammo\n   - Ammo type selection\n   - Max ammo check' : ''}
+
+5. **Signals**
+   - collected(collector, value)
+
+Use tools: create_scene, add_node, write_script, create_gpu_particles`,
+          },
+        },
+      ],
+    }),
+
+    debug_physics: (a) => ({
+      description: `Debug physics in ${a.scenePath}`,
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Diagnose and fix physics issues in the scene at "${a.scenePath}".
+
+Issue type: ${a.issue || 'general'}
+
+Please analyze:
+1. **Scene Structure**
+   - Use get_node_tree to find all physics bodies
+   - Check collision shapes
+   - Review collision layers and masks
+
+2. **Common Issues to Check**
+${a.issue === 'collision' || !a.issue ? `   - Missing collision shapes
+   - Incorrect collision layer/mask setup
+   - Overlapping static bodies
+   - One-way collision issues` : ''}
+${a.issue === 'jitter' ? `   - Floating point precision issues
+   - Conflicting physics forces
+   - Incorrect position updates
+   - Camera interpolation problems` : ''}
+${a.issue === 'tunneling' ? `   - High velocity objects
+   - Thin collision shapes
+   - CCD (continuous collision) settings
+   - Physics tick rate` : ''}
+${a.issue === 'performance' ? `   - Too many physics bodies
+   - Complex collision shapes
+   - Unnecessary physics processing
+   - Sleep mode configuration` : ''}
+
+3. **Debugging Tools to Use**
+   - get_project_settings for physics config
+   - Suggest enabling Debug > Visible Collision Shapes
+   - Check physics/2d or physics/3d settings
+
+4. **Provide Solutions**
+   - Specific fixes for identified issues
+   - Code examples for corrections
+   - Project settings recommendations
+   - Best practices for Godot physics
+
+Use tools: get_project_settings, get_node_tree, set_project_setting`,
           },
         },
       ],

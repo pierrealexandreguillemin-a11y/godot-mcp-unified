@@ -11,43 +11,21 @@
  * - godot://script/errors - Script compilation errors
  */
 
-import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
-import { join, extname, relative } from 'path';
-import { ResourceProvider, GodotResource, ResourceContent, RESOURCE_URIS, getMimeType, validateSceneUri, validateScriptUri, validatePathWithinProject } from '../types.js';
+import { readFileSync, existsSync, statSync } from 'fs';
+import { relative } from 'path';
+import {
+  ResourceProvider,
+  GodotResource,
+  ResourceContent,
+  RESOURCE_URIS,
+  getMimeType,
+  validateSceneUri,
+  validateScriptUri,
+  validatePathWithinProject,
+} from '../types.js';
 import { isGodotProject } from '../../utils/FileUtils.js';
 import { parseTscn, TscnNode } from '../../core/TscnParser.js';
-
-/**
- * Recursively find files with specific extensions
- */
-function findFiles(dir: string, extensions: string[], maxDepth = 10): string[] {
-  const files: string[] = [];
-
-  function scan(currentDir: string, depth: number): void {
-    if (depth > maxDepth) return;
-
-    try {
-      const entries = readdirSync(currentDir);
-      for (const entry of entries) {
-        if (entry.startsWith('.') || entry === 'addons' || entry === '.godot') continue;
-
-        const fullPath = join(currentDir, entry);
-        const stat = statSync(fullPath);
-
-        if (stat.isDirectory()) {
-          scan(fullPath, depth + 1);
-        } else if (extensions.includes(extname(entry).toLowerCase())) {
-          files.push(fullPath);
-        }
-      }
-    } catch {
-      // Ignore permission errors
-    }
-  }
-
-  scan(dir, 0);
-  return files;
-}
+import { findFilePaths, findFiles } from '../utils/fileScanner.js';
 
 export class SceneScriptResourceProvider implements ResourceProvider {
   prefix = 'scene-script';
@@ -88,10 +66,9 @@ export class SceneScriptResourceProvider implements ResourceProvider {
       return resources;
     }
 
-    // Add individual scene resources
-    const sceneFiles = findFiles(projectPath, ['.tscn']);
+    // Add individual scene resources (limit to 50)
+    const sceneFiles = findFilePaths(projectPath, ['.tscn']);
     for (const scenePath of sceneFiles.slice(0, 50)) {
-      // Limit to 50 scenes
       const relativePath = relative(projectPath, scenePath).replace(/\\/g, '/');
       resources.push({
         uri: `${RESOURCE_URIS.SCENE}${relativePath}`,
@@ -107,10 +84,9 @@ export class SceneScriptResourceProvider implements ResourceProvider {
       });
     }
 
-    // Add individual script resources
-    const scriptFiles = findFiles(projectPath, ['.gd']);
+    // Add individual script resources (limit to 50)
+    const scriptFiles = findFilePaths(projectPath, ['.gd']);
     for (const scriptPath of scriptFiles.slice(0, 50)) {
-      // Limit to 50 scripts
       const relativePath = relative(projectPath, scriptPath).replace(/\\/g, '/');
       resources.push({
         uri: `${RESOURCE_URIS.SCRIPT}${relativePath}`,
@@ -133,7 +109,7 @@ export class SceneScriptResourceProvider implements ResourceProvider {
     }
 
     if (uri === RESOURCE_URIS.SCRIPT_ERRORS) {
-      return this.getScriptErrors(projectPath);
+      return this.getScriptErrors();
     }
 
     // Scene: validate and extract path with security check
@@ -178,16 +154,12 @@ export class SceneScriptResourceProvider implements ResourceProvider {
     }
 
     const sceneFiles = findFiles(projectPath, ['.tscn']);
-    const scenes = sceneFiles.map((fullPath) => {
-      const relativePath = relative(projectPath, fullPath).replace(/\\/g, '/');
-      const stat = statSync(fullPath);
-      return {
-        path: `res://${relativePath}`,
-        relativePath,
-        size: stat.size,
-        modified: stat.mtime.toISOString(),
-      };
-    });
+    const scenes = sceneFiles.map((f) => ({
+      path: `res://${f.relativePath}`,
+      relativePath: f.relativePath,
+      size: f.size,
+      modified: f.modified.toISOString(),
+    }));
 
     return {
       uri: RESOURCE_URIS.SCENES,
@@ -206,15 +178,12 @@ export class SceneScriptResourceProvider implements ResourceProvider {
     }
 
     const scriptFiles = findFiles(projectPath, ['.gd']);
-    const scripts = scriptFiles.map((fullPath) => {
-      const relativePath = relative(projectPath, fullPath).replace(/\\/g, '/');
-      const stat = statSync(fullPath);
-
-      // Try to extract class_name
+    const scripts = scriptFiles.map((f) => {
+      // Try to extract class_name and extends
       let className: string | null = null;
       let extendsClass: string | null = null;
       try {
-        const content = readFileSync(fullPath, 'utf-8');
+        const content = readFileSync(f.path, 'utf-8');
         const classMatch = content.match(/^class_name\s+(\w+)/m);
         if (classMatch) className = classMatch[1];
         const extendsMatch = content.match(/^extends\s+(\w+)/m);
@@ -224,12 +193,12 @@ export class SceneScriptResourceProvider implements ResourceProvider {
       }
 
       return {
-        path: `res://${relativePath}`,
-        relativePath,
+        path: `res://${f.relativePath}`,
+        relativePath: f.relativePath,
         className,
         extends: extendsClass,
-        size: stat.size,
-        modified: stat.mtime.toISOString(),
+        size: f.size,
+        modified: f.modified.toISOString(),
       };
     });
 
@@ -316,16 +285,7 @@ export class SceneScriptResourceProvider implements ResourceProvider {
       return {
         uri: `${RESOURCE_URIS.SCENE}${scenePath}/tree`,
         mimeType: 'application/json',
-        text: JSON.stringify(
-          {
-            scenePath,
-            nodeCount: nodes.length,
-            tree: hierarchy,
-            flatList: nodes,
-          },
-          null,
-          2
-        ),
+        text: JSON.stringify({ scenePath, nodeCount: nodes.length, tree: hierarchy, flatList: nodes }, null, 2),
       };
     } catch (error) {
       return {
@@ -361,20 +321,14 @@ export class SceneScriptResourceProvider implements ResourceProvider {
     }
   }
 
-  private async getScriptErrors(_projectPath: string): Promise<ResourceContent | null> {
+  private async getScriptErrors(): Promise<ResourceContent | null> {
     // Script errors require running Godot with --check-only
     // This is a placeholder that returns empty errors
-    // Real implementation would call Godot process
-
     return {
       uri: RESOURCE_URIS.SCRIPT_ERRORS,
       mimeType: 'application/json',
       text: JSON.stringify(
-        {
-          note: 'Run Godot with --check-only for actual errors',
-          errors: [],
-          warnings: [],
-        },
+        { note: 'Run Godot with --check-only for actual errors', errors: [], warnings: [] },
         null,
         2
       ),

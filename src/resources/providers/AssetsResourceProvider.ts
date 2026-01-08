@@ -9,90 +9,24 @@
  * - godot://uid/{path} - UID for a specific file
  */
 
-import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
-import { join, extname, relative, basename } from 'path';
-import { ResourceProvider, GodotResource, ResourceContent, RESOURCE_URIS, getMimeType, validateAssetCategory, validateUidPath, validatePathWithinProject } from '../types.js';
+import { readFileSync, existsSync } from 'fs';
+import { basename } from 'path';
+import {
+  ResourceProvider,
+  GodotResource,
+  ResourceContent,
+  RESOURCE_URIS,
+  validateAssetCategory,
+  validateUidPath,
+  validatePathWithinProject,
+} from '../types.js';
 import { isGodotProject } from '../../utils/FileUtils.js';
-
-/**
- * Asset categories and their file extensions
- */
-const ASSET_CATEGORIES: Record<string, string[]> = {
-  images: ['.png', '.jpg', '.jpeg', '.webp', '.svg', '.bmp', '.tga'],
-  audio: ['.wav', '.ogg', '.mp3', '.flac'],
-  models: ['.glb', '.gltf', '.obj', '.fbx', '.dae', '.blend'],
-  fonts: ['.ttf', '.otf', '.woff', '.woff2', '.fnt'],
-  shaders: ['.gdshader', '.shader'],
-  resources: ['.tres', '.res'],
-  scenes: ['.tscn', '.scn'],
-  scripts: ['.gd'],
-  data: ['.json', '.xml', '.csv', '.txt'],
-};
-
-/**
- * Recursively find files with specific extensions
- */
-function findFiles(
-  dir: string,
-  extensions: string[],
-  maxDepth = 10,
-  baseDir?: string
-): Array<{ path: string; relativePath: string; ext: string; size: number; modified: Date }> {
-  const files: Array<{
-    path: string;
-    relativePath: string;
-    ext: string;
-    size: number;
-    modified: Date;
-  }> = [];
-  const base = baseDir || dir;
-
-  function scan(currentDir: string, depth: number): void {
-    if (depth > maxDepth) return;
-
-    try {
-      const entries = readdirSync(currentDir);
-      for (const entry of entries) {
-        if (entry.startsWith('.') || entry === '.godot') continue;
-
-        const fullPath = join(currentDir, entry);
-        const stat = statSync(fullPath);
-
-        if (stat.isDirectory()) {
-          scan(fullPath, depth + 1);
-        } else {
-          const ext = extname(entry).toLowerCase();
-          if (extensions.length === 0 || extensions.includes(ext)) {
-            files.push({
-              path: fullPath,
-              relativePath: relative(base, fullPath).replace(/\\/g, '/'),
-              ext,
-              size: stat.size,
-              modified: stat.mtime,
-            });
-          }
-        }
-      }
-    } catch {
-      // Ignore permission errors
-    }
-  }
-
-  scan(dir, 0);
-  return files;
-}
-
-/**
- * Get category for a file extension
- */
-function getCategoryForExtension(ext: string): string {
-  for (const [category, extensions] of Object.entries(ASSET_CATEGORIES)) {
-    if (extensions.includes(ext.toLowerCase())) {
-      return category;
-    }
-  }
-  return 'other';
-}
+import { findFiles } from '../utils/fileScanner.js';
+import {
+  ASSET_CATEGORIES,
+  getAllAssetExtensions,
+  getCategoryForExtension,
+} from '../utils/assetCategories.js';
 
 export class AssetsResourceProvider implements ResourceProvider {
   prefix = 'assets';
@@ -183,9 +117,7 @@ export class AssetsResourceProvider implements ResourceProvider {
       };
     }
 
-    // Get all asset extensions
-    const allExtensions = Object.values(ASSET_CATEGORIES).flat();
-    const files = findFiles(projectPath, allExtensions);
+    const files = findFiles(projectPath, getAllAssetExtensions());
 
     // Group by category
     const byCategory: Record<string, typeof files> = {};
@@ -319,15 +251,7 @@ export class AssetsResourceProvider implements ResourceProvider {
     return {
       uri: RESOURCE_URIS.RESOURCES,
       mimeType: 'application/json',
-      text: JSON.stringify(
-        {
-          count: resources.length,
-          byType,
-          resources,
-        },
-        null,
-        2
-      ),
+      text: JSON.stringify({ count: resources.length, byType, resources }, null, 2),
     };
   }
 
@@ -342,7 +266,6 @@ export class AssetsResourceProvider implements ResourceProvider {
       return this.createErrorContent(`${RESOURCE_URIS.UID}${filePath}`, 'Path traversal detected');
     }
 
-    // Check for .import file which contains the UID
     const importFilePath = `${fullFilePath}.import`;
 
     if (!existsSync(fullFilePath)) {
@@ -380,15 +303,7 @@ export class AssetsResourceProvider implements ResourceProvider {
     return {
       uri: `${RESOURCE_URIS.UID}${filePath}`,
       mimeType: 'application/json',
-      text: JSON.stringify(
-        {
-          path: filePath,
-          uid,
-          hasImportFile: existsSync(importFilePath),
-        },
-        null,
-        2
-      ),
+      text: JSON.stringify({ path: filePath, uid, hasImportFile: existsSync(importFilePath) }, null, 2),
     };
   }
 }

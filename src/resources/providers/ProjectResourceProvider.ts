@@ -12,94 +12,17 @@
 
 import { readFileSync, existsSync } from 'fs';
 import { join, basename } from 'path';
-import { ResourceProvider, GodotResource, ResourceContent, RESOURCE_URIS, validateSectionName } from '../types.js';
+import {
+  ResourceProvider,
+  GodotResource,
+  ResourceContent,
+  RESOURCE_URIS,
+  validateSectionName,
+} from '../types.js';
 import { isGodotProject, getProjectStructure } from '../../utils/FileUtils.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { getGodotPool } from '../../core/ProcessPool.js';
-
-interface ProjectSetting {
-  section: string;
-  key: string;
-  value: string;
-  rawValue: string;
-}
-
-/**
- * Parse project.godot file into structured settings
- */
-function parseProjectGodot(content: string): { settings: ProjectSetting[]; configVersion: number } {
-  const lines = content.split(/\r?\n/);
-  const settings: ProjectSetting[] = [];
-  let currentSection = '';
-  let configVersion = 5;
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith(';')) continue;
-
-    const sectionMatch = trimmed.match(/^\[([^\]]+)\]$/);
-    if (sectionMatch) {
-      currentSection = sectionMatch[1];
-      continue;
-    }
-
-    const kvMatch = trimmed.match(/^([^=]+)=(.*)$/);
-    if (kvMatch) {
-      const key = kvMatch[1].trim();
-      const rawValue = kvMatch[2].trim();
-      let value = rawValue;
-      if (rawValue.startsWith('"') && rawValue.endsWith('"')) {
-        value = rawValue.slice(1, -1);
-      }
-      if (currentSection === '' && key === 'config_version') {
-        configVersion = parseInt(value, 10) || 5;
-      }
-      settings.push({
-        section: currentSection || 'root',
-        key: currentSection ? `${currentSection}/${key}` : key,
-        value,
-        rawValue,
-      });
-    }
-  }
-
-  return { settings, configVersion };
-}
-
-/**
- * Parse export_presets.cfg file
- */
-function parseExportPresets(content: string): object[] {
-  const presets: object[] = [];
-  const lines = content.split(/\r?\n/);
-  let currentPreset: Record<string, string> | null = null;
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith(';')) continue;
-
-    if (trimmed.match(/^\[preset\.\d+\]$/)) {
-      if (currentPreset) presets.push(currentPreset);
-      currentPreset = {};
-      continue;
-    }
-
-    if (currentPreset) {
-      const kvMatch = trimmed.match(/^([^=]+)=(.*)$/);
-      if (kvMatch) {
-        const key = kvMatch[1].trim();
-        let value = kvMatch[2].trim();
-        if (value.startsWith('"') && value.endsWith('"')) {
-          value = value.slice(1, -1);
-        }
-        currentPreset[key] = value;
-      }
-    }
-  }
-
-  if (currentPreset) presets.push(currentPreset);
-  return presets;
-}
+import { parseProjectGodot, parseExportPresets } from '../utils/configParser.js';
 
 export class ProjectResourceProvider implements ResourceProvider {
   prefix = 'project';
@@ -235,14 +158,7 @@ export class ProjectResourceProvider implements ResourceProvider {
         ? featuresMatch[1].split(',').map((f) => f.trim().replace(/"/g, ''))
         : [];
 
-      const info = {
-        name: projectName,
-        path: projectPath,
-        configVersion,
-        mainScene,
-        features,
-        structure,
-      };
+      const info = { name: projectName, path: projectPath, configVersion, mainScene, features, structure };
 
       return {
         uri: RESOURCE_URIS.PROJECT_INFO,
@@ -330,14 +246,7 @@ export class ProjectResourceProvider implements ResourceProvider {
       return {
         uri: RESOURCE_URIS.SYSTEM_VERSION,
         mimeType: 'application/json',
-        text: JSON.stringify(
-          {
-            version: result.stdout.trim(),
-            path: godotPath,
-          },
-          null,
-          2
-        ),
+        text: JSON.stringify({ version: result.stdout.trim(), path: godotPath }, null, 2),
       };
     } catch {
       return null;

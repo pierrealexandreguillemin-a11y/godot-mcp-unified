@@ -1,138 +1,76 @@
 /**
  * MCP Resources Handler
- * Exposes Godot project files as MCP resources
+ * Central manager for all Godot MCP resources
+ *
+ * Implements 20 resources across 4 groups:
+ * - Project (5): info, settings, sections, export presets, version
+ * - Scene/Script (6): scenes, scene content, tree, scripts, script content, errors
+ * - Assets (4): all assets, by category, resources, UIDs
+ * - Debug (5): output, stream, breakpoints, stack, variables
  *
  * @see https://modelcontextprotocol.io/docs/concepts/resources
  */
 
-import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
-import { join, extname, relative } from 'path';
-import { isGodotProject } from '../utils/FileUtils';
+import { ResourceProvider, GodotResource, ResourceContent, getMimeType } from './types.js';
+import {
+  ProjectResourceProvider,
+  SceneScriptResourceProvider,
+  AssetsResourceProvider,
+  DebugResourceProvider,
+} from './providers/index.js';
 
-export interface MCPResource {
-  uri: string;
-  name: string;
-  description?: string;
-  mimeType?: string;
-}
-
-export interface ResourceContent {
-  uri: string;
-  mimeType?: string;
-  text?: string;
-  blob?: string;
-}
+// Initialize all resource providers
+const providers: ResourceProvider[] = [
+  new ProjectResourceProvider(),
+  new SceneScriptResourceProvider(),
+  new AssetsResourceProvider(),
+  new DebugResourceProvider(),
+];
 
 /**
- * Get MIME type for Godot files
+ * List all available resources for a project
  */
-const getMimeType = (filePath: string): string => {
-  const ext = extname(filePath).toLowerCase();
-  const mimeTypes: Record<string, string> = {
-    '.gd': 'text/x-gdscript',
-    '.tscn': 'text/x-godot-scene',
-    '.tres': 'text/x-godot-resource',
-    '.godot': 'text/x-godot-project',
-    '.cfg': 'text/plain',
-    '.json': 'application/json',
-    '.md': 'text/markdown',
-    '.txt': 'text/plain',
-    '.shader': 'text/x-godot-shader',
-    '.gdshader': 'text/x-godot-shader',
-    '.import': 'text/plain',
-  };
-  return mimeTypes[ext] || 'application/octet-stream';
-};
+export const listGodotResources = async (projectPath: string): Promise<GodotResource[]> => {
+  const allResources: GodotResource[] = [];
 
-/**
- * List all resources in a Godot project
- */
-export const listGodotResources = (projectPath: string): MCPResource[] => {
-  if (!existsSync(projectPath) || !isGodotProject(projectPath)) {
-    return [];
+  for (const provider of providers) {
+    try {
+      const resources = await provider.listResources(projectPath);
+      allResources.push(...resources);
+    } catch (error) {
+      console.error(`[Resources] Error listing from ${provider.prefix}:`, error);
+    }
   }
 
-  const resources: MCPResource[] = [];
-  const extensions = ['.gd', '.tscn', '.tres', '.godot', '.gdshader', '.shader'];
-
-  const scanDirectory = (dir: string, depth: number = 0): void => {
-    if (depth > 5) return; // Limit recursion depth
-
-    try {
-      const entries = readdirSync(dir);
-      for (const entry of entries) {
-        if (entry.startsWith('.') || entry === 'addons' || entry === '.godot') {
-          continue;
-        }
-
-        const fullPath = join(dir, entry);
-        const stat = statSync(fullPath);
-
-        if (stat.isDirectory()) {
-          scanDirectory(fullPath, depth + 1);
-        } else if (extensions.includes(extname(entry).toLowerCase())) {
-          const relativePath = relative(projectPath, fullPath).replace(/\\/g, '/');
-          const uri = `godot://${relativePath}`;
-
-          resources.push({
-            uri,
-            name: entry,
-            description: `Godot ${extname(entry).slice(1).toUpperCase()} file`,
-            mimeType: getMimeType(fullPath),
-          });
-        }
-      }
-    } catch {
-      // Ignore permission errors
-    }
-  };
-
-  // Add project.godot as main resource
-  resources.push({
-    uri: 'godot://project.godot',
-    name: 'project.godot',
-    description: 'Godot project configuration file',
-    mimeType: 'text/x-godot-project',
-  });
-
-  scanDirectory(projectPath);
-  return resources;
+  return allResources;
 };
 
 /**
- * Read a resource by URI
+ * Read a specific resource by URI
  */
-export const readGodotResource = (
+export const readGodotResource = async (
   projectPath: string,
   uri: string
-): ResourceContent | null => {
-  if (!uri.startsWith('godot://')) {
-    return null;
+): Promise<ResourceContent | null> => {
+  // Find the provider that handles this URI
+  for (const provider of providers) {
+    if (provider.handlesUri(uri)) {
+      try {
+        return await provider.readResource(projectPath, uri);
+      } catch (error) {
+        console.error(`[Resources] Error reading ${uri}:`, error);
+        return null;
+      }
+    }
   }
 
-  const relativePath = uri.replace('godot://', '');
-  const fullPath = join(projectPath, relativePath);
-
-  if (!existsSync(fullPath)) {
-    return null;
-  }
-
-  try {
-    const content = readFileSync(fullPath, 'utf-8');
-    return {
-      uri,
-      mimeType: getMimeType(fullPath),
-      text: content,
-    };
-  } catch {
-    return null;
-  }
+  return null;
 };
 
 /**
- * Get resource templates (common Godot patterns)
+ * Get resource templates (common Godot code patterns)
  */
-export const getResourceTemplates = (): MCPResource[] => {
+export const getResourceTemplates = (): GodotResource[] => {
   return [
     {
       uri: 'godot-template://character-controller',
@@ -168,21 +106,15 @@ export const getTemplateContent = (uri: string): ResourceContent | null => {
 var gravity: float = ProjectSettings.get_setting("physics/2d/default_gravity")
 
 func _physics_process(delta: float) -> void:
-    # Gravity
     if not is_on_floor():
         velocity.y += gravity * delta
-
-    # Jump
     if Input.is_action_just_pressed("ui_accept") and is_on_floor():
         velocity.y = jump_velocity
-
-    # Movement
     var direction := Input.get_axis("ui_left", "ui_right")
     if direction:
         velocity.x = direction * speed
     else:
         velocity.x = move_toward(velocity.x, 0, speed)
-
     move_and_slide()
 `,
     'godot-template://state-machine': `extends Node
@@ -200,36 +132,22 @@ func _ready() -> void:
         if child is State:
             states[child.name] = child
             child.state_machine = self
-
     if initial_state:
         current_state = initial_state
         current_state.enter()
-
-func _process(delta: float) -> void:
-    if current_state:
-        current_state.update(delta)
-
-func _physics_process(delta: float) -> void:
-    if current_state:
-        current_state.physics_update(delta)
 
 func change_state(new_state_name: StringName) -> void:
     if not states.has(new_state_name):
         push_error("State not found: " + new_state_name)
         return
-
     var old_state_name := current_state.name if current_state else &""
     if current_state:
         current_state.exit()
-
     current_state = states[new_state_name]
     current_state.enter()
     state_changed.emit(old_state_name, new_state_name)
 `,
     'godot-template://singleton-autoload': `extends Node
-
-## Global game manager singleton
-## Add to Project > Project Settings > Autoload
 
 signal game_started
 signal game_paused(is_paused: bool)
@@ -250,12 +168,6 @@ func toggle_pause() -> void:
     is_paused = !is_paused
     get_tree().paused = is_paused
     game_paused.emit(is_paused)
-
-func end_game() -> void:
-    game_over.emit()
-
-func add_score(points: int) -> void:
-    score += points
 `,
   };
 
@@ -269,3 +181,7 @@ func add_score(points: int) -> void:
     text: templates[uri],
   };
 };
+
+// Re-export types for backward compatibility
+export type { GodotResource, ResourceContent };
+export { getMimeType };

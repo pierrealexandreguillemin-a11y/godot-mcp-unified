@@ -25,7 +25,7 @@
 ```
 Primitives MCP:
   Tools implementes:      79/79   ██████████████████████████████ 100%
-  Resources implementees:  0/20   ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%
+  Resources implementees: 20/20   ██████████████████████████████ 100%
   Prompts implementes:     0/15   ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%
 
 Qualite:
@@ -69,7 +69,7 @@ Qualite:
 │                         MODEL CONTEXT PROTOCOL                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│   TOOLS (79 ✅)            RESOURCES (0 ❌)         PROMPTS (0 ❌)          │
+│   TOOLS (79 ✅)            RESOURCES (20 ✅)         PROMPTS (0 ❌)          │
 │   ─────────────────        ─────────────────        ─────────────────       │
 │   Actions executables      Donnees read-only        Templates reusables     │
 │   Client → Server          Server → Client          Server → Client         │
@@ -422,10 +422,10 @@ Use proper Godot 4 syntax and best practices.`
 
 ```
 TOOLS:      ████████████████████████████████████████ 100% (79/79)
-RESOURCES:  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0% (0/20)
+RESOURCES:  ████████████████████████████████████████ 100% (20/20)
 PROMPTS:    ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0% (0/15)
 
-MCP GLOBAL: █████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░  33% (spec partielle)
+MCP GLOBAL: ██████████████████████████░░░░░░░░░░░░░░  67% (Resources done)
 ```
 
 ### Gap Analysis

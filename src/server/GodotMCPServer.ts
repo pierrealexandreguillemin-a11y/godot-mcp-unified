@@ -147,7 +147,7 @@ export class GodotMCPServer {
 
       // Add project resources if project path is set
       if (currentProjectPath) {
-        const projectResources = listGodotResources(currentProjectPath);
+        const projectResources = await listGodotResources(currentProjectPath);
         resources.push(...projectResources);
       }
 
@@ -170,7 +170,7 @@ export class GodotMCPServer {
       if (uri.startsWith('godot-template://')) {
         content = getTemplateContent(uri);
       } else if (uri.startsWith('godot://') && currentProjectPath) {
-        content = readGodotResource(currentProjectPath, uri);
+        content = await readGodotResource(currentProjectPath, uri);
       }
 
       if (!content) {

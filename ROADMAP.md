@@ -2,7 +2,7 @@
 
 > Plan d'implementation MCP complet - Conforme ISO 25010/29119/5055/12207
 
-**Version cible**: 1.0.0 | **Outils actuels**: 79 | **Resources**: 0 | **Prompts**: 0
+**Version cible**: 1.0.0 | **Outils actuels**: 79 | **Resources**: 20 | **Prompts**: 8
 
 ---
 
@@ -26,13 +26,13 @@
 Primitives MCP:
   Tools implementes:      79/79   ██████████████████████████████ 100%
   Resources implementees: 20/20   ██████████████████████████████ 100%
-  Prompts implementes:     0/15   ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%
+  Prompts implementes:     8/15   ████████████████░░░░░░░░░░░░░░  53%
 
 Qualite:
-  Tests:                 1757     ██████████████████████████████ 100% pass
+  Tests:                 2141     ██████████████████████████████ 100% pass
   Coverage:               44%     █████████████░░░░░░░░░░░░░░░░░  44%
   ISO 5055 (Zod):        79/79   ██████████████████████████████ 100%
-  ISO 29119 (Suites):   32/32   ██████████████████████████████ 100%
+  ISO 29119 (Suites):   44/44   ██████████████████████████████ 100%
 ```
 
 ### Outils par categorie
@@ -423,17 +423,17 @@ Use proper Godot 4 syntax and best practices.`
 ```
 TOOLS:      ████████████████████████████████████████ 100% (79/79)
 RESOURCES:  ████████████████████████████████████████ 100% (20/20)
-PROMPTS:    ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0% (0/15)
+PROMPTS:    ████████████████████░░░░░░░░░░░░░░░░░░░░  53% (8/15)
 
-MCP GLOBAL: ██████████████████████████░░░░░░░░░░░░░░  67% (Resources done)
+MCP GLOBAL: █████████████████████████████████░░░░░░░  84% (7 prompts restants)
 ```
 
 ### Gap Analysis
 
 | Gap | Impact | Priorite | Effort |
 |-----|--------|----------|--------|
-| Resources non implementees | LLM doit appeler tools pour lire | HAUTE | 2-3 jours |
-| Prompts non implementes | Pas de workflows guides | HAUTE | 2-3 jours |
+| ~~Resources non implementees~~ | ~~LLM doit appeler tools pour lire~~ | ~~HAUTE~~ | ✅ FAIT |
+| 7 Prompts restants | Workflows scaffolding incomplets | HAUTE | 1-2 jours |
 | HTTP transport | Limitation stdio only | BASSE | 1 jour |
 | Roots | Pas de workspace awareness | BASSE | 0.5 jour |
 | Sampling | Pas de generation LLM | N/A | - |

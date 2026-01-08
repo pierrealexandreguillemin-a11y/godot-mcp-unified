@@ -29,9 +29,10 @@ Primitives MCP:
   Prompts implementes:     0/15   ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0%
 
 Qualite:
-  Tests:                  513     ██████████████████████████████ 100% pass
+  Tests:                 1757     ██████████████████████████████ 100% pass
   Coverage:               44%     █████████████░░░░░░░░░░░░░░░░░  44%
   ISO 5055 (Zod):        79/79   ██████████████████████████████ 100%
+  ISO 29119 (Suites):   32/32   ██████████████████████████████ 100%
 ```
 
 ### Outils par categorie
@@ -465,7 +466,7 @@ SEMAINE 3: Finalisation
 
 | Caracteristique | Implementation | Mesure |
 |-----------------|----------------|--------|
-| **Fiabilite** | Tests Jest, error handling | 513 tests, 100% pass |
+| **Fiabilite** | Tests Jest, error handling | 1757 tests, 100% pass |
 | **Securite** | Validation Zod, path traversal | 79/79 outils valides |
 | **Maintenabilite** | 1 fichier/outil, TypeScript strict | 100% modularite |
 | **Portabilite** | Cross-platform | Win/Mac/Linux |
@@ -474,9 +475,9 @@ SEMAINE 3: Finalisation
 
 | Type | Implementation | Couverture |
 |------|----------------|------------|
-| Unitaire | Jest + fixtures | 44% lines |
-| Integration | createTempProject | Tous les outils |
-| E2E | Manuel | Smoke tests |
+| Unitaire | Jest + fixtures (1757 tests) | 32 suites |
+| Integration | createTempProject mocks | 79 outils |
+| Conformite | ISO 29119 (validation, limites, integration) | 100% |
 
 ### ISO/IEC 5055 - Qualite code
 

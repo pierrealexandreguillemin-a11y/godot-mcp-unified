@@ -11,7 +11,7 @@
 
 import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
 import { join, extname, relative, basename } from 'path';
-import { ResourceProvider, GodotResource, ResourceContent, RESOURCE_URIS, getMimeType } from '../types.js';
+import { ResourceProvider, GodotResource, ResourceContent, RESOURCE_URIS, getMimeType, validateAssetCategory, validateUidPath, validatePathWithinProject } from '../types.js';
 import { isGodotProject } from '../../utils/FileUtils.js';
 
 /**
@@ -144,17 +144,34 @@ export class AssetsResourceProvider implements ResourceProvider {
       return this.listResourceFiles(projectPath);
     }
 
+    // Category: validate with Zod schema
     if (uri.startsWith(RESOURCE_URIS.ASSETS_CATEGORY) && uri !== RESOURCE_URIS.ASSETS) {
-      const category = uri.replace(RESOURCE_URIS.ASSETS_CATEGORY, '');
-      return this.listAssetsByCategory(projectPath, category);
+      const rawCategory = uri.replace(RESOURCE_URIS.ASSETS_CATEGORY, '');
+      const validation = validateAssetCategory(rawCategory);
+      if (!validation.valid) {
+        return this.createErrorContent(uri, validation.error);
+      }
+      return this.listAssetsByCategory(projectPath, validation.category);
     }
 
+    // UID: validate path with security check
     if (uri.startsWith(RESOURCE_URIS.UID)) {
-      const filePath = uri.replace(RESOURCE_URIS.UID, '');
-      return this.getFileUid(projectPath, filePath);
+      const validation = validateUidPath(uri);
+      if (!validation.valid) {
+        return this.createErrorContent(uri, validation.error);
+      }
+      return this.getFileUid(projectPath, validation.path);
     }
 
     return null;
+  }
+
+  private createErrorContent(uri: string, error: string): ResourceContent {
+    return {
+      uri,
+      mimeType: 'application/json',
+      text: JSON.stringify({ error, uri }, null, 2),
+    };
   }
 
   private async listAllAssets(projectPath: string): Promise<ResourceContent | null> {
@@ -319,9 +336,14 @@ export class AssetsResourceProvider implements ResourceProvider {
       return null;
     }
 
+    // Security: validate path is within project
+    const fullFilePath = validatePathWithinProject(projectPath, filePath);
+    if (!fullFilePath) {
+      return this.createErrorContent(`${RESOURCE_URIS.UID}${filePath}`, 'Path traversal detected');
+    }
+
     // Check for .import file which contains the UID
-    const importFilePath = join(projectPath, `${filePath}.import`);
-    const fullFilePath = join(projectPath, filePath);
+    const importFilePath = `${fullFilePath}.import`;
 
     if (!existsSync(fullFilePath)) {
       return {

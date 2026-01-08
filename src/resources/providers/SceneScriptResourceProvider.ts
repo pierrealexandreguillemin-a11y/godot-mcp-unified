@@ -13,7 +13,7 @@
 
 import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
 import { join, extname, relative } from 'path';
-import { ResourceProvider, GodotResource, ResourceContent, RESOURCE_URIS, getMimeType } from '../types.js';
+import { ResourceProvider, GodotResource, ResourceContent, RESOURCE_URIS, getMimeType, validateSceneUri, validateScriptUri, validatePathWithinProject } from '../types.js';
 import { isGodotProject } from '../../utils/FileUtils.js';
 import { parseTscn, TscnNode } from '../../core/TscnParser.js';
 
@@ -136,25 +136,36 @@ export class SceneScriptResourceProvider implements ResourceProvider {
       return this.getScriptErrors(projectPath);
     }
 
-    // Scene tree: godot://scene/path/to/scene.tscn/tree
-    if (uri.startsWith(RESOURCE_URIS.SCENE) && uri.endsWith('/tree')) {
-      const scenePath = uri.replace(RESOURCE_URIS.SCENE, '').replace('/tree', '');
-      return this.readSceneTree(projectPath, scenePath);
-    }
-
-    // Scene content: godot://scene/path/to/scene.tscn
+    // Scene: validate and extract path with security check
     if (uri.startsWith(RESOURCE_URIS.SCENE)) {
-      const scenePath = uri.replace(RESOURCE_URIS.SCENE, '');
-      return this.readSceneContent(projectPath, scenePath);
+      const validation = validateSceneUri(uri);
+      if (!validation.valid) {
+        return this.createErrorContent(uri, validation.error);
+      }
+      if (validation.isTree) {
+        return this.readSceneTree(projectPath, validation.path);
+      }
+      return this.readSceneContent(projectPath, validation.path);
     }
 
-    // Script content: godot://script/path/to/script.gd
+    // Script: validate and extract path with security check
     if (uri.startsWith(RESOURCE_URIS.SCRIPT) && uri !== RESOURCE_URIS.SCRIPT_ERRORS) {
-      const scriptPath = uri.replace(RESOURCE_URIS.SCRIPT, '');
-      return this.readScriptContent(projectPath, scriptPath);
+      const validation = validateScriptUri(uri);
+      if (!validation.valid) {
+        return this.createErrorContent(uri, validation.error);
+      }
+      return this.readScriptContent(projectPath, validation.path);
     }
 
     return null;
+  }
+
+  private createErrorContent(uri: string, error: string): ResourceContent {
+    return {
+      uri,
+      mimeType: 'application/json',
+      text: JSON.stringify({ error, uri }, null, 2),
+    };
   }
 
   private async listAllScenes(projectPath: string): Promise<ResourceContent | null> {
@@ -233,7 +244,11 @@ export class SceneScriptResourceProvider implements ResourceProvider {
     projectPath: string,
     scenePath: string
   ): Promise<ResourceContent | null> {
-    const fullPath = join(projectPath, scenePath);
+    // Security: validate path is within project
+    const fullPath = validatePathWithinProject(projectPath, scenePath);
+    if (!fullPath) {
+      return this.createErrorContent(`${RESOURCE_URIS.SCENE}${scenePath}`, 'Path traversal detected');
+    }
     if (!existsSync(fullPath)) {
       return null;
     }
@@ -254,7 +269,11 @@ export class SceneScriptResourceProvider implements ResourceProvider {
     projectPath: string,
     scenePath: string
   ): Promise<ResourceContent | null> {
-    const fullPath = join(projectPath, scenePath);
+    // Security: validate path is within project
+    const fullPath = validatePathWithinProject(projectPath, scenePath);
+    if (!fullPath) {
+      return this.createErrorContent(`${RESOURCE_URIS.SCENE}${scenePath}/tree`, 'Path traversal detected');
+    }
     if (!existsSync(fullPath)) {
       return null;
     }
@@ -321,7 +340,11 @@ export class SceneScriptResourceProvider implements ResourceProvider {
     projectPath: string,
     scriptPath: string
   ): Promise<ResourceContent | null> {
-    const fullPath = join(projectPath, scriptPath);
+    // Security: validate path is within project
+    const fullPath = validatePathWithinProject(projectPath, scriptPath);
+    if (!fullPath) {
+      return this.createErrorContent(`${RESOURCE_URIS.SCRIPT}${scriptPath}`, 'Path traversal detected');
+    }
     if (!existsSync(fullPath)) {
       return null;
     }

@@ -12,7 +12,7 @@
 
 import { readFileSync, existsSync } from 'fs';
 import { join, basename } from 'path';
-import { ResourceProvider, GodotResource, ResourceContent, RESOURCE_URIS } from '../types.js';
+import { ResourceProvider, GodotResource, ResourceContent, RESOURCE_URIS, validateSectionName } from '../types.js';
 import { isGodotProject, getProjectStructure } from '../../utils/FileUtils.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { getGodotPool } from '../../core/ProcessPool.js';
@@ -181,9 +181,14 @@ export class ProjectResourceProvider implements ResourceProvider {
       return this.readProjectSettings(projectPath);
     }
 
+    // Section: validate with Zod schema
     if (uri.startsWith(RESOURCE_URIS.PROJECT_SETTINGS) && uri !== RESOURCE_URIS.PROJECT_SETTINGS) {
-      const section = uri.replace(RESOURCE_URIS.PROJECT_SETTINGS, '');
-      return this.readProjectSettings(projectPath, section);
+      const rawSection = uri.replace(RESOURCE_URIS.PROJECT_SETTINGS, '');
+      const validation = validateSectionName(rawSection);
+      if (!validation.valid) {
+        return this.createErrorContent(uri, validation.error);
+      }
+      return this.readProjectSettings(projectPath, validation.section);
     }
 
     if (uri === RESOURCE_URIS.EXPORT_PRESETS) {
@@ -195,6 +200,14 @@ export class ProjectResourceProvider implements ResourceProvider {
     }
 
     return null;
+  }
+
+  private createErrorContent(uri: string, error: string): ResourceContent {
+    return {
+      uri,
+      mimeType: 'application/json',
+      text: JSON.stringify({ error, uri }, null, 2),
+    };
   }
 
   private async readProjectInfo(projectPath: string): Promise<ResourceContent | null> {

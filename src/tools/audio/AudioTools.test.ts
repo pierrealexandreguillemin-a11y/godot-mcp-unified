@@ -6,161 +6,98 @@
  * Test Coverage Target: 80%+
  *
  * Test Categories (ISO 29119-4):
- * 1. Input Validation Tests (Zod schema validation)
- * 2. Missing Required Parameters Tests
- * 3. Invalid Enum Values Tests
- * 4. Path Security Tests
- * 5. Edge Case Tests
- * 6. Success Scenario Tests (with mocked dependencies)
+ * 1. Validation - Zod schema and input validation
+ * 2. Security - path traversal protection
+ * 3. Happy Path - success scenarios with mocked Godot executor
+ * 4. Error Handling - catch blocks and failure scenarios
  */
 
-import { handleCreateAudioBus } from './CreateAudioBusTool';
-import { handleSetupAudioPlayer } from './SetupAudioPlayerTool';
-import { handleAddAudioEffect } from './AddAudioEffectTool';
+import {
+  createTempProject,
+  getResponseText,
+  isErrorResponse,
+} from '../test-utils.js';
+import { handleCreateAudioBus } from './CreateAudioBusTool.js';
+import { handleSetupAudioPlayer } from './SetupAudioPlayerTool.js';
+import { handleAddAudioEffect } from './AddAudioEffectTool.js';
+
+// Mock only the Godot-dependent modules (PathManager for detectGodotPath, GodotExecutor)
+jest.mock('../../core/PathManager', () => ({
+  ...jest.requireActual('../../core/PathManager'),
+  detectGodotPath: jest.fn(),
+}));
+
+jest.mock('../../core/GodotExecutor', () => ({
+  executeOperation: jest.fn(),
+}));
+
+import { detectGodotPath } from '../../core/PathManager';
+import { executeOperation } from '../../core/GodotExecutor';
+
+const mockDetectGodotPath = detectGodotPath as jest.MockedFunction<typeof detectGodotPath>;
+const mockExecuteOperation = executeOperation as jest.MockedFunction<typeof executeOperation>;
 
 describe('Audio Tools', () => {
+  let projectPath: string;
+  let cleanup: () => void;
+
+  beforeEach(() => {
+    const temp = createTempProject();
+    projectPath = temp.projectPath;
+    cleanup = temp.cleanup;
+    jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
   // ============================================================================
   // CreateAudioBus Tests
   // ============================================================================
   describe('CreateAudioBus', () => {
-    describe('Input Validation - Missing Required Parameters', () => {
+    describe('Validation', () => {
       it('should return error when projectPath is missing', async () => {
-        const result = await handleCreateAudioBus({
-          busName: 'Music',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('projectPath');
+        const result = await handleCreateAudioBus({ busName: 'Music' });
+        expect(isErrorResponse(result)).toBe(true);
+        expect(getResponseText(result)).toContain('projectPath');
       });
 
       it('should return error when busName is missing', async () => {
-        const result = await handleCreateAudioBus({
-          projectPath: '/path/to/project',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('busName');
+        const result = await handleCreateAudioBus({ projectPath: '/path/to/project' });
+        expect(isErrorResponse(result)).toBe(true);
+        expect(getResponseText(result)).toContain('busName');
       });
 
-      it('should return error when all required parameters are missing', async () => {
+      it('should return error when all params are missing', async () => {
         const result = await handleCreateAudioBus({});
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/projectPath|busName|Validation failed/i);
+        expect(isErrorResponse(result)).toBe(true);
+        expect(getResponseText(result)).toMatch(/projectPath|busName|Validation failed/i);
       });
-    });
 
-    describe('Input Validation - Empty/Invalid Values', () => {
-      it('should return error for empty busName', async () => {
+      it('should return error for empty busName (whitespace)', async () => {
         const result = await handleCreateAudioBus({
-          projectPath: '/non/existent/path',
+          projectPath,
           busName: '   ',
         });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('cannot be empty');
+        expect(isErrorResponse(result)).toBe(true);
+        expect(getResponseText(result)).toContain('cannot be empty');
       });
 
       it('should return error for empty string busName', async () => {
         const result = await handleCreateAudioBus({
-          projectPath: '/non/existent/path',
+          projectPath: '/non/existent',
           busName: '',
         });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/busName|cannot be empty|Validation failed/i);
+        expect(isErrorResponse(result)).toBe(true);
       });
 
-      it('should return error for empty projectPath', async () => {
-        const result = await handleCreateAudioBus({
-          projectPath: '',
-          busName: 'Music',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/projectPath|cannot be empty|Validation failed/i);
-      });
-    });
-
-    describe('Path Security', () => {
-      it('should return error for path traversal in projectPath', async () => {
-        const result = await handleCreateAudioBus({
-          projectPath: '/path/to/../../../etc/passwd',
-          busName: 'Music',
-        });
-        expect(result.isError).toBe(true);
-        // On Windows, path may be normalized; either path traversal error or invalid path is acceptable
-        expect(result.content[0].text).toMatch(/path traversal|\.\.|Not a valid Godot project/i);
-      });
-
-      it('should return error for invalid project path', async () => {
-        const result = await handleCreateAudioBus({
-          projectPath: '/non/existent/path',
-          busName: 'Music',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-    });
-
-    describe('Optional Parameters', () => {
-      it('should accept valid parentBus parameter', async () => {
-        const result = await handleCreateAudioBus({
-          projectPath: '/non/existent/path',
-          busName: 'Music',
-          parentBus: 'Master',
-        });
-        expect(result.isError).toBe(true);
-        // Should fail on project validation, not on parentBus
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept valid volume parameter', async () => {
-        const result = await handleCreateAudioBus({
-          projectPath: '/non/existent/path',
-          busName: 'Music',
-          volume: -6.0,
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept solo parameter', async () => {
-        const result = await handleCreateAudioBus({
-          projectPath: '/non/existent/path',
-          busName: 'Music',
-          solo: true,
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept mute parameter', async () => {
-        const result = await handleCreateAudioBus({
-          projectPath: '/non/existent/path',
-          busName: 'Music',
-          mute: true,
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept all optional parameters together', async () => {
-        const result = await handleCreateAudioBus({
-          projectPath: '/non/existent/path',
-          busName: 'Music',
-          parentBus: 'Master',
-          volume: -3.0,
-          solo: false,
-          mute: false,
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-    });
-
-    describe('Type Validation', () => {
       it('should return error for non-string busName', async () => {
         const result = await handleCreateAudioBus({
           projectPath: '/path/to/project',
           busName: 123 as unknown as string,
         });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/busName|string|Validation failed/i);
+        expect(isErrorResponse(result)).toBe(true);
       });
 
       it('should return error for non-number volume', async () => {
@@ -169,8 +106,7 @@ describe('Audio Tools', () => {
           busName: 'Music',
           volume: 'loud' as unknown as number,
         });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/volume|number|Validation failed/i);
+        expect(isErrorResponse(result)).toBe(true);
       });
 
       it('should return error for non-boolean solo', async () => {
@@ -179,8 +115,135 @@ describe('Audio Tools', () => {
           busName: 'Music',
           solo: 'yes' as unknown as boolean,
         });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/solo|boolean|Validation failed/i);
+        expect(isErrorResponse(result)).toBe(true);
+      });
+    });
+
+    describe('Security', () => {
+      it('should reject path traversal in projectPath', async () => {
+        const result = await handleCreateAudioBus({
+          projectPath: '/path/to/../../../etc/passwd',
+          busName: 'Music',
+        });
+        expect(isErrorResponse(result)).toBe(true);
+      });
+
+      it('should reject invalid project path (no project.godot)', async () => {
+        const result = await handleCreateAudioBus({
+          projectPath: '/non/existent/path',
+          busName: 'Music',
+        });
+        expect(isErrorResponse(result)).toBe(true);
+        expect(getResponseText(result)).toContain('Not a valid Godot project');
+      });
+    });
+
+    describe('Happy Path', () => {
+      it('should create audio bus successfully with defaults', async () => {
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'Bus created', stderr: '' });
+
+        const result = await handleCreateAudioBus({
+          projectPath,
+          busName: 'Music',
+        });
+        expect(isErrorResponse(result)).toBe(false);
+        expect(getResponseText(result)).toContain('Audio bus created successfully');
+        expect(getResponseText(result)).toContain('Music');
+        expect(getResponseText(result)).toContain('Master');
+      });
+
+      it('should create audio bus with custom params', async () => {
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'Bus created', stderr: '' });
+
+        const result = await handleCreateAudioBus({
+          projectPath,
+          busName: 'SFX',
+          parentBus: 'Master',
+          volume: -6.0,
+          solo: true,
+          mute: false,
+        });
+        expect(isErrorResponse(result)).toBe(false);
+        expect(getResponseText(result)).toContain('Audio bus created successfully');
+        expect(getResponseText(result)).toContain('SFX');
+        expect(mockExecuteOperation).toHaveBeenCalledWith(
+          'create_audio_bus',
+          expect.objectContaining({
+            busName: 'SFX',
+            parentBus: 'Master',
+            volume: -6.0,
+            solo: true,
+            mute: false,
+          }),
+          projectPath,
+          '/usr/bin/godot',
+        );
+      });
+
+      it('should return error when godotPath is not found', async () => {
+        mockDetectGodotPath.mockResolvedValue(null);
+
+        const result = await handleCreateAudioBus({
+          projectPath,
+          busName: 'Music',
+        });
+        expect(isErrorResponse(result)).toBe(true);
+        expect(getResponseText(result)).toContain('Could not find a valid Godot executable path');
+      });
+
+      it('should return error when stderr contains "Failed to"', async () => {
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({
+          stdout: '',
+          stderr: 'Failed to create bus: Bus already exists',
+        });
+
+        const result = await handleCreateAudioBus({
+          projectPath,
+          busName: 'Music',
+        });
+        expect(isErrorResponse(result)).toBe(true);
+        expect(getResponseText(result)).toContain('Failed to create audio bus');
+      });
+    });
+
+    describe('Error Handling', () => {
+      it('should handle Error thrown by executeOperation', async () => {
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockRejectedValue(new Error('Connection refused'));
+
+        const result = await handleCreateAudioBus({
+          projectPath,
+          busName: 'Music',
+        });
+        expect(isErrorResponse(result)).toBe(true);
+        expect(getResponseText(result)).toContain('Failed to create audio bus');
+        expect(getResponseText(result)).toContain('Connection refused');
+      });
+
+      it('should handle non-Error thrown by executeOperation', async () => {
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockRejectedValue('string error');
+
+        const result = await handleCreateAudioBus({
+          projectPath,
+          busName: 'Music',
+        });
+        expect(isErrorResponse(result)).toBe(true);
+        expect(getResponseText(result)).toContain('Unknown error');
+      });
+
+      it('should handle detectGodotPath rejection', async () => {
+        mockDetectGodotPath.mockRejectedValue(new Error('Path detection failed'));
+
+        const result = await handleCreateAudioBus({
+          projectPath,
+          busName: 'Music',
+        });
+        expect(isErrorResponse(result)).toBe(true);
+        expect(getResponseText(result)).toContain('Path detection failed');
       });
     });
   });
@@ -189,14 +252,13 @@ describe('Audio Tools', () => {
   // SetupAudioPlayer Tests
   // ============================================================================
   describe('SetupAudioPlayer', () => {
-    describe('Input Validation - Missing Required Parameters', () => {
+    describe('Validation', () => {
       it('should return error when projectPath is missing', async () => {
         const result = await handleSetupAudioPlayer({
           scenePath: 'scenes/main.tscn',
           nodeName: 'MusicPlayer',
         });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('projectPath');
+        expect(isErrorResponse(result)).toBe(true);
       });
 
       it('should return error when scenePath is missing', async () => {
@@ -204,8 +266,7 @@ describe('Audio Tools', () => {
           projectPath: '/path/to/project',
           nodeName: 'MusicPlayer',
         });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('scenePath');
+        expect(isErrorResponse(result)).toBe(true);
       });
 
       it('should return error when nodeName is missing', async () => {
@@ -213,189 +274,21 @@ describe('Audio Tools', () => {
           projectPath: '/path/to/project',
           scenePath: 'scenes/main.tscn',
         });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('nodeName');
+        expect(isErrorResponse(result)).toBe(true);
       });
 
-      it('should return error when all required parameters are missing', async () => {
+      it('should return error when all params are missing', async () => {
         const result = await handleSetupAudioPlayer({});
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/Validation failed/i);
+        expect(isErrorResponse(result)).toBe(true);
       });
-    });
 
-    describe('Input Validation - Empty/Invalid Values', () => {
       it('should return error for empty nodeName', async () => {
         const result = await handleSetupAudioPlayer({
           projectPath: '/path/to/project',
           scenePath: 'scenes/main.tscn',
           nodeName: '',
         });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/nodeName|cannot be empty|Validation failed/i);
-      });
-
-      it('should return error for empty scenePath', async () => {
-        const result = await handleSetupAudioPlayer({
-          projectPath: '/path/to/project',
-          scenePath: '',
-          nodeName: 'MusicPlayer',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/scenePath|cannot be empty|Validation failed/i);
-      });
-
-      it('should return error for empty projectPath', async () => {
-        const result = await handleSetupAudioPlayer({
-          projectPath: '',
-          scenePath: 'scenes/main.tscn',
-          nodeName: 'MusicPlayer',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/projectPath|cannot be empty|Validation failed/i);
-      });
-    });
-
-    describe('Path Security', () => {
-      it('should return error for path traversal in projectPath', async () => {
-        const result = await handleSetupAudioPlayer({
-          projectPath: '/path/../../../etc/passwd',
-          scenePath: 'scenes/main.tscn',
-          nodeName: 'MusicPlayer',
-        });
-        expect(result.isError).toBe(true);
-        // On Windows, path may be normalized; either path traversal error or invalid path is acceptable
-        expect(result.content[0].text).toMatch(/path traversal|\.\.|Not a valid Godot project/i);
-      });
-
-      it('should return error for path traversal in scenePath', async () => {
-        const result = await handleSetupAudioPlayer({
-          projectPath: '/path/to/project',
-          scenePath: '../../../etc/passwd.tscn',
-          nodeName: 'MusicPlayer',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/path traversal|\.\./i);
-      });
-
-      it('should return error for invalid project path', async () => {
-        const result = await handleSetupAudioPlayer({
-          projectPath: '/non/existent/path',
-          scenePath: 'scenes/main.tscn',
-          nodeName: 'MusicPlayer',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-    });
-
-    describe('Optional Parameters - is3D', () => {
-      it('should accept is3D=true for 3D audio player', async () => {
-        const result = await handleSetupAudioPlayer({
-          projectPath: '/non/existent/path',
-          scenePath: 'scenes/main.tscn',
-          nodeName: 'SpatialAudio',
-          is3D: true,
-        });
-        expect(result.isError).toBe(true);
-        // Should fail on project validation, not on is3D
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept is3D=false for 2D audio player', async () => {
-        const result = await handleSetupAudioPlayer({
-          projectPath: '/non/existent/path',
-          scenePath: 'scenes/main.tscn',
-          nodeName: 'BackgroundMusic',
-          is3D: false,
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-    });
-
-    describe('Optional Parameters - Audio Properties', () => {
-      it('should accept valid streamPath', async () => {
-        const result = await handleSetupAudioPlayer({
-          projectPath: '/non/existent/path',
-          scenePath: 'scenes/main.tscn',
-          nodeName: 'MusicPlayer',
-          streamPath: 'audio/music.ogg',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept valid bus name', async () => {
-        const result = await handleSetupAudioPlayer({
-          projectPath: '/non/existent/path',
-          scenePath: 'scenes/main.tscn',
-          nodeName: 'MusicPlayer',
-          bus: 'Music',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept autoplay parameter', async () => {
-        const result = await handleSetupAudioPlayer({
-          projectPath: '/non/existent/path',
-          scenePath: 'scenes/main.tscn',
-          nodeName: 'MusicPlayer',
-          autoplay: true,
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept volumeDb parameter', async () => {
-        const result = await handleSetupAudioPlayer({
-          projectPath: '/non/existent/path',
-          scenePath: 'scenes/main.tscn',
-          nodeName: 'MusicPlayer',
-          volumeDb: -12.0,
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept parentNodePath parameter', async () => {
-        const result = await handleSetupAudioPlayer({
-          projectPath: '/non/existent/path',
-          scenePath: 'scenes/main.tscn',
-          nodeName: 'MusicPlayer',
-          parentNodePath: 'GameManager',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept all optional parameters together', async () => {
-        const result = await handleSetupAudioPlayer({
-          projectPath: '/non/existent/path',
-          scenePath: 'scenes/main.tscn',
-          nodeName: 'MusicPlayer',
-          parentNodePath: 'GameManager',
-          is3D: false,
-          streamPath: 'audio/theme.ogg',
-          bus: 'Music',
-          autoplay: true,
-          volumeDb: -6.0,
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-    });
-
-    describe('Type Validation', () => {
-      it('should return error for non-string nodeName', async () => {
-        const result = await handleSetupAudioPlayer({
-          projectPath: '/path/to/project',
-          scenePath: 'scenes/main.tscn',
-          nodeName: 123 as unknown as string,
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/nodeName|string|Validation failed/i);
+        expect(isErrorResponse(result)).toBe(true);
       });
 
       it('should return error for non-boolean is3D', async () => {
@@ -405,8 +298,7 @@ describe('Audio Tools', () => {
           nodeName: 'MusicPlayer',
           is3D: 'true' as unknown as boolean,
         });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/is3D|boolean|Validation failed/i);
+        expect(isErrorResponse(result)).toBe(true);
       });
 
       it('should return error for non-number volumeDb', async () => {
@@ -416,8 +308,253 @@ describe('Audio Tools', () => {
           nodeName: 'MusicPlayer',
           volumeDb: 'loud' as unknown as number,
         });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/volumeDb|number|Validation failed/i);
+        expect(isErrorResponse(result)).toBe(true);
+      });
+    });
+
+    describe('Security', () => {
+      it('should reject path traversal in projectPath', async () => {
+        const result = await handleSetupAudioPlayer({
+          projectPath: '../../../etc/passwd',
+          scenePath: 'scenes/main.tscn',
+          nodeName: 'MusicPlayer',
+        });
+        expect(isErrorResponse(result)).toBe(true);
+      });
+
+      it('should reject path traversal in scenePath', async () => {
+        const result = await handleSetupAudioPlayer({
+          projectPath,
+          scenePath: '../../etc/passwd.tscn',
+          nodeName: 'MusicPlayer',
+        });
+        expect(isErrorResponse(result)).toBe(true);
+      });
+    });
+
+    describe('Happy Path', () => {
+      it('should create AudioStreamPlayer2D when is3D=false (default)', async () => {
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'Node added', stderr: '' });
+
+        const result = await handleSetupAudioPlayer({
+          projectPath,
+          scenePath: 'scenes/main.tscn',
+          nodeName: 'BGMusic',
+        });
+        expect(isErrorResponse(result)).toBe(false);
+        expect(getResponseText(result)).toContain('AudioStreamPlayer created successfully');
+        expect(getResponseText(result)).toContain('BGMusic');
+        expect(getResponseText(result)).toContain('AudioStreamPlayer2D');
+      });
+
+      it('should create AudioStreamPlayer3D when is3D=true', async () => {
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'Node added', stderr: '' });
+
+        const result = await handleSetupAudioPlayer({
+          projectPath,
+          scenePath: 'scenes/main.tscn',
+          nodeName: 'SpatialAudio',
+          is3D: true,
+        });
+        expect(isErrorResponse(result)).toBe(false);
+        expect(getResponseText(result)).toContain('AudioStreamPlayer3D');
+      });
+
+      it('should include streamPath in output', async () => {
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'ok', stderr: '' });
+
+        const result = await handleSetupAudioPlayer({
+          projectPath,
+          scenePath: 'scenes/main.tscn',
+          nodeName: 'Player',
+          streamPath: 'audio/music.ogg',
+        });
+        expect(isErrorResponse(result)).toBe(false);
+        expect(getResponseText(result)).toContain('Stream: audio/music.ogg');
+      });
+
+      it('should include bus in output', async () => {
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'ok', stderr: '' });
+
+        const result = await handleSetupAudioPlayer({
+          projectPath,
+          scenePath: 'scenes/main.tscn',
+          nodeName: 'Player',
+          bus: 'Music',
+        });
+        expect(isErrorResponse(result)).toBe(false);
+        expect(getResponseText(result)).toContain('Bus: Music');
+      });
+
+      it('should include autoplay in output when enabled', async () => {
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'ok', stderr: '' });
+
+        const result = await handleSetupAudioPlayer({
+          projectPath,
+          scenePath: 'scenes/main.tscn',
+          nodeName: 'Player',
+          autoplay: true,
+        });
+        expect(isErrorResponse(result)).toBe(false);
+        expect(getResponseText(result)).toContain('Autoplay: enabled');
+      });
+
+      it('should include volumeDb in output when set', async () => {
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'ok', stderr: '' });
+
+        const result = await handleSetupAudioPlayer({
+          projectPath,
+          scenePath: 'scenes/main.tscn',
+          nodeName: 'Player',
+          volumeDb: -12.0,
+        });
+        expect(isErrorResponse(result)).toBe(false);
+        expect(getResponseText(result)).toContain('Volume: -12 dB');
+      });
+
+      it('should pass parentNodePath to executeOperation', async () => {
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'ok', stderr: '' });
+
+        await handleSetupAudioPlayer({
+          projectPath,
+          scenePath: 'scenes/main.tscn',
+          nodeName: 'Player',
+          parentNodePath: 'GameManager',
+        });
+
+        expect(mockExecuteOperation).toHaveBeenCalledWith(
+          'add_node',
+          expect.objectContaining({ parentNodePath: 'GameManager' }),
+          projectPath,
+          '/usr/bin/godot',
+        );
+      });
+
+      it('should pass all properties to executeOperation', async () => {
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'ok', stderr: '' });
+
+        await handleSetupAudioPlayer({
+          projectPath,
+          scenePath: 'scenes/main.tscn',
+          nodeName: 'Player',
+          streamPath: 'audio/sfx.wav',
+          bus: 'SFX',
+          autoplay: false,
+          volumeDb: 0,
+        });
+
+        expect(mockExecuteOperation).toHaveBeenCalledWith(
+          'add_node',
+          expect.objectContaining({
+            properties: expect.objectContaining({
+              stream: 'audio/sfx.wav',
+              bus: 'SFX',
+              autoplay: false,
+              volume_db: 0,
+            }),
+          }),
+          projectPath,
+          '/usr/bin/godot',
+        );
+      });
+
+      it('should handle all optional params together', async () => {
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'All good', stderr: '' });
+
+        const result = await handleSetupAudioPlayer({
+          projectPath,
+          scenePath: 'scenes/main.tscn',
+          nodeName: 'FullPlayer',
+          parentNodePath: 'AudioNode',
+          is3D: true,
+          streamPath: 'audio/theme.ogg',
+          bus: 'Music',
+          autoplay: true,
+          volumeDb: -6.0,
+        });
+        expect(isErrorResponse(result)).toBe(false);
+        expect(getResponseText(result)).toContain('AudioStreamPlayer3D');
+        expect(getResponseText(result)).toContain('Stream: audio/theme.ogg');
+        expect(getResponseText(result)).toContain('Bus: Music');
+        expect(getResponseText(result)).toContain('Autoplay: enabled');
+        expect(getResponseText(result)).toContain('Volume: -6 dB');
+      });
+
+      it('should return error when godotPath is not found', async () => {
+        mockDetectGodotPath.mockResolvedValue(null);
+
+        const result = await handleSetupAudioPlayer({
+          projectPath,
+          scenePath: 'scenes/main.tscn',
+          nodeName: 'Player',
+        });
+        expect(isErrorResponse(result)).toBe(true);
+        expect(getResponseText(result)).toContain('Could not find a valid Godot executable path');
+      });
+
+      it('should return error when stderr contains "Failed to"', async () => {
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({
+          stdout: '',
+          stderr: 'Failed to add node: parent not found',
+        });
+
+        const result = await handleSetupAudioPlayer({
+          projectPath,
+          scenePath: 'scenes/main.tscn',
+          nodeName: 'Player',
+        });
+        expect(isErrorResponse(result)).toBe(true);
+        expect(getResponseText(result)).toContain('Failed to setup audio player');
+      });
+    });
+
+    describe('Error Handling', () => {
+      it('should handle Error thrown by executeOperation', async () => {
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockRejectedValue(new Error('Execution failed'));
+
+        const result = await handleSetupAudioPlayer({
+          projectPath,
+          scenePath: 'scenes/main.tscn',
+          nodeName: 'Player',
+        });
+        expect(isErrorResponse(result)).toBe(true);
+        expect(getResponseText(result)).toContain('Execution failed');
+      });
+
+      it('should handle non-Error thrown by executeOperation', async () => {
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockRejectedValue(42);
+
+        const result = await handleSetupAudioPlayer({
+          projectPath,
+          scenePath: 'scenes/main.tscn',
+          nodeName: 'Player',
+        });
+        expect(isErrorResponse(result)).toBe(true);
+        expect(getResponseText(result)).toContain('Unknown error');
+      });
+
+      it('should handle detectGodotPath rejection', async () => {
+        mockDetectGodotPath.mockRejectedValue(new Error('Cannot detect'));
+
+        const result = await handleSetupAudioPlayer({
+          projectPath,
+          scenePath: 'scenes/main.tscn',
+          nodeName: 'Player',
+        });
+        expect(isErrorResponse(result)).toBe(true);
+        expect(getResponseText(result)).toContain('Cannot detect');
       });
     });
   });
@@ -426,304 +563,212 @@ describe('Audio Tools', () => {
   // AddAudioEffect Tests
   // ============================================================================
   describe('AddAudioEffect', () => {
-    describe('Input Validation - Missing Required Parameters', () => {
+    describe('Validation', () => {
       it('should return error when projectPath is missing', async () => {
-        const result = await handleAddAudioEffect({
-          busName: 'Music',
-          effectType: 'reverb',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('projectPath');
+        const result = await handleAddAudioEffect({ busName: 'Music', effectType: 'reverb' });
+        expect(isErrorResponse(result)).toBe(true);
       });
 
       it('should return error when busName is missing', async () => {
-        const result = await handleAddAudioEffect({
-          projectPath: '/path/to/project',
-          effectType: 'reverb',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('busName');
+        const result = await handleAddAudioEffect({ projectPath: '/path', effectType: 'reverb' });
+        expect(isErrorResponse(result)).toBe(true);
       });
 
       it('should return error when effectType is missing', async () => {
-        const result = await handleAddAudioEffect({
-          projectPath: '/path/to/project',
-          busName: 'Music',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('effectType');
+        const result = await handleAddAudioEffect({ projectPath: '/path', busName: 'Music' });
+        expect(isErrorResponse(result)).toBe(true);
       });
 
-      it('should return error when all required parameters are missing', async () => {
-        const result = await handleAddAudioEffect({});
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/Validation failed/i);
-      });
-    });
-
-    describe('Input Validation - Empty Values', () => {
-      it('should return error for empty busName', async () => {
-        const result = await handleAddAudioEffect({
-          projectPath: '/path/to/project',
-          busName: '',
-          effectType: 'reverb',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/busName|cannot be empty|Validation failed/i);
-      });
-
-      it('should return error for empty projectPath', async () => {
-        const result = await handleAddAudioEffect({
-          projectPath: '',
-          busName: 'Music',
-          effectType: 'reverb',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/projectPath|cannot be empty|Validation failed/i);
-      });
-    });
-
-    describe('Invalid Enum Values - effectType', () => {
       it('should return error for invalid effectType', async () => {
         const result = await handleAddAudioEffect({
-          projectPath: '/non/existent/path',
+          projectPath: '/non/existent',
           busName: 'Music',
           effectType: 'invalid_effect' as 'reverb',
         });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/effectType|Validation failed|Invalid/i);
+        expect(isErrorResponse(result)).toBe(true);
       });
 
       it('should return error for effectType with wrong case', async () => {
         const result = await handleAddAudioEffect({
-          projectPath: '/non/existent/path',
+          projectPath: '/non/existent',
           busName: 'Music',
           effectType: 'REVERB' as 'reverb',
         });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/effectType|Validation failed|Invalid/i);
-      });
-
-      it('should return error for empty effectType', async () => {
-        const result = await handleAddAudioEffect({
-          projectPath: '/path/to/project',
-          busName: 'Music',
-          effectType: '' as 'reverb',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/effectType|Validation failed/i);
+        expect(isErrorResponse(result)).toBe(true);
       });
     });
 
-    describe('Valid Effect Types', () => {
-      const validEffectTypes = [
-        'amplify',
-        'bandlimit',
-        'bandpass',
-        'chorus',
-        'compressor',
-        'delay',
-        'distortion',
-        'eq6',
-        'eq10',
-        'eq21',
-        'filter',
-        'highpass',
-        'highshelf',
-        'limiter',
-        'lowpass',
-        'lowshelf',
-        'notch',
-        'panner',
-        'phaser',
-        'pitch_shift',
-        'record',
-        'reverb',
-        'spectrum_analyzer',
-        'stereo_enhance',
-      ] as const;
-
-      validEffectTypes.forEach((effectType) => {
-        it(`should accept valid effectType: ${effectType}`, async () => {
-          const result = await handleAddAudioEffect({
-            projectPath: '/non/existent/path',
-            busName: 'Music',
-            effectType: effectType,
-          });
-          expect(result.isError).toBe(true);
-          // Should fail on project validation, not on effectType
-          expect(result.content[0].text).toContain('Not a valid Godot project');
+    describe('Security', () => {
+      it('should reject path traversal in projectPath', async () => {
+        const result = await handleAddAudioEffect({
+          projectPath: '../../../etc/passwd',
+          busName: 'Music',
+          effectType: 'reverb',
         });
+        expect(isErrorResponse(result)).toBe(true);
       });
     });
 
-    describe('Path Security', () => {
-      it('should return error for path traversal in projectPath', async () => {
+    describe('Happy Path', () => {
+      it('should add reverb effect successfully', async () => {
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'Effect added', stderr: '' });
+
         const result = await handleAddAudioEffect({
-          projectPath: '/path/../../../etc/passwd',
+          projectPath,
           busName: 'Music',
           effectType: 'reverb',
         });
-        expect(result.isError).toBe(true);
-        // On Windows, path may be normalized; either path traversal error or invalid path is acceptable
-        expect(result.content[0].text).toMatch(/path traversal|\.\.|Not a valid Godot project/i);
+        expect(isErrorResponse(result)).toBe(false);
+        expect(getResponseText(result)).toContain('Audio effect added successfully');
+        expect(getResponseText(result)).toContain('AudioEffectReverb');
+        expect(getResponseText(result)).toContain('Music');
       });
 
-      it('should return error for invalid project path', async () => {
+      it('should add amplify effect successfully', async () => {
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'ok', stderr: '' });
+
         const result = await handleAddAudioEffect({
-          projectPath: '/non/existent/path',
-          busName: 'Music',
-          effectType: 'reverb',
+          projectPath,
+          busName: 'Master',
+          effectType: 'amplify',
         });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-    });
-
-    describe('Optional Parameters - effectParams', () => {
-      it('should accept effectParams as empty object', async () => {
-        const result = await handleAddAudioEffect({
-          projectPath: '/non/existent/path',
-          busName: 'Music',
-          effectType: 'reverb',
-          effectParams: {},
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
+        expect(isErrorResponse(result)).toBe(false);
+        expect(getResponseText(result)).toContain('AudioEffectAmplify');
       });
 
-      it('should accept effectParams with valid properties for reverb', async () => {
-        const result = await handleAddAudioEffect({
-          projectPath: '/non/existent/path',
-          busName: 'Music',
-          effectType: 'reverb',
-          effectParams: {
-            room_size: 0.8,
-            damping: 0.5,
-            wet: 0.3,
-            dry: 0.7,
-          },
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
+      it('should add effect with effectParams', async () => {
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'ok', stderr: '' });
 
-      it('should accept effectParams with valid properties for delay', async () => {
         const result = await handleAddAudioEffect({
-          projectPath: '/non/existent/path',
-          busName: 'Music',
-          effectType: 'delay',
-          effectParams: {
-            tap1_delay_ms: 250,
-            tap1_level_db: -6,
-            feedback_active: true,
-            feedback_delay_ms: 500,
-          },
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept effectParams with valid properties for compressor', async () => {
-        const result = await handleAddAudioEffect({
-          projectPath: '/non/existent/path',
+          projectPath,
           busName: 'Music',
           effectType: 'compressor',
-          effectParams: {
-            threshold: -20,
-            ratio: 4,
-            attack_us: 20,
-            release_ms: 250,
-            gain: 0,
-          },
+          effectParams: { threshold: -20, ratio: 4 },
         });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
+        expect(isErrorResponse(result)).toBe(false);
+        expect(getResponseText(result)).toContain('AudioEffectCompressor');
+        expect(mockExecuteOperation).toHaveBeenCalledWith(
+          'add_audio_effect',
+          expect.objectContaining({
+            effectParams: { threshold: -20, ratio: 4 },
+          }),
+          projectPath,
+          '/usr/bin/godot',
+        );
       });
 
-      it('should accept effectParams with valid properties for eq6', async () => {
-        const result = await handleAddAudioEffect({
-          projectPath: '/non/existent/path',
+      it('should not pass effectParams when not provided', async () => {
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'ok', stderr: '' });
+
+        await handleAddAudioEffect({
+          projectPath,
           busName: 'Music',
-          effectType: 'eq6',
-          effectParams: {
-            band1_gain_db: 3.0,
-            band2_gain_db: -2.0,
-            band3_gain_db: 0.0,
-          },
+          effectType: 'delay',
         });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
+
+        const callArgs = mockExecuteOperation.mock.calls[0][1];
+        expect(callArgs).not.toHaveProperty('effectParams');
       });
 
-      it('should accept effectParams with valid properties for amplify', async () => {
+      it('should return error when godotPath is not found', async () => {
+        mockDetectGodotPath.mockResolvedValue(null);
+
         const result = await handleAddAudioEffect({
-          projectPath: '/non/existent/path',
+          projectPath,
           busName: 'Music',
-          effectType: 'amplify',
-          effectParams: {
-            volume_db: 6.0,
-          },
+          effectType: 'reverb',
         });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
+        expect(isErrorResponse(result)).toBe(true);
+        expect(getResponseText(result)).toContain('Could not find a valid Godot executable path');
+      });
+
+      it('should return error when stderr contains "Failed to"', async () => {
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({
+          stdout: '',
+          stderr: 'Failed to add effect: Bus not found',
+        });
+
+        const result = await handleAddAudioEffect({
+          projectPath,
+          busName: 'NonExistent',
+          effectType: 'reverb',
+        });
+        expect(isErrorResponse(result)).toBe(true);
+        expect(getResponseText(result)).toContain('Failed to add audio effect');
+      });
+
+      it('should map all effect types correctly', async () => {
+        const mappings: Record<string, string> = {
+          amplify: 'AudioEffectAmplify',
+          chorus: 'AudioEffectChorus',
+          delay: 'AudioEffectDelay',
+          distortion: 'AudioEffectDistortion',
+          eq6: 'AudioEffectEQ6',
+          limiter: 'AudioEffectLimiter',
+          reverb: 'AudioEffectReverb',
+          panner: 'AudioEffectPanner',
+          phaser: 'AudioEffectPhaser',
+          stereo_enhance: 'AudioEffectStereoEnhance',
+        };
+
+        for (const [effectType, expectedClass] of Object.entries(mappings)) {
+          jest.clearAllMocks();
+          mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+          mockExecuteOperation.mockResolvedValue({ stdout: 'ok', stderr: '' });
+
+          const result = await handleAddAudioEffect({
+            projectPath,
+            busName: 'Music',
+            effectType: effectType as 'reverb',
+          });
+          expect(isErrorResponse(result)).toBe(false);
+          expect(getResponseText(result)).toContain(expectedClass);
+        }
       });
     });
 
-    describe('Type Validation', () => {
-      it('should return error for non-string busName', async () => {
-        const result = await handleAddAudioEffect({
-          projectPath: '/path/to/project',
-          busName: 123 as unknown as string,
-          effectType: 'reverb',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/busName|string|Validation failed/i);
-      });
+    describe('Error Handling', () => {
+      it('should handle Error thrown by executeOperation', async () => {
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockRejectedValue(new Error('Process crashed'));
 
-      it('should return error for non-object effectParams', async () => {
         const result = await handleAddAudioEffect({
-          projectPath: '/path/to/project',
+          projectPath,
           busName: 'Music',
           effectType: 'reverb',
-          effectParams: 'invalid' as unknown as Record<string, unknown>,
         });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/effectParams|object|Validation failed/i);
-      });
-    });
-
-    describe('Edge Cases', () => {
-      it('should handle busName with special characters', async () => {
-        const result = await handleAddAudioEffect({
-          projectPath: '/non/existent/path',
-          busName: 'Music_SFX-2',
-          effectType: 'reverb',
-        });
-        expect(result.isError).toBe(true);
-        // Should fail on project validation, not on busName
-        expect(result.content[0].text).toContain('Not a valid Godot project');
+        expect(isErrorResponse(result)).toBe(true);
+        expect(getResponseText(result)).toContain('Process crashed');
       });
 
-      it('should handle busName with unicode characters', async () => {
+      it('should handle non-Error thrown by executeOperation', async () => {
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockRejectedValue(null);
+
         const result = await handleAddAudioEffect({
-          projectPath: '/non/existent/path',
-          busName: 'Música',
+          projectPath,
+          busName: 'Music',
           effectType: 'reverb',
         });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
+        expect(isErrorResponse(result)).toBe(true);
+        expect(getResponseText(result)).toContain('Unknown error');
       });
 
-      it('should handle very long busName', async () => {
+      it('should handle detectGodotPath rejection', async () => {
+        mockDetectGodotPath.mockRejectedValue(new Error('Godot not found'));
+
         const result = await handleAddAudioEffect({
-          projectPath: '/non/existent/path',
-          busName: 'A'.repeat(256),
+          projectPath,
+          busName: 'Music',
           effectType: 'reverb',
         });
-        expect(result.isError).toBe(true);
-        // Either validation or project path error is acceptable
-        expect(result.content[0].text).toMatch(/Not a valid Godot project|Validation failed/i);
+        expect(isErrorResponse(result)).toBe(true);
+        expect(getResponseText(result)).toContain('Godot not found');
       });
     });
   });

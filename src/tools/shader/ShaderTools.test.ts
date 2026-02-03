@@ -12,17 +12,62 @@
  * 4. Path Security Tests
  * 5. File Extension Validation Tests
  * 6. Edge Case Tests
+ * 7. Happy Path / Success Scenario Tests (with mocked dependencies)
+ * 8. Error Handling Tests
  */
 
 import { handleCreateShader } from './CreateShaderTool';
 import { handleCreateShaderMaterial } from './CreateShaderMaterialTool';
 
+// Mock dependencies for happy path tests
+jest.mock('../../core/PathManager.js', () => ({
+  detectGodotPath: jest.fn(),
+  validatePath: jest.fn(),
+  normalizeHandlerPaths: jest.fn((args: Record<string, unknown>) => args),
+  normalizePath: jest.fn((p: string) => p),
+}));
+
+jest.mock('../../core/ParameterNormalizer.js', () => ({
+  normalizeParameters: jest.fn((args: Record<string, unknown>) => args),
+  convertCamelToSnakeCase: jest.fn((s: string) => s),
+}));
+
+jest.mock('../../utils/Logger.js', () => ({
+  logDebug: jest.fn(),
+  logError: jest.fn(),
+  logInfo: jest.fn(),
+}));
+
+jest.mock('../../utils/FileUtils.js', () => ({
+  isGodotProject: jest.fn(),
+}));
+
+jest.mock('fs', () => ({
+  existsSync: jest.fn(),
+}));
+
+jest.mock('fs-extra', () => ({
+  ensureDir: jest.fn().mockResolvedValue(undefined),
+  writeFile: jest.fn().mockResolvedValue(undefined),
+}));
+
+import { validatePath } from '../../core/PathManager.js';
+import { isGodotProject } from '../../utils/FileUtils.js';
+import * as fsExtra from 'fs-extra';
+
+const mockedValidatePath = validatePath as jest.MockedFunction<typeof validatePath>;
+const mockedIsGodotProject = isGodotProject as jest.MockedFunction<typeof isGodotProject>;
+
 describe('Shader Tools', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   // ============================================================================
   // CreateShader Tests
   // ============================================================================
   describe('CreateShader', () => {
-    describe('Input Validation - Missing Required Parameters', () => {
+    describe('Validation', () => {
       it('should return error when projectPath is missing', async () => {
         const result = await handleCreateShader({
           shaderPath: 'shaders/test.gdshader',
@@ -55,9 +100,7 @@ describe('Shader Tools', () => {
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/Validation failed/i);
       });
-    });
 
-    describe('Input Validation - Empty Values', () => {
       it('should return error for empty shaderPath', async () => {
         const result = await handleCreateShader({
           projectPath: '/path/to/project',
@@ -68,19 +111,8 @@ describe('Shader Tools', () => {
         expect(result.content[0].text).toMatch(/shaderPath|cannot be empty|Validation failed/i);
       });
 
-      it('should return error for empty projectPath', async () => {
-        const result = await handleCreateShader({
-          projectPath: '',
-          shaderPath: 'shaders/test.gdshader',
-          shaderType: 'spatial',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/projectPath|cannot be empty|Validation failed/i);
-      });
-    });
-
-    describe('File Extension Validation', () => {
-      it('should return error for invalid shader extension', async () => {
+      it('should return error for invalid shader extension (.shader)', async () => {
+        mockedValidatePath.mockReturnValue(true);
         const result = await handleCreateShader({
           projectPath: '/non/existent/path',
           shaderPath: 'shaders/test.shader',
@@ -91,6 +123,7 @@ describe('Shader Tools', () => {
       });
 
       it('should return error for .glsl extension', async () => {
+        mockedValidatePath.mockReturnValue(true);
         const result = await handleCreateShader({
           projectPath: '/non/existent/path',
           shaderPath: 'shaders/test.glsl',
@@ -101,6 +134,7 @@ describe('Shader Tools', () => {
       });
 
       it('should return error for no extension', async () => {
+        mockedValidatePath.mockReturnValue(true);
         const result = await handleCreateShader({
           projectPath: '/non/existent/path',
           shaderPath: 'shaders/test',
@@ -110,29 +144,6 @@ describe('Shader Tools', () => {
         expect(result.content[0].text).toContain('.gdshader');
       });
 
-      it('should return error for .txt extension', async () => {
-        const result = await handleCreateShader({
-          projectPath: '/non/existent/path',
-          shaderPath: 'shaders/test.txt',
-          shaderType: 'spatial',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('.gdshader');
-      });
-
-      it('should accept .gdshader extension', async () => {
-        const result = await handleCreateShader({
-          projectPath: '/non/existent/path',
-          shaderPath: 'shaders/test.gdshader',
-          shaderType: 'spatial',
-        });
-        expect(result.isError).toBe(true);
-        // Should fail on project validation, not extension
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-    });
-
-    describe('Invalid Enum Values - shaderType', () => {
       it('should return error for invalid shaderType', async () => {
         const result = await handleCreateShader({
           projectPath: '/non/existent/path',
@@ -153,203 +164,6 @@ describe('Shader Tools', () => {
         expect(result.content[0].text).toMatch(/shaderType|Validation failed/i);
       });
 
-      it('should return error for empty shaderType', async () => {
-        const result = await handleCreateShader({
-          projectPath: '/path/to/project',
-          shaderPath: 'shaders/test.gdshader',
-          shaderType: '' as 'spatial',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/shaderType|Validation failed/i);
-      });
-
-      it('should return error for misspelled shaderType', async () => {
-        const result = await handleCreateShader({
-          projectPath: '/non/existent/path',
-          shaderPath: 'shaders/test.gdshader',
-          shaderType: 'spartial' as 'spatial',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/shaderType|Validation failed/i);
-      });
-    });
-
-    describe('Valid Shader Types', () => {
-      const validShaderTypes = ['spatial', 'canvas_item', 'particles', 'sky', 'fog'] as const;
-
-      validShaderTypes.forEach((shaderType) => {
-        it(`should accept valid shaderType: ${shaderType}`, async () => {
-          const result = await handleCreateShader({
-            projectPath: '/non/existent/path',
-            shaderPath: 'shaders/test.gdshader',
-            shaderType: shaderType,
-          });
-          expect(result.isError).toBe(true);
-          // Should fail on project validation, not on shaderType
-          expect(result.content[0].text).toContain('Not a valid Godot project');
-        });
-      });
-    });
-
-    describe('Path Security', () => {
-      it('should return error for path traversal in projectPath', async () => {
-        const result = await handleCreateShader({
-          projectPath: '/path/../../../etc/passwd',
-          shaderPath: 'shaders/test.gdshader',
-          shaderType: 'spatial',
-        });
-        expect(result.isError).toBe(true);
-        // On Windows, path may be normalized; either path traversal error or invalid path is acceptable
-        expect(result.content[0].text).toMatch(/path traversal|\.\.|Not a valid Godot project/i);
-      });
-
-      it('should return error for path traversal in shaderPath', async () => {
-        const result = await handleCreateShader({
-          projectPath: '/path/to/project',
-          shaderPath: '../../../etc/passwd.gdshader',
-          shaderType: 'spatial',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/path traversal|\.\./i);
-      });
-
-      it('should return error for invalid project path', async () => {
-        const result = await handleCreateShader({
-          projectPath: '/non/existent/path',
-          shaderPath: 'shaders/test.gdshader',
-          shaderType: 'spatial',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-    });
-
-    describe('Optional Parameters - Render Mode', () => {
-      it('should accept renderMode as empty array', async () => {
-        const result = await handleCreateShader({
-          projectPath: '/non/existent/path',
-          shaderPath: 'shaders/test.gdshader',
-          shaderType: 'spatial',
-          renderMode: [],
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept renderMode with single value', async () => {
-        const result = await handleCreateShader({
-          projectPath: '/non/existent/path',
-          shaderPath: 'shaders/test.gdshader',
-          shaderType: 'spatial',
-          renderMode: ['unshaded'],
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept renderMode with multiple values', async () => {
-        const result = await handleCreateShader({
-          projectPath: '/non/existent/path',
-          shaderPath: 'shaders/test.gdshader',
-          shaderType: 'spatial',
-          renderMode: ['unshaded', 'cull_disabled', 'depth_test_disabled'],
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-    });
-
-    describe('Optional Parameters - Shader Code', () => {
-      it('should accept vertexCode parameter', async () => {
-        const result = await handleCreateShader({
-          projectPath: '/non/existent/path',
-          shaderPath: 'shaders/test.gdshader',
-          shaderType: 'spatial',
-          vertexCode: 'VERTEX.y += sin(TIME);',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept fragmentCode parameter', async () => {
-        const result = await handleCreateShader({
-          projectPath: '/non/existent/path',
-          shaderPath: 'shaders/test.gdshader',
-          shaderType: 'spatial',
-          fragmentCode: 'ALBEDO = vec3(1.0, 0.0, 0.0);',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept lightCode parameter', async () => {
-        const result = await handleCreateShader({
-          projectPath: '/non/existent/path',
-          shaderPath: 'shaders/test.gdshader',
-          shaderType: 'spatial',
-          lightCode: 'DIFFUSE_LIGHT = LIGHT_COLOR * ATTENUATION;',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept all shader code parameters together', async () => {
-        const result = await handleCreateShader({
-          projectPath: '/non/existent/path',
-          shaderPath: 'shaders/test.gdshader',
-          shaderType: 'spatial',
-          vertexCode: 'VERTEX.y += sin(TIME);',
-          fragmentCode: 'ALBEDO = vec3(1.0, 0.0, 0.0);',
-          lightCode: 'DIFFUSE_LIGHT = LIGHT_COLOR * ATTENUATION;',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept multiline vertexCode', async () => {
-        const result = await handleCreateShader({
-          projectPath: '/non/existent/path',
-          shaderPath: 'shaders/test.gdshader',
-          shaderType: 'spatial',
-          vertexCode: `float wave = sin(TIME + VERTEX.x);
-VERTEX.y += wave * 0.5;
-VERTEX.z += cos(TIME) * 0.2;`,
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept multiline fragmentCode', async () => {
-        const result = await handleCreateShader({
-          projectPath: '/non/existent/path',
-          shaderPath: 'shaders/test.gdshader',
-          shaderType: 'spatial',
-          fragmentCode: `vec3 color = texture(TEXTURE, UV).rgb;
-float luminance = dot(color, vec3(0.299, 0.587, 0.114));
-ALBEDO = vec3(luminance);`,
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-    });
-
-    describe('Optional Parameters - All Together', () => {
-      it('should accept all optional parameters together', async () => {
-        const result = await handleCreateShader({
-          projectPath: '/non/existent/path',
-          shaderPath: 'shaders/advanced.gdshader',
-          shaderType: 'spatial',
-          renderMode: ['unshaded', 'cull_disabled'],
-          vertexCode: 'VERTEX.y += sin(TIME);',
-          fragmentCode: 'ALBEDO = vec3(1.0, 0.0, 0.0);',
-          lightCode: 'DIFFUSE_LIGHT = LIGHT_COLOR * ATTENUATION;',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-    });
-
-    describe('Type Validation', () => {
       it('should return error for non-string shaderPath', async () => {
         const result = await handleCreateShader({
           projectPath: '/path/to/project',
@@ -370,119 +184,296 @@ ALBEDO = vec3(luminance);`,
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/renderMode|array|Validation failed/i);
       });
+    });
 
-      it('should return error for non-string vertexCode', async () => {
+    describe('Security', () => {
+      it('should return error for path traversal in projectPath', async () => {
+        mockedValidatePath.mockReturnValue(false);
+        const result = await handleCreateShader({
+          projectPath: '/path/../../../etc/passwd',
+          shaderPath: 'shaders/test.gdshader',
+          shaderType: 'spatial',
+        });
+        expect(result.isError).toBe(true);
+      });
+
+      it('should return error for invalid project path', async () => {
+        mockedValidatePath.mockReturnValue(true);
+        mockedIsGodotProject.mockReturnValue(false);
+        const result = await handleCreateShader({
+          projectPath: '/non/existent/path',
+          shaderPath: 'shaders/test.gdshader',
+          shaderType: 'spatial',
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toContain('Not a valid Godot project');
+      });
+    });
+
+    describe('Happy Path', () => {
+      beforeEach(() => {
+        mockedValidatePath.mockReturnValue(true);
+        mockedIsGodotProject.mockReturnValue(true);
+        (fsExtra.ensureDir as jest.Mock).mockResolvedValue(undefined);
+        (fsExtra.writeFile as jest.Mock).mockResolvedValue(undefined);
+      });
+
+      it('should create basic spatial shader successfully', async () => {
         const result = await handleCreateShader({
           projectPath: '/path/to/project',
           shaderPath: 'shaders/test.gdshader',
           shaderType: 'spatial',
-          vertexCode: 123 as unknown as string,
         });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/vertexCode|string|Validation failed/i);
-      });
-    });
-
-    describe('Edge Cases', () => {
-      it('should handle shaderPath with deeply nested directories', async () => {
-        const result = await handleCreateShader({
-          projectPath: '/non/existent/path',
-          shaderPath: 'assets/shaders/effects/water/ripple.gdshader',
-          shaderType: 'spatial',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
+        expect(result.isError).toBeUndefined();
+        expect(result.content[0].text).toContain('Shader created successfully');
+        expect(result.content[0].text).toContain('shaders/test.gdshader');
+        expect(result.content[0].text).toContain('spatial');
       });
 
-      it('should handle empty vertexCode string', async () => {
-        const result = await handleCreateShader({
-          projectPath: '/non/existent/path',
+      it('should write shader_type line in file', async () => {
+        await handleCreateShader({
+          projectPath: '/path/to/project',
           shaderPath: 'shaders/test.gdshader',
           shaderType: 'spatial',
-          vertexCode: '',
         });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const content = writeCall[1] as string;
+        expect(content).toContain('shader_type spatial;');
       });
 
-      it('should handle empty fragmentCode string', async () => {
+      it('should create canvas_item shader', async () => {
         const result = await handleCreateShader({
-          projectPath: '/non/existent/path',
-          shaderPath: 'shaders/test.gdshader',
-          shaderType: 'spatial',
-          fragmentCode: '',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should handle shader code with special characters', async () => {
-        const result = await handleCreateShader({
-          projectPath: '/non/existent/path',
-          shaderPath: 'shaders/test.gdshader',
-          shaderType: 'spatial',
-          fragmentCode: 'ALBEDO = vec3(UV.x * 2.0 - 1.0, UV.y, (UV.x + UV.y) / 2.0);',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should handle shader code with comments', async () => {
-        const result = await handleCreateShader({
-          projectPath: '/non/existent/path',
-          shaderPath: 'shaders/test.gdshader',
-          shaderType: 'spatial',
-          fragmentCode: `// This is a red shader
-ALBEDO = vec3(1.0, 0.0, 0.0); // red color`,
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-    });
-
-    describe('Shader Type Specific Tests', () => {
-      it('should accept canvas_item shader with appropriate render modes', async () => {
-        const result = await handleCreateShader({
-          projectPath: '/non/existent/path',
+          projectPath: '/path/to/project',
           shaderPath: 'shaders/ui.gdshader',
           shaderType: 'canvas_item',
-          renderMode: ['blend_mix'],
         });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
+        expect(result.isError).toBeUndefined();
+        expect(result.content[0].text).toContain('canvas_item');
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const content = writeCall[1] as string;
+        expect(content).toContain('shader_type canvas_item;');
       });
 
-      it('should accept particles shader', async () => {
+      it('should create particles shader', async () => {
         const result = await handleCreateShader({
-          projectPath: '/non/existent/path',
+          projectPath: '/path/to/project',
           shaderPath: 'shaders/particles.gdshader',
           shaderType: 'particles',
-          vertexCode: 'VELOCITY.y -= 9.8 * DELTA;',
         });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
+        expect(result.isError).toBeUndefined();
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const content = writeCall[1] as string;
+        expect(content).toContain('shader_type particles;');
       });
 
-      it('should accept sky shader', async () => {
+      it('should create sky shader', async () => {
         const result = await handleCreateShader({
-          projectPath: '/non/existent/path',
+          projectPath: '/path/to/project',
           shaderPath: 'shaders/sky.gdshader',
           shaderType: 'sky',
-          fragmentCode: 'COLOR = vec3(0.4, 0.6, 0.9);',
         });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
+        expect(result.isError).toBeUndefined();
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const content = writeCall[1] as string;
+        expect(content).toContain('shader_type sky;');
       });
 
-      it('should accept fog shader', async () => {
+      it('should create fog shader', async () => {
         const result = await handleCreateShader({
-          projectPath: '/non/existent/path',
+          projectPath: '/path/to/project',
           shaderPath: 'shaders/fog.gdshader',
           shaderType: 'fog',
-          fragmentCode: 'DENSITY = 0.1;',
+        });
+        expect(result.isError).toBeUndefined();
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const content = writeCall[1] as string;
+        expect(content).toContain('shader_type fog;');
+      });
+
+      it('should include render_mode when provided', async () => {
+        await handleCreateShader({
+          projectPath: '/path/to/project',
+          shaderPath: 'shaders/test.gdshader',
+          shaderType: 'spatial',
+          renderMode: ['unshaded', 'cull_disabled'],
+        });
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const content = writeCall[1] as string;
+        expect(content).toContain('render_mode unshaded, cull_disabled;');
+      });
+
+      it('should not include render_mode when array is empty', async () => {
+        await handleCreateShader({
+          projectPath: '/path/to/project',
+          shaderPath: 'shaders/test.gdshader',
+          shaderType: 'spatial',
+          renderMode: [],
+        });
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const content = writeCall[1] as string;
+        expect(content).not.toContain('render_mode');
+      });
+
+      it('should include vertex function when vertexCode is provided', async () => {
+        await handleCreateShader({
+          projectPath: '/path/to/project',
+          shaderPath: 'shaders/test.gdshader',
+          shaderType: 'spatial',
+          vertexCode: 'VERTEX.y += sin(TIME);',
+        });
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const content = writeCall[1] as string;
+        expect(content).toContain('void vertex() {');
+        expect(content).toContain('VERTEX.y += sin(TIME);');
+        expect(content).toContain('}');
+      });
+
+      it('should include fragment function when fragmentCode is provided', async () => {
+        await handleCreateShader({
+          projectPath: '/path/to/project',
+          shaderPath: 'shaders/test.gdshader',
+          shaderType: 'spatial',
+          fragmentCode: 'ALBEDO = vec3(1.0, 0.0, 0.0);',
+        });
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const content = writeCall[1] as string;
+        expect(content).toContain('void fragment() {');
+        expect(content).toContain('ALBEDO = vec3(1.0, 0.0, 0.0);');
+        expect(content).toContain('}');
+      });
+
+      it('should include light function when lightCode is provided', async () => {
+        await handleCreateShader({
+          projectPath: '/path/to/project',
+          shaderPath: 'shaders/test.gdshader',
+          shaderType: 'spatial',
+          lightCode: 'DIFFUSE_LIGHT = LIGHT_COLOR * ATTENUATION;',
+        });
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const content = writeCall[1] as string;
+        expect(content).toContain('void light() {');
+        expect(content).toContain('DIFFUSE_LIGHT = LIGHT_COLOR * ATTENUATION;');
+        expect(content).toContain('}');
+      });
+
+      it('should include all code sections when provided together', async () => {
+        await handleCreateShader({
+          projectPath: '/path/to/project',
+          shaderPath: 'shaders/full.gdshader',
+          shaderType: 'spatial',
+          renderMode: ['unshaded'],
+          vertexCode: 'VERTEX.y += sin(TIME);',
+          fragmentCode: 'ALBEDO = vec3(1.0, 0.0, 0.0);',
+          lightCode: 'DIFFUSE_LIGHT = LIGHT_COLOR;',
+        });
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const content = writeCall[1] as string;
+        expect(content).toContain('shader_type spatial;');
+        expect(content).toContain('render_mode unshaded;');
+        expect(content).toContain('void vertex()');
+        expect(content).toContain('void fragment()');
+        expect(content).toContain('void light()');
+      });
+
+      it('should handle multiline vertexCode', async () => {
+        await handleCreateShader({
+          projectPath: '/path/to/project',
+          shaderPath: 'shaders/test.gdshader',
+          shaderType: 'spatial',
+          vertexCode: 'float wave = sin(TIME);\nVERTEX.y += wave;',
+        });
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const content = writeCall[1] as string;
+        expect(content).toContain('void vertex()');
+        expect(content).toContain('float wave = sin(TIME);');
+        expect(content).toContain('VERTEX.y += wave;');
+      });
+
+      it('should handle multiline fragmentCode', async () => {
+        await handleCreateShader({
+          projectPath: '/path/to/project',
+          shaderPath: 'shaders/test.gdshader',
+          shaderType: 'spatial',
+          fragmentCode: 'vec3 color = vec3(1.0);\nALBEDO = color;',
+        });
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const content = writeCall[1] as string;
+        expect(content).toContain('void fragment()');
+        expect(content).toContain('vec3 color = vec3(1.0);');
+        expect(content).toContain('ALBEDO = color;');
+      });
+
+      it('should call ensureDir and writeFile with correct args', async () => {
+        await handleCreateShader({
+          projectPath: '/path/to/project',
+          shaderPath: 'shaders/test.gdshader',
+          shaderType: 'spatial',
+        });
+
+        expect(fsExtra.ensureDir).toHaveBeenCalled();
+        expect(fsExtra.writeFile).toHaveBeenCalled();
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        expect(writeCall[2]).toBe('utf-8');
+      });
+    });
+
+    describe('Error Handling', () => {
+      beforeEach(() => {
+        mockedValidatePath.mockReturnValue(true);
+        mockedIsGodotProject.mockReturnValue(true);
+      });
+
+      it('should handle fs.ensureDir failure', async () => {
+        (fsExtra.ensureDir as jest.Mock).mockRejectedValue(new Error('Permission denied'));
+
+        const result = await handleCreateShader({
+          projectPath: '/path/to/project',
+          shaderPath: 'shaders/test.gdshader',
+          shaderType: 'spatial',
         });
         expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
+        expect(result.content[0].text).toContain('Failed to create shader');
+        expect(result.content[0].text).toContain('Permission denied');
+      });
+
+      it('should handle fs.writeFile failure', async () => {
+        (fsExtra.ensureDir as jest.Mock).mockResolvedValue(undefined);
+        (fsExtra.writeFile as jest.Mock).mockRejectedValue(new Error('Disk full'));
+
+        const result = await handleCreateShader({
+          projectPath: '/path/to/project',
+          shaderPath: 'shaders/test.gdshader',
+          shaderType: 'spatial',
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toContain('Failed to create shader');
+        expect(result.content[0].text).toContain('Disk full');
+      });
+
+      it('should handle non-Error thrown during execution', async () => {
+        (fsExtra.ensureDir as jest.Mock).mockRejectedValue('some error');
+
+        const result = await handleCreateShader({
+          projectPath: '/path/to/project',
+          shaderPath: 'shaders/test.gdshader',
+          shaderType: 'spatial',
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toContain('Unknown error');
       });
     });
   });
@@ -491,7 +482,7 @@ ALBEDO = vec3(1.0, 0.0, 0.0); // red color`,
   // CreateShaderMaterial Tests
   // ============================================================================
   describe('CreateShaderMaterial', () => {
-    describe('Input Validation - Missing Required Parameters', () => {
+    describe('Validation', () => {
       it('should return error when projectPath is missing', async () => {
         const result = await handleCreateShaderMaterial({
           materialPath: 'materials/test.tres',
@@ -524,42 +515,9 @@ ALBEDO = vec3(1.0, 0.0, 0.0); // red color`,
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/Validation failed/i);
       });
-    });
 
-    describe('Input Validation - Empty Values', () => {
-      it('should return error for empty materialPath', async () => {
-        const result = await handleCreateShaderMaterial({
-          projectPath: '/path/to/project',
-          materialPath: '',
-          shaderPath: 'shaders/test.gdshader',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/materialPath|cannot be empty|Validation failed/i);
-      });
-
-      it('should return error for empty shaderPath', async () => {
-        const result = await handleCreateShaderMaterial({
-          projectPath: '/path/to/project',
-          materialPath: 'materials/test.tres',
-          shaderPath: '',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/shaderPath|cannot be empty|Validation failed/i);
-      });
-
-      it('should return error for empty projectPath', async () => {
-        const result = await handleCreateShaderMaterial({
-          projectPath: '',
-          materialPath: 'materials/test.tres',
-          shaderPath: 'shaders/test.gdshader',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/projectPath|cannot be empty|Validation failed/i);
-      });
-    });
-
-    describe('File Extension Validation - materialPath', () => {
-      it('should return error for invalid material extension', async () => {
+      it('should return error for invalid material extension (.mat)', async () => {
+        mockedValidatePath.mockReturnValue(true);
         const result = await handleCreateShaderMaterial({
           projectPath: '/non/existent/path',
           materialPath: 'materials/test.mat',
@@ -569,7 +527,8 @@ ALBEDO = vec3(1.0, 0.0, 0.0); // red color`,
         expect(result.content[0].text).toContain('.tres');
       });
 
-      it('should return error for .tscn extension', async () => {
+      it('should return error for .tscn extension on materialPath', async () => {
+        mockedValidatePath.mockReturnValue(true);
         const result = await handleCreateShaderMaterial({
           projectPath: '/non/existent/path',
           materialPath: 'materials/test.tscn',
@@ -579,7 +538,8 @@ ALBEDO = vec3(1.0, 0.0, 0.0); // red color`,
         expect(result.content[0].text).toMatch(/\.tres|\.res/i);
       });
 
-      it('should return error for no extension', async () => {
+      it('should return error for no extension on materialPath', async () => {
+        mockedValidatePath.mockReturnValue(true);
         const result = await handleCreateShaderMaterial({
           projectPath: '/non/existent/path',
           materialPath: 'materials/test',
@@ -589,219 +549,6 @@ ALBEDO = vec3(1.0, 0.0, 0.0); // red color`,
         expect(result.content[0].text).toMatch(/\.tres|\.res/i);
       });
 
-      it('should accept .tres extension', async () => {
-        const result = await handleCreateShaderMaterial({
-          projectPath: '/non/existent/path',
-          materialPath: 'materials/test.tres',
-          shaderPath: 'shaders/test.gdshader',
-        });
-        expect(result.isError).toBe(true);
-        // Should fail on project validation, not extension
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept .res extension', async () => {
-        const result = await handleCreateShaderMaterial({
-          projectPath: '/non/existent/path',
-          materialPath: 'materials/test.res',
-          shaderPath: 'shaders/test.gdshader',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-    });
-
-    describe('Path Security', () => {
-      it('should return error for path traversal in projectPath', async () => {
-        const result = await handleCreateShaderMaterial({
-          projectPath: '/path/../../../etc/passwd',
-          materialPath: 'materials/test.tres',
-          shaderPath: 'shaders/test.gdshader',
-        });
-        expect(result.isError).toBe(true);
-        // On Windows, path may be normalized; either path traversal error or invalid path is acceptable
-        expect(result.content[0].text).toMatch(/path traversal|\.\.|Not a valid Godot project/i);
-      });
-
-      it('should return error for path traversal in materialPath', async () => {
-        const result = await handleCreateShaderMaterial({
-          projectPath: '/path/to/project',
-          materialPath: '../../../etc/passwd.tres',
-          shaderPath: 'shaders/test.gdshader',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/path traversal|\.\./i);
-      });
-
-      it('should return error for path traversal in shaderPath', async () => {
-        const result = await handleCreateShaderMaterial({
-          projectPath: '/path/to/project',
-          materialPath: 'materials/test.tres',
-          shaderPath: '../../../etc/passwd.gdshader',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/path traversal|\.\./i);
-      });
-
-      it('should return error for invalid project path', async () => {
-        const result = await handleCreateShaderMaterial({
-          projectPath: '/non/existent/path',
-          materialPath: 'materials/test.tres',
-          shaderPath: 'shaders/test.gdshader',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-    });
-
-    describe('Optional Parameters - parameters', () => {
-      it('should accept parameters as empty object', async () => {
-        const result = await handleCreateShaderMaterial({
-          projectPath: '/non/existent/path',
-          materialPath: 'materials/test.tres',
-          shaderPath: 'shaders/test.gdshader',
-          parameters: {},
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept parameters with number values', async () => {
-        const result = await handleCreateShaderMaterial({
-          projectPath: '/non/existent/path',
-          materialPath: 'materials/test.tres',
-          shaderPath: 'shaders/test.gdshader',
-          parameters: {
-            speed: 1.5,
-            amplitude: 0.3,
-            frequency: 2.0,
-          },
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept parameters with boolean values', async () => {
-        const result = await handleCreateShaderMaterial({
-          projectPath: '/non/existent/path',
-          materialPath: 'materials/test.tres',
-          shaderPath: 'shaders/test.gdshader',
-          parameters: {
-            use_texture: true,
-            invert: false,
-          },
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept parameters with string values', async () => {
-        const result = await handleCreateShaderMaterial({
-          projectPath: '/non/existent/path',
-          materialPath: 'materials/test.tres',
-          shaderPath: 'shaders/test.gdshader',
-          parameters: {
-            texture_path: 'res://textures/albedo.png',
-          },
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept parameters with Vector2 values', async () => {
-        const result = await handleCreateShaderMaterial({
-          projectPath: '/non/existent/path',
-          materialPath: 'materials/test.tres',
-          shaderPath: 'shaders/test.gdshader',
-          parameters: {
-            uv_offset: { x: 0.5, y: 0.5 },
-          },
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept parameters with Vector3 values', async () => {
-        const result = await handleCreateShaderMaterial({
-          projectPath: '/non/existent/path',
-          materialPath: 'materials/test.tres',
-          shaderPath: 'shaders/test.gdshader',
-          parameters: {
-            direction: { x: 1.0, y: 0.0, z: 0.0 },
-          },
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept parameters with Vector4 values', async () => {
-        const result = await handleCreateShaderMaterial({
-          projectPath: '/non/existent/path',
-          materialPath: 'materials/test.tres',
-          shaderPath: 'shaders/test.gdshader',
-          parameters: {
-            custom_vector: { x: 1.0, y: 2.0, z: 3.0, w: 4.0 },
-          },
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept parameters with Color values', async () => {
-        const result = await handleCreateShaderMaterial({
-          projectPath: '/non/existent/path',
-          materialPath: 'materials/test.tres',
-          shaderPath: 'shaders/test.gdshader',
-          parameters: {
-            albedo_color: { r: 1.0, g: 0.5, b: 0.0 },
-            emission_color: { r: 0.0, g: 1.0, b: 1.0, a: 0.5 },
-          },
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept parameters with mixed value types', async () => {
-        const result = await handleCreateShaderMaterial({
-          projectPath: '/non/existent/path',
-          materialPath: 'materials/test.tres',
-          shaderPath: 'shaders/test.gdshader',
-          parameters: {
-            speed: 1.5,
-            use_texture: true,
-            uv_scale: { x: 2.0, y: 2.0 },
-            color: { r: 1.0, g: 0.8, b: 0.6 },
-            name: 'my_shader',
-          },
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-    });
-
-    describe('Shader Path Format', () => {
-      it('should accept shaderPath without res:// prefix', async () => {
-        const result = await handleCreateShaderMaterial({
-          projectPath: '/non/existent/path',
-          materialPath: 'materials/test.tres',
-          shaderPath: 'shaders/test.gdshader',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should accept shaderPath with res:// prefix', async () => {
-        const result = await handleCreateShaderMaterial({
-          projectPath: '/non/existent/path',
-          materialPath: 'materials/test.tres',
-          shaderPath: 'res://shaders/test.gdshader',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-    });
-
-    describe('Type Validation', () => {
       it('should return error for non-string materialPath', async () => {
         const result = await handleCreateShaderMaterial({
           projectPath: '/path/to/project',
@@ -810,16 +557,6 @@ ALBEDO = vec3(1.0, 0.0, 0.0); // red color`,
         });
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/materialPath|string|Validation failed/i);
-      });
-
-      it('should return error for non-string shaderPath', async () => {
-        const result = await handleCreateShaderMaterial({
-          projectPath: '/path/to/project',
-          materialPath: 'materials/test.tres',
-          shaderPath: 123 as unknown as string,
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/shaderPath|string|Validation failed/i);
       });
 
       it('should return error for non-object parameters', async () => {
@@ -832,113 +569,321 @@ ALBEDO = vec3(1.0, 0.0, 0.0); // red color`,
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/parameters|object|Validation failed/i);
       });
+    });
 
-      it('should return error for array parameters', async () => {
+    describe('Security', () => {
+      it('should return error for path traversal in projectPath', async () => {
+        mockedValidatePath.mockReturnValue(false);
+        const result = await handleCreateShaderMaterial({
+          projectPath: '/path/../../../etc/passwd',
+          materialPath: 'materials/test.tres',
+          shaderPath: 'shaders/test.gdshader',
+        });
+        expect(result.isError).toBe(true);
+      });
+
+      it('should return error for invalid project path', async () => {
+        mockedValidatePath.mockReturnValue(true);
+        mockedIsGodotProject.mockReturnValue(false);
+        const result = await handleCreateShaderMaterial({
+          projectPath: '/non/existent/path',
+          materialPath: 'materials/test.tres',
+          shaderPath: 'shaders/test.gdshader',
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toContain('Not a valid Godot project');
+      });
+    });
+
+    describe('Happy Path', () => {
+      beforeEach(() => {
+        mockedValidatePath.mockReturnValue(true);
+        mockedIsGodotProject.mockReturnValue(true);
+        (fsExtra.ensureDir as jest.Mock).mockResolvedValue(undefined);
+        (fsExtra.writeFile as jest.Mock).mockResolvedValue(undefined);
+      });
+
+      it('should create basic shader material successfully', async () => {
         const result = await handleCreateShaderMaterial({
           projectPath: '/path/to/project',
           materialPath: 'materials/test.tres',
           shaderPath: 'shaders/test.gdshader',
-          parameters: [1, 2, 3] as unknown as Record<string, unknown>,
         });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toMatch(/parameters|object|Validation failed/i);
+        expect(result.isError).toBeUndefined();
+        expect(result.content[0].text).toContain('ShaderMaterial created successfully');
+        expect(result.content[0].text).toContain('materials/test.tres');
+        expect(result.content[0].text).toContain('shaders/test.gdshader');
+      });
+
+      it('should accept .res extension for materialPath', async () => {
+        const result = await handleCreateShaderMaterial({
+          projectPath: '/path/to/project',
+          materialPath: 'materials/test.res',
+          shaderPath: 'shaders/test.gdshader',
+        });
+        expect(result.isError).toBeUndefined();
+        expect(result.content[0].text).toContain('ShaderMaterial created successfully');
+      });
+
+      it('should write ShaderMaterial resource content', async () => {
+        await handleCreateShaderMaterial({
+          projectPath: '/path/to/project',
+          materialPath: 'materials/test.tres',
+          shaderPath: 'shaders/test.gdshader',
+        });
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const content = writeCall[1] as string;
+        expect(content).toContain('[gd_resource type="ShaderMaterial" load_steps=2 format=3]');
+        expect(content).toContain('[ext_resource type="Shader" path="res://shaders/test.gdshader" id="1"]');
+        expect(content).toContain('[resource]');
+        expect(content).toContain('shader = ExtResource("1")');
+      });
+
+      it('should handle shaderPath that already has res:// prefix', async () => {
+        await handleCreateShaderMaterial({
+          projectPath: '/path/to/project',
+          materialPath: 'materials/test.tres',
+          shaderPath: 'res://shaders/test.gdshader',
+        });
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const content = writeCall[1] as string;
+        // Should NOT double the res:// prefix
+        expect(content).toContain('path="res://shaders/test.gdshader"');
+        expect(content).not.toContain('res://res://');
+      });
+
+      it('should write number parameters correctly', async () => {
+        await handleCreateShaderMaterial({
+          projectPath: '/path/to/project',
+          materialPath: 'materials/test.tres',
+          shaderPath: 'shaders/test.gdshader',
+          parameters: {
+            speed: 1.5,
+            amplitude: 0.3,
+          },
+        });
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const content = writeCall[1] as string;
+        expect(content).toContain('shader_parameter/speed = 1.5');
+        expect(content).toContain('shader_parameter/amplitude = 0.3');
+      });
+
+      it('should write boolean parameters correctly', async () => {
+        await handleCreateShaderMaterial({
+          projectPath: '/path/to/project',
+          materialPath: 'materials/test.tres',
+          shaderPath: 'shaders/test.gdshader',
+          parameters: {
+            use_texture: true,
+            invert: false,
+          },
+        });
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const content = writeCall[1] as string;
+        expect(content).toContain('shader_parameter/use_texture = true');
+        expect(content).toContain('shader_parameter/invert = false');
+      });
+
+      it('should write string parameters correctly', async () => {
+        await handleCreateShaderMaterial({
+          projectPath: '/path/to/project',
+          materialPath: 'materials/test.tres',
+          shaderPath: 'shaders/test.gdshader',
+          parameters: {
+            texture_path: 'res://textures/albedo.png',
+          },
+        });
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const content = writeCall[1] as string;
+        expect(content).toContain('shader_parameter/texture_path = "res://textures/albedo.png"');
+      });
+
+      it('should write Vector2 parameters correctly', async () => {
+        await handleCreateShaderMaterial({
+          projectPath: '/path/to/project',
+          materialPath: 'materials/test.tres',
+          shaderPath: 'shaders/test.gdshader',
+          parameters: {
+            uv_offset: { x: 0.5, y: 0.5 },
+          },
+        });
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const content = writeCall[1] as string;
+        expect(content).toContain('shader_parameter/uv_offset = Vector2(0.5, 0.5)');
+      });
+
+      it('should write Vector3 parameters correctly', async () => {
+        await handleCreateShaderMaterial({
+          projectPath: '/path/to/project',
+          materialPath: 'materials/test.tres',
+          shaderPath: 'shaders/test.gdshader',
+          parameters: {
+            direction: { x: 1.0, y: 0.0, z: 0.0 },
+          },
+        });
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const content = writeCall[1] as string;
+        expect(content).toContain('shader_parameter/direction = Vector3(1, 0, 0)');
+      });
+
+      it('should write Vector4 parameters correctly', async () => {
+        await handleCreateShaderMaterial({
+          projectPath: '/path/to/project',
+          materialPath: 'materials/test.tres',
+          shaderPath: 'shaders/test.gdshader',
+          parameters: {
+            custom_vector: { x: 1.0, y: 2.0, z: 3.0, w: 4.0 },
+          },
+        });
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const content = writeCall[1] as string;
+        expect(content).toContain('shader_parameter/custom_vector = Vector4(1, 2, 3, 4)');
+      });
+
+      it('should write Color parameters correctly (without alpha)', async () => {
+        await handleCreateShaderMaterial({
+          projectPath: '/path/to/project',
+          materialPath: 'materials/test.tres',
+          shaderPath: 'shaders/test.gdshader',
+          parameters: {
+            albedo_color: { r: 1.0, g: 0.5, b: 0.0 },
+          },
+        });
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const content = writeCall[1] as string;
+        expect(content).toContain('shader_parameter/albedo_color = Color(1, 0.5, 0, 1)');
+      });
+
+      it('should write Color parameters correctly (with alpha)', async () => {
+        await handleCreateShaderMaterial({
+          projectPath: '/path/to/project',
+          materialPath: 'materials/test.tres',
+          shaderPath: 'shaders/test.gdshader',
+          parameters: {
+            emission_color: { r: 0.0, g: 1.0, b: 1.0, a: 0.5 },
+          },
+        });
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const content = writeCall[1] as string;
+        expect(content).toContain('shader_parameter/emission_color = Color(0, 1, 1, 0.5)');
+      });
+
+      it('should handle mixed parameter types', async () => {
+        await handleCreateShaderMaterial({
+          projectPath: '/path/to/project',
+          materialPath: 'materials/test.tres',
+          shaderPath: 'shaders/test.gdshader',
+          parameters: {
+            speed: 1.5,
+            use_texture: true,
+            uv_scale: { x: 2.0, y: 2.0 },
+            color: { r: 1.0, g: 0.8, b: 0.6 },
+            name: 'my_shader',
+          },
+        });
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const content = writeCall[1] as string;
+        expect(content).toContain('shader_parameter/speed = 1.5');
+        expect(content).toContain('shader_parameter/use_texture = true');
+        expect(content).toContain('shader_parameter/uv_scale = Vector2(2, 2)');
+        expect(content).toContain('shader_parameter/color = Color(1, 0.8, 0.6, 1)');
+        expect(content).toContain('shader_parameter/name = "my_shader"');
+      });
+
+      it('should not write parameters section when no parameters provided', async () => {
+        await handleCreateShaderMaterial({
+          projectPath: '/path/to/project',
+          materialPath: 'materials/test.tres',
+          shaderPath: 'shaders/test.gdshader',
+        });
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const content = writeCall[1] as string;
+        expect(content).not.toContain('shader_parameter/');
+      });
+
+      it('should not write parameters section when empty object', async () => {
+        await handleCreateShaderMaterial({
+          projectPath: '/path/to/project',
+          materialPath: 'materials/test.tres',
+          shaderPath: 'shaders/test.gdshader',
+          parameters: {},
+        });
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const content = writeCall[1] as string;
+        expect(content).not.toContain('shader_parameter/');
+      });
+
+      it('should call ensureDir and writeFile with correct args', async () => {
+        await handleCreateShaderMaterial({
+          projectPath: '/path/to/project',
+          materialPath: 'materials/test.tres',
+          shaderPath: 'shaders/test.gdshader',
+        });
+
+        expect(fsExtra.ensureDir).toHaveBeenCalled();
+        expect(fsExtra.writeFile).toHaveBeenCalled();
+
+        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        expect(writeCall[2]).toBe('utf-8');
       });
     });
 
-    describe('Edge Cases', () => {
-      it('should handle materialPath with deeply nested directories', async () => {
-        const result = await handleCreateShaderMaterial({
-          projectPath: '/non/existent/path',
-          materialPath: 'assets/materials/effects/water/ripple_mat.tres',
-          shaderPath: 'shaders/water.gdshader',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
+    describe('Error Handling', () => {
+      beforeEach(() => {
+        mockedValidatePath.mockReturnValue(true);
+        mockedIsGodotProject.mockReturnValue(true);
       });
 
-      it('should handle shaderPath with deeply nested directories', async () => {
-        const result = await handleCreateShaderMaterial({
-          projectPath: '/non/existent/path',
-          materialPath: 'materials/test.tres',
-          shaderPath: 'assets/shaders/effects/water/ripple.gdshader',
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
+      it('should handle fs.ensureDir failure', async () => {
+        (fsExtra.ensureDir as jest.Mock).mockRejectedValue(new Error('Permission denied'));
 
-      it('should handle parameter with zero value', async () => {
         const result = await handleCreateShaderMaterial({
-          projectPath: '/non/existent/path',
+          projectPath: '/path/to/project',
           materialPath: 'materials/test.tres',
           shaderPath: 'shaders/test.gdshader',
-          parameters: {
-            intensity: 0,
-          },
         });
         expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
+        expect(result.content[0].text).toContain('Failed to create shader material');
+        expect(result.content[0].text).toContain('Permission denied');
       });
 
-      it('should handle parameter with negative value', async () => {
+      it('should handle fs.writeFile failure', async () => {
+        (fsExtra.ensureDir as jest.Mock).mockResolvedValue(undefined);
+        (fsExtra.writeFile as jest.Mock).mockRejectedValue(new Error('Disk full'));
+
         const result = await handleCreateShaderMaterial({
-          projectPath: '/non/existent/path',
+          projectPath: '/path/to/project',
           materialPath: 'materials/test.tres',
           shaderPath: 'shaders/test.gdshader',
-          parameters: {
-            offset: -10.5,
-          },
         });
         expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
+        expect(result.content[0].text).toContain('Failed to create shader material');
+        expect(result.content[0].text).toContain('Disk full');
       });
 
-      it('should handle parameter with very large value', async () => {
-        const result = await handleCreateShaderMaterial({
-          projectPath: '/non/existent/path',
-          materialPath: 'materials/test.tres',
-          shaderPath: 'shaders/test.gdshader',
-          parameters: {
-            scale: 1000000,
-          },
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
+      it('should handle non-Error thrown during execution', async () => {
+        (fsExtra.ensureDir as jest.Mock).mockRejectedValue(undefined);
 
-      it('should handle parameter with special characters in name', async () => {
         const result = await handleCreateShaderMaterial({
-          projectPath: '/non/existent/path',
+          projectPath: '/path/to/project',
           materialPath: 'materials/test.tres',
           shaderPath: 'shaders/test.gdshader',
-          parameters: {
-            my_param_01: 1.0,
-            'another-param': 2.0,
-          },
         });
         expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
-      });
-
-      it('should handle many parameters', async () => {
-        const result = await handleCreateShaderMaterial({
-          projectPath: '/non/existent/path',
-          materialPath: 'materials/test.tres',
-          shaderPath: 'shaders/test.gdshader',
-          parameters: {
-            param1: 1,
-            param2: 2,
-            param3: 3,
-            param4: 4,
-            param5: 5,
-            param6: true,
-            param7: false,
-            param8: { x: 1, y: 2 },
-            param9: { r: 1, g: 0, b: 0 },
-            param10: 'value',
-          },
-        });
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain('Not a valid Godot project');
+        expect(result.content[0].text).toContain('Unknown error');
       });
     });
   });

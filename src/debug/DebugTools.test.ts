@@ -14,7 +14,19 @@ import { WebSocket } from 'ws';
 
 describe('DebugStreamServer', () => {
   // Use unique ports for each test to avoid conflicts
-  let testPort = 29900;
+  // Start from a random high port to avoid conflicts with parallel test runs
+  let testPort = 29900 + Math.floor(Math.random() * 100);
+
+  beforeEach(() => {
+    // Ensure clean state before each test
+    try {
+      if (debugStreamServer.getStatus().running) {
+        debugStreamServer.stop();
+      }
+    } catch {
+      // Ignore
+    }
+  });
 
   afterEach(async () => {
     // Ensure server is stopped after each test
@@ -27,8 +39,8 @@ describe('DebugStreamServer', () => {
       // Ignore errors during cleanup
     }
     testPort++;
-    // Small delay to allow port release
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    // Increased delay to allow port release on all systems
+    await new Promise((resolve) => setTimeout(resolve, 150));
   });
 
   describe('Constants', () => {
@@ -432,98 +444,104 @@ describe('DebugStreamServer', () => {
     it('should handle multiple client connections', (done) => {
       debugStreamServer.start(testPort);
 
-      const ws1 = new WebSocket(`ws://localhost:${testPort}`);
-      const ws2 = new WebSocket(`ws://localhost:${testPort}`);
+      // Allow server to fully start before connecting clients
+      setTimeout(() => {
+        const ws1 = new WebSocket(`ws://localhost:${testPort}`);
+        const ws2 = new WebSocket(`ws://localhost:${testPort}`);
 
-      let connectedCount = 0;
+        let connectedCount = 0;
 
-      const onOpen = () => {
-        connectedCount++;
-        if (connectedCount === 2) {
-          expect(debugStreamServer.getStatus().clientCount).toBe(2);
-          ws1.close();
-          ws2.close();
-        }
-      };
+        const onOpen = () => {
+          connectedCount++;
+          if (connectedCount === 2) {
+            expect(debugStreamServer.getStatus().clientCount).toBe(2);
+            ws1.close();
+            ws2.close();
+          }
+        };
 
-      ws1.on('open', onOpen);
-      ws2.on('open', onOpen);
+        ws1.on('open', onOpen);
+        ws2.on('open', onOpen);
 
-      let closedCount = 0;
-      const onClose = () => {
-        closedCount++;
-        if (closedCount === 2) {
-          setTimeout(() => {
-            expect(debugStreamServer.getStatus().clientCount).toBe(0);
-            done();
-          }, 100);
-        }
-      };
+        let closedCount = 0;
+        const onClose = () => {
+          closedCount++;
+          if (closedCount === 2) {
+            setTimeout(() => {
+              expect(debugStreamServer.getStatus().clientCount).toBe(0);
+              done();
+            }, 100);
+          }
+        };
 
-      ws1.on('close', onClose);
-      ws2.on('close', onClose);
+        ws1.on('close', onClose);
+        ws2.on('close', onClose);
 
-      ws1.on('error', done);
-      ws2.on('error', done);
+        ws1.on('error', done);
+        ws2.on('error', done);
+      }, 100); // Delay to ensure server is ready
     }, 10000);
 
     it('should broadcast messages to all connected clients', (done) => {
       debugStreamServer.start(testPort);
 
-      const ws1 = new WebSocket(`ws://localhost:${testPort}`);
-      const ws2 = new WebSocket(`ws://localhost:${testPort}`);
+      // Allow server to fully start before connecting clients
+      setTimeout(() => {
+        const ws1 = new WebSocket(`ws://localhost:${testPort}`);
+        const ws2 = new WebSocket(`ws://localhost:${testPort}`);
 
-      let connectedCount = 0;
-      const receivedMessages: string[][] = [[], []];
+        let connectedCount = 0;
+        const receivedMessages: string[][] = [[], []];
 
-      const onOpen = () => {
-        connectedCount++;
-        if (connectedCount === 2) {
-          // Both connected, send broadcast
-          debugStreamServer.broadcast({
-            type: 'stdout',
-            timestamp: new Date().toISOString(),
-            content: 'broadcast to all',
-          });
+        const onOpen = () => {
+          connectedCount++;
+          if (connectedCount === 2) {
+            // Both connected, send broadcast
+            debugStreamServer.broadcast({
+              type: 'stdout',
+              timestamp: new Date().toISOString(),
+              content: 'broadcast to all',
+            });
+          }
+        };
+
+        ws1.on('open', onOpen);
+        ws2.on('open', onOpen);
+
+        ws1.on('message', (data) => {
+          receivedMessages[0].push(data.toString());
+          checkComplete();
+        });
+
+        ws2.on('message', (data) => {
+          receivedMessages[1].push(data.toString());
+          checkComplete();
+        });
+
+        function checkComplete() {
+          // Each client should receive welcome message + broadcast
+          if (receivedMessages[0].length >= 2 && receivedMessages[1].length >= 2) {
+            expect(receivedMessages[0].some((m) => m.includes('broadcast to all'))).toBe(true);
+            expect(receivedMessages[1].some((m) => m.includes('broadcast to all'))).toBe(true);
+            ws1.close();
+            ws2.close();
+          }
         }
-      };
 
-      ws1.on('open', onOpen);
-      ws2.on('open', onOpen);
+        let closedCount = 0;
+        const onClose = () => {
+          closedCount++;
+          if (closedCount === 2) {
+            done();
+          }
+        };
 
-      ws1.on('message', (data) => {
-        receivedMessages[0].push(data.toString());
-        checkComplete();
-      });
+        ws1.on('close', onClose);
+        ws2.on('close', onClose);
 
-      ws2.on('message', (data) => {
-        receivedMessages[1].push(data.toString());
-        checkComplete();
-      });
-
-      function checkComplete() {
-        // Each client should receive welcome message + broadcast
-        if (receivedMessages[0].length >= 2 && receivedMessages[1].length >= 2) {
-          expect(receivedMessages[0].some((m) => m.includes('broadcast to all'))).toBe(true);
-          expect(receivedMessages[1].some((m) => m.includes('broadcast to all'))).toBe(true);
-          ws1.close();
-          ws2.close();
-        }
-      }
-
-      let closedCount = 0;
-      const onClose = () => {
-        closedCount++;
-        if (closedCount === 2) {
-          done();
-        }
-      };
-
-      ws1.on('close', onClose);
-      ws2.on('close', onClose);
-
-      ws1.on('error', done);
-      ws2.on('error', done);
+        ws1.on('error', done);
+        ws2.on('error', done);
+      }, 100); // Delay to ensure server is ready
     }, 10000);
   });
 

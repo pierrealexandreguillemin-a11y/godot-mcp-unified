@@ -1,77 +1,47 @@
 /**
- * TSCN Parser - State Machine Implementation
+ * TSCN Parser - Facade for TSCN operations
  * Robust parser for Godot scene files (.tscn)
  *
- * Replaces fragile regex-based parsing with proper state machine.
+ * Refactored from monolithic (CC 111) to modular design.
+ * Uses dedicated modules for value parsing, serialization, queries, and mutations.
  * ISO/IEC 25010 compliant - maintainable, reliable, efficient.
  */
 
-export interface TscnHeader {
-  format: number;
-  uidType: string;
-  uid: string;
-  loadSteps?: number;
-}
+// Re-export types for backward compatibility
+export type {
+  TscnHeader,
+  TscnExtResource,
+  TscnSubResource,
+  TscnNode,
+  TscnConnection,
+  TscnEditableInstance,
+  TscnPrimitive,
+  TscnValue,
+  TscnArray,
+  TscnRecord,
+  TscnFunctionCall,
+  TscnDocument,
+} from './tscn/types.js';
 
-export interface TscnExtResource {
-  type: string;
-  path: string;
-  id: string;
-  uid?: string;
-}
+export { TscnParseError } from './tscn/types.js';
 
-export interface TscnSubResource {
-  type: string;
-  id: string;
-  properties: Record<string, TscnValue>;
-}
+// Re-export serialization
+export { serializeTscn } from './tscn/TscnSerializer.js';
 
-export interface TscnNode {
-  name: string;
-  type?: string;
-  parent?: string;
-  instance?: string;
-  instancePlaceholder?: string;
-  owner?: string;
-  index?: number;
-  groups?: string[];
-  script?: string;
-  properties: Record<string, TscnValue>;
-}
+// Re-export queries for backward compatibility
+export { findNodeByPath, findExtResourceById } from './tscn/TscnQueries.js';
 
-export interface TscnConnection {
-  signal: string;
-  from: string;
-  to: string;
-  method: string;
-  flags?: number;
-  binds?: TscnValue[];
-}
+// Re-export mutations for backward compatibility
+export { addExtResource, attachScriptToNode, detachScriptFromNode } from './tscn/TscnMutations.js';
 
-export interface TscnEditableInstance {
-  path: string;
-}
+// Import types and functions needed for parsing
+import type { TscnDocument, TscnValue, TscnNode, TscnSubResource } from './tscn/types.js';
+import { TscnParseError } from './tscn/types.js';
+import { parseValue, parseArray } from './tscn/TscnValueParser.js';
 
-export type TscnPrimitive = string | number | boolean | null;
-export type TscnValue = TscnPrimitive | TscnArray | TscnRecord | TscnFunctionCall;
-export type TscnArray = TscnValue[];
-export interface TscnRecord {
-  [key: string]: TscnValue;
-}
-
-export interface TscnFunctionCall {
-  name: string;
-  args: TscnValue[];
-}
-
-export interface TscnDocument {
-  header: TscnHeader;
-  extResources: TscnExtResource[];
-  subResources: TscnSubResource[];
-  nodes: TscnNode[];
-  connections: TscnConnection[];
-  editableInstances: TscnEditableInstance[];
-}
+// ============================================================================
+// Parser State Machine (Core parsing logic)
+// ============================================================================
 
 enum ParserState {
   INITIAL,
@@ -142,19 +112,7 @@ export function parseTscn(content: string): TscnDocument {
  * Finalize the previous section before starting a new one
  */
 function finalizePreviousSection(context: ParserContext): void {
-  switch (context.state) {
-    case ParserState.IN_SUB_RESOURCE:
-      // SubResource is already added during header parsing
-      break;
-    case ParserState.IN_NODE:
-      // Node is already added during header parsing
-      break;
-    case ParserState.IN_CONNECTION:
-      // Connection is already added during header parsing
-      break;
-    default:
-      break;
-  }
+  // Clean up state for next section
   context.currentProperties = {};
 }
 
@@ -175,76 +133,94 @@ function parseSectionHeader(line: string, context: ParserContext): void {
 
   switch (sectionType) {
     case 'gd_scene':
-      context.state = ParserState.IN_HEADER;
-      context.document.header = {
-        format: parseInt(attributes.format || '0', 10),
-        uidType: attributes.uid_type || '',
-        uid: attributes.uid || '',
-        loadSteps: attributes.load_steps ? parseInt(attributes.load_steps, 10) : undefined,
-      };
+      handleGdSceneSection(context, attributes);
       break;
-
     case 'ext_resource':
-      context.state = ParserState.IN_EXT_RESOURCE;
-      context.document.extResources.push({
-        type: attributes.type || '',
-        path: attributes.path || '',
-        id: attributes.id || '',
-        uid: attributes.uid,
-      });
+      handleExtResourceSection(context, attributes);
       break;
-
     case 'sub_resource':
-      context.state = ParserState.IN_SUB_RESOURCE;
-      const subResource: TscnSubResource = {
-        type: attributes.type || '',
-        id: attributes.id || '',
-        properties: {},
-      };
-      context.document.subResources.push(subResource);
-      context.currentProperties = subResource.properties;
+      handleSubResourceSection(context, attributes);
       break;
-
     case 'node':
-      context.state = ParserState.IN_NODE;
-      const node: TscnNode = {
-        name: attributes.name || '',
-        type: attributes.type,
-        parent: attributes.parent,
-        instance: attributes.instance,
-        instancePlaceholder: attributes.instance_placeholder,
-        owner: attributes.owner,
-        index: attributes.index ? parseInt(attributes.index, 10) : undefined,
-        groups: attributes.groups ? parseArray(attributes.groups) as string[] : undefined,
-        script: attributes.script,
-        properties: {},
-      };
-      context.document.nodes.push(node);
-      context.currentProperties = node.properties;
+      handleNodeSection(context, attributes);
       break;
-
     case 'connection':
-      context.state = ParserState.IN_CONNECTION;
-      context.document.connections.push({
-        signal: attributes.signal || '',
-        from: attributes.from || '',
-        to: attributes.to || '',
-        method: attributes.method || '',
-        flags: attributes.flags ? parseInt(attributes.flags, 10) : undefined,
-        binds: attributes.binds ? parseArray(attributes.binds) : undefined,
-      });
+      handleConnectionSection(context, attributes);
       break;
-
     case 'editable':
-      context.state = ParserState.IN_EDITABLE;
-      context.document.editableInstances.push({
-        path: attributes.path || '',
-      });
+      handleEditableSection(context, attributes);
       break;
-
     default:
       throw new TscnParseError(`Unknown section type at line ${context.lineNumber}: ${sectionType}`);
   }
+}
+
+function handleGdSceneSection(context: ParserContext, attributes: Record<string, string>): void {
+  context.state = ParserState.IN_HEADER;
+  context.document.header = {
+    format: parseInt(attributes.format || '0', 10),
+    uidType: attributes.uid_type || '',
+    uid: attributes.uid || '',
+    loadSteps: attributes.load_steps ? parseInt(attributes.load_steps, 10) : undefined,
+  };
+}
+
+function handleExtResourceSection(context: ParserContext, attributes: Record<string, string>): void {
+  context.state = ParserState.IN_EXT_RESOURCE;
+  context.document.extResources.push({
+    type: attributes.type || '',
+    path: attributes.path || '',
+    id: attributes.id || '',
+    uid: attributes.uid,
+  });
+}
+
+function handleSubResourceSection(context: ParserContext, attributes: Record<string, string>): void {
+  context.state = ParserState.IN_SUB_RESOURCE;
+  const subResource: TscnSubResource = {
+    type: attributes.type || '',
+    id: attributes.id || '',
+    properties: {},
+  };
+  context.document.subResources.push(subResource);
+  context.currentProperties = subResource.properties;
+}
+
+function handleNodeSection(context: ParserContext, attributes: Record<string, string>): void {
+  context.state = ParserState.IN_NODE;
+  const node: TscnNode = {
+    name: attributes.name || '',
+    type: attributes.type,
+    parent: attributes.parent,
+    instance: attributes.instance,
+    instancePlaceholder: attributes.instance_placeholder,
+    owner: attributes.owner,
+    index: attributes.index ? parseInt(attributes.index, 10) : undefined,
+    groups: attributes.groups ? parseArray(attributes.groups) as string[] : undefined,
+    script: attributes.script,
+    properties: {},
+  };
+  context.document.nodes.push(node);
+  context.currentProperties = node.properties;
+}
+
+function handleConnectionSection(context: ParserContext, attributes: Record<string, string>): void {
+  context.state = ParserState.IN_CONNECTION;
+  context.document.connections.push({
+    signal: attributes.signal || '',
+    from: attributes.from || '',
+    to: attributes.to || '',
+    method: attributes.method || '',
+    flags: attributes.flags ? parseInt(attributes.flags, 10) : undefined,
+    binds: attributes.binds ? parseArray(attributes.binds) : undefined,
+  });
+}
+
+function handleEditableSection(context: ParserContext, attributes: Record<string, string>): void {
+  context.state = ParserState.IN_EDITABLE;
+  context.document.editableInstances.push({
+    path: attributes.path || '',
+  });
 }
 
 /**
@@ -277,64 +253,98 @@ function parseAttributes(str: string): Record<string, string> {
     while (i < str.length && /\s/.test(str[i])) i++;
 
     // Parse value
-    let value = '';
-    if (str[i] === '"') {
-      // Simple quoted string
-      i++;
-      const valueStart = i;
-      while (i < str.length && str[i] !== '"') i++;
-      value = str.slice(valueStart, i);
-      i++;
-    } else if (str[i] === '[') {
-      // Array value - capture until matching ]
-      const valueStart = i;
-      let depth = 0;
-      while (i < str.length) {
-        if (str[i] === '[') depth++;
-        else if (str[i] === ']') {
-          depth--;
-          if (depth === 0) {
-            i++;
-            break;
-          }
-        } else if (str[i] === '"') {
-          // Skip quoted strings within array
-          i++;
-          while (i < str.length && str[i] !== '"') i++;
-        }
-        i++;
-      }
-      value = str.slice(valueStart, i);
-    } else {
-      // Unquoted value - handle function calls like ExtResource("id")
-      const valueStart = i;
-      let parenDepth = 0;
-      while (i < str.length) {
-        const ch = str[i];
-        if (ch === '(') {
-          parenDepth++;
-        } else if (ch === ')') {
-          parenDepth--;
-          if (parenDepth === 0) {
-            i++;
-            break;
-          }
-        } else if (ch === '"') {
-          // Skip quoted strings within function calls
-          i++;
-          while (i < str.length && str[i] !== '"') i++;
-        } else if (parenDepth === 0 && /\s/.test(ch)) {
-          break;
-        }
-        i++;
-      }
-      value = str.slice(valueStart, i);
-    }
-
-    attributes[key] = value;
+    const value = parseAttributeValue(str, i);
+    attributes[key] = value.value;
+    i = value.endIndex;
   }
 
   return attributes;
+}
+
+interface AttributeValueResult {
+  value: string;
+  endIndex: number;
+}
+
+/**
+ * Parse an attribute value - dispatches to type-specific parsers
+ * ISO/IEC 5055: CC reduced through delegation
+ */
+function parseAttributeValue(str: string, startIndex: number): AttributeValueResult {
+  const char = str[startIndex];
+
+  if (char === '"') {
+    return parseQuotedString(str, startIndex);
+  }
+  if (char === '[') {
+    return parseArrayValue(str, startIndex);
+  }
+  return parseUnquotedValue(str, startIndex);
+}
+
+function parseQuotedString(str: string, startIndex: number): AttributeValueResult {
+  let i = startIndex + 1; // Skip opening quote
+  const valueStart = i;
+  while (i < str.length && str[i] !== '"') i++;
+  const value = str.slice(valueStart, i);
+  i++; // Skip closing quote
+  return { value, endIndex: i };
+}
+
+function parseArrayValue(str: string, startIndex: number): AttributeValueResult {
+  let i = startIndex;
+  let depth = 0;
+
+  while (i < str.length) {
+    const char = str[i];
+    if (char === '[') {
+      depth++;
+    } else if (char === ']') {
+      depth--;
+      if (depth === 0) {
+        i++;
+        break;
+      }
+    } else if (char === '"') {
+      i = skipQuotedString(str, i);
+      continue;
+    }
+    i++;
+  }
+
+  return { value: str.slice(startIndex, i), endIndex: i };
+}
+
+function parseUnquotedValue(str: string, startIndex: number): AttributeValueResult {
+  let i = startIndex;
+  let parenDepth = 0;
+
+  while (i < str.length) {
+    const ch = str[i];
+    if (ch === '(') {
+      parenDepth++;
+    } else if (ch === ')') {
+      parenDepth--;
+      if (parenDepth === 0) {
+        i++;
+        break;
+      }
+    } else if (ch === '"') {
+      i = skipQuotedString(str, i);
+      continue;
+    } else if (parenDepth === 0 && /\s/.test(ch)) {
+      break;
+    }
+    i++;
+  }
+
+  return { value: str.slice(startIndex, i), endIndex: i };
+}
+
+function skipQuotedString(str: string, startIndex: number): number {
+  let i = startIndex + 1; // Skip opening quote
+  while (i < str.length && str[i] !== '"') i++;
+  return i + 1; // Return position after closing quote
 }
 
 /**
@@ -365,424 +375,4 @@ function parseProperty(line: string, context: ParserContext): void {
     // If parsing fails, store as raw string
     context.currentProperties[key] = valueStr;
   }
-}
-
-/**
- * Parse a value string into appropriate type
- */
-function parseValue(str: string): TscnValue {
-  const trimmed = str.trim();
-
-  // Null
-  if (trimmed === 'null') {
-    return null;
-  }
-
-  // Boolean
-  if (trimmed === 'true') {
-    return true;
-  }
-  if (trimmed === 'false') {
-    return false;
-  }
-
-  // Number
-  if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
-    return parseFloat(trimmed);
-  }
-
-  // String
-  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
-    return trimmed.slice(1, -1);
-  }
-
-  // Array
-  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-    return parseArray(trimmed);
-  }
-
-  // Dictionary
-  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-    return parseDictionary(trimmed);
-  }
-
-  // Function call (Vector2, Color, ExtResource, SubResource, etc.)
-  const funcMatch = trimmed.match(/^(\w+)\s*\((.*)\)$/s);
-  if (funcMatch) {
-    return {
-      name: funcMatch[1],
-      args: parseArguments(funcMatch[2]),
-    };
-  }
-
-  // Raw string
-  return trimmed;
-}
-
-/**
- * Parse array notation
- */
-function parseArray(str: string): TscnValue[] {
-  const inner = str.slice(1, -1).trim();
-  if (inner === '') {
-    return [];
-  }
-
-  const args = parseArguments(inner);
-  return args;
-}
-
-/**
- * Parse dictionary notation
- */
-function parseDictionary(str: string): Record<string, TscnValue> {
-  const inner = str.slice(1, -1).trim();
-  if (inner === '') {
-    return {};
-  }
-
-  const result: Record<string, TscnValue> = {};
-  const pairs = splitTopLevel(inner, ',');
-
-  for (const pair of pairs) {
-    const colonIdx = findTopLevelChar(pair, ':');
-    if (colonIdx === -1) continue;
-
-    const keyStr = pair.slice(0, colonIdx).trim();
-    const valueStr = pair.slice(colonIdx + 1).trim();
-
-    // Parse key (remove quotes if present)
-    const key = keyStr.startsWith('"') && keyStr.endsWith('"')
-      ? keyStr.slice(1, -1)
-      : keyStr;
-
-    result[key] = parseValue(valueStr);
-  }
-
-  return result;
-}
-
-/**
- * Parse function arguments
- */
-function parseArguments(str: string): TscnValue[] {
-  const trimmed = str.trim();
-  if (trimmed === '') {
-    return [];
-  }
-
-  const parts = splitTopLevel(trimmed, ',');
-  return parts.map(part => parseValue(part.trim()));
-}
-
-/**
- * Split string by delimiter at top level (not inside brackets or quotes)
- */
-function splitTopLevel(str: string, delimiter: string): string[] {
-  const result: string[] = [];
-  let current = '';
-  let depth = 0;
-  let inString = false;
-  let stringChar = '';
-
-  for (let i = 0; i < str.length; i++) {
-    const char = str[i];
-
-    if (inString) {
-      current += char;
-      if (char === stringChar && str[i - 1] !== '\\') {
-        inString = false;
-      }
-    } else if (char === '"' || char === "'") {
-      inString = true;
-      stringChar = char;
-      current += char;
-    } else if (char === '(' || char === '[' || char === '{') {
-      depth++;
-      current += char;
-    } else if (char === ')' || char === ']' || char === '}') {
-      depth--;
-      current += char;
-    } else if (char === delimiter && depth === 0) {
-      result.push(current);
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-
-  if (current.length > 0) {
-    result.push(current);
-  }
-
-  return result;
-}
-
-/**
- * Find index of character at top level
- */
-function findTopLevelChar(str: string, char: string): number {
-  let depth = 0;
-  let inString = false;
-  let stringChar = '';
-
-  for (let i = 0; i < str.length; i++) {
-    const c = str[i];
-
-    if (inString) {
-      if (c === stringChar && str[i - 1] !== '\\') {
-        inString = false;
-      }
-    } else if (c === '"' || c === "'") {
-      inString = true;
-      stringChar = c;
-    } else if (c === '(' || c === '[' || c === '{') {
-      depth++;
-    } else if (c === ')' || c === ']' || c === '}') {
-      depth--;
-    } else if (c === char && depth === 0) {
-      return i;
-    }
-  }
-
-  return -1;
-}
-
-/**
- * Serialize a TSCN document back to string format
- */
-export function serializeTscn(doc: TscnDocument): string {
-  const lines: string[] = [];
-
-  // Header
-  let headerAttrs = `format=${doc.header.format}`;
-  if (doc.header.uidType) {
-    headerAttrs += ` uid_type="${doc.header.uidType}"`;
-  }
-  if (doc.header.uid) {
-    headerAttrs += ` uid="${doc.header.uid}"`;
-  }
-  if (doc.header.loadSteps !== undefined) {
-    headerAttrs += ` load_steps=${doc.header.loadSteps}`;
-  }
-  lines.push(`[gd_scene ${headerAttrs}]`);
-  lines.push('');
-
-  // External resources
-  for (const res of doc.extResources) {
-    let attrs = `type="${res.type}" path="${res.path}" id=${res.id}`;
-    if (res.uid) {
-      attrs += ` uid="${res.uid}"`;
-    }
-    lines.push(`[ext_resource ${attrs}]`);
-  }
-  if (doc.extResources.length > 0) {
-    lines.push('');
-  }
-
-  // Sub resources
-  for (const sub of doc.subResources) {
-    lines.push(`[sub_resource type="${sub.type}" id=${sub.id}]`);
-    for (const [key, value] of Object.entries(sub.properties)) {
-      lines.push(`${key} = ${serializeValue(value)}`);
-    }
-    lines.push('');
-  }
-
-  // Nodes
-  for (const node of doc.nodes) {
-    let attrs = `name="${node.name}"`;
-    if (node.type) {
-      attrs += ` type="${node.type}"`;
-    }
-    if (node.parent) {
-      attrs += ` parent="${node.parent}"`;
-    }
-    if (node.instance) {
-      attrs += ` instance=${node.instance}`;
-    }
-    if (node.script) {
-      attrs += ` script=${node.script}`;
-    }
-    if (node.groups && node.groups.length > 0) {
-      attrs += ` groups=[${node.groups.map(g => `"${g}"`).join(', ')}]`;
-    }
-    lines.push(`[node ${attrs}]`);
-
-    for (const [key, value] of Object.entries(node.properties)) {
-      lines.push(`${key} = ${serializeValue(value)}`);
-    }
-    lines.push('');
-  }
-
-  // Connections
-  for (const conn of doc.connections) {
-    let attrs = `signal="${conn.signal}" from="${conn.from}" to="${conn.to}" method="${conn.method}"`;
-    if (conn.flags !== undefined) {
-      attrs += ` flags=${conn.flags}`;
-    }
-    if (conn.binds && conn.binds.length > 0) {
-      attrs += ` binds=[${conn.binds.map(b => serializeValue(b)).join(', ')}]`;
-    }
-    lines.push(`[connection ${attrs}]`);
-  }
-
-  // Editable instances
-  for (const edit of doc.editableInstances) {
-    lines.push(`[editable path="${edit.path}"]`);
-  }
-
-  return lines.join('\n');
-}
-
-/**
- * Serialize a value back to TSCN format
- */
-function serializeValue(value: TscnValue): string {
-  if (value === null) {
-    return 'null';
-  }
-  if (typeof value === 'boolean') {
-    return value ? 'true' : 'false';
-  }
-  if (typeof value === 'number') {
-    return value.toString();
-  }
-  if (typeof value === 'string') {
-    return `"${value}"`;
-  }
-  if (Array.isArray(value)) {
-    return `[${value.map(v => serializeValue(v)).join(', ')}]`;
-  }
-  if (typeof value === 'object' && 'name' in value && 'args' in value) {
-    const funcCall = value as TscnFunctionCall;
-    return `${funcCall.name}(${funcCall.args.map(a => serializeValue(a)).join(', ')})`;
-  }
-  if (typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, TscnValue>);
-    return `{${entries.map(([k, v]) => `"${k}": ${serializeValue(v)}`).join(', ')}}`;
-  }
-  return String(value);
-}
-
-/**
- * Custom error class for TSCN parsing errors
- */
-export class TscnParseError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'TscnParseError';
-  }
-}
-
-/**
- * Helper: Find a node by path in the document
- */
-export function findNodeByPath(doc: TscnDocument, nodePath: string): TscnNode | undefined {
-  if (nodePath === '.' || nodePath === '' || nodePath === 'root') {
-    // Root node is the first node without a parent
-    return doc.nodes.find(n => !n.parent);
-  }
-
-  // Remove leading "root/" if present
-  const cleanPath = nodePath.replace(/^root\//, '');
-  const parts = cleanPath.split('/');
-  const targetName = parts[parts.length - 1];
-
-  // For simple paths, find by name
-  if (parts.length === 1) {
-    return doc.nodes.find(n => n.name === targetName);
-  }
-
-  // For complex paths, match the parent chain
-  return doc.nodes.find(n => {
-    if (n.name !== targetName) return false;
-
-    // Build the full path and compare
-    let currentPath = n.name;
-    let parentRef: string | undefined = n.parent;
-
-    while (parentRef && parentRef !== '.') {
-      const currentParentRef = parentRef; // Capture for closure
-      const parentNode = doc.nodes.find(p =>
-        (currentParentRef === '.' ? !p.parent : p.name === currentParentRef.split('/').pop())
-      );
-      if (!parentNode) break;
-      currentPath = parentNode.name + '/' + currentPath;
-      parentRef = parentNode.parent;
-    }
-
-    return currentPath === cleanPath || cleanPath.endsWith(currentPath);
-  });
-}
-
-/**
- * Helper: Find external resource by ID
- */
-export function findExtResourceById(doc: TscnDocument, id: string): TscnExtResource | undefined {
-  // Handle both "1_abc" and ExtResource("1_abc") formats
-  const cleanId = id.replace(/^ExtResource\(["']?|["']?\)$/g, '');
-  return doc.extResources.find(r => r.id === cleanId || r.id === `"${cleanId}"`);
-}
-
-/**
- * Helper: Add an external resource and return its ID
- */
-export function addExtResource(doc: TscnDocument, type: string, path: string): string {
-  // Find max ID
-  let maxId = 0;
-  for (const res of doc.extResources) {
-    const numMatch = res.id.match(/(\d+)/);
-    if (numMatch) {
-      const num = parseInt(numMatch[1], 10);
-      if (num > maxId) maxId = num;
-    }
-  }
-
-  const newId = `"${maxId + 1}_${type.toLowerCase()}"`;
-  doc.extResources.push({
-    type,
-    path,
-    id: newId,
-  });
-
-  // Update load_steps
-  if (doc.header.loadSteps !== undefined) {
-    doc.header.loadSteps++;
-  }
-
-  return newId;
-}
-
-/**
- * Helper: Attach script to a node
- */
-export function attachScriptToNode(doc: TscnDocument, nodePath: string, scriptPath: string): boolean {
-  const node = findNodeByPath(doc, nodePath);
-  if (!node) return false;
-
-  // Check if script already exists as ext_resource
-  let scriptId: string | undefined;
-  const resPath = scriptPath.startsWith('res://') ? scriptPath : `res://${scriptPath}`;
-
-  const existingRes = doc.extResources.find(r => r.path === resPath && r.type === 'Script');
-  if (existingRes) {
-    scriptId = existingRes.id;
-  } else {
-    scriptId = addExtResource(doc, 'Script', resPath);
-  }
-
-  node.script = `ExtResource(${scriptId})`;
-  return true;
-}
-
-/**
- * Helper: Detach script from a node
- */
-export function detachScriptFromNode(doc: TscnDocument, nodePath: string): boolean {
-  const node = findNodeByPath(doc, nodePath);
-  if (!node || !node.script) return false;
-
-  delete node.script;
-  return true;
 }

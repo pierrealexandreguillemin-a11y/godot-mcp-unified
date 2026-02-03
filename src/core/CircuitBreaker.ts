@@ -46,9 +46,25 @@ export interface CircuitStats {
   successes: number;
   lastFailureTime: number | null;
   lastSuccessTime: number | null;
+  lastStateChange: number;
   totalRequests: number;
   rejectedRequests: number;
   consecutiveSuccesses: number;
+}
+
+/**
+ * Extended metrics for observability (ISO/IEC 25010)
+ */
+export interface CircuitBreakerMetrics extends CircuitStats {
+  config: {
+    failureThreshold: number;
+    resetTimeout: number;
+    successThreshold: number;
+    failureWindow: number;
+    name: string;
+  };
+  windowFailures: number;
+  healthPercentage: number;
 }
 
 /**
@@ -74,6 +90,7 @@ export class CircuitBreaker extends EventEmitter {
   private consecutiveSuccesses: number = 0;
   private lastFailureTime: number | null = null;
   private lastSuccessTime: number | null = null;
+  private lastStateChange: number;
   private totalRequests: number = 0;
   private rejectedRequests: number = 0;
   private failureTimestamps: number[] = [];
@@ -82,6 +99,7 @@ export class CircuitBreaker extends EventEmitter {
   constructor(config: Partial<CircuitBreakerConfig> = {}) {
     super();
     this.config = { ...DEFAULT_CONFIG, ...config };
+    this.lastStateChange = Date.now();
   }
 
   /**
@@ -164,6 +182,7 @@ export class CircuitBreaker extends EventEmitter {
     if (this.state === CircuitState.OPEN) return;
 
     this.state = CircuitState.OPEN;
+    this.lastStateChange = Date.now();
     this.logCircuitEvent('CIRCUIT_OPENED', `Failure threshold (${this.config.failureThreshold}) exceeded`);
     this.emit('open', this.getStats());
 
@@ -178,6 +197,7 @@ export class CircuitBreaker extends EventEmitter {
     if (this.state === CircuitState.CLOSED) return;
 
     this.state = CircuitState.CLOSED;
+    this.lastStateChange = Date.now();
     this.failureTimestamps = [];
     this.consecutiveSuccesses = 0;
     this.logCircuitEvent('CIRCUIT_CLOSED', 'Service recovered');
@@ -196,6 +216,7 @@ export class CircuitBreaker extends EventEmitter {
     if (this.state === CircuitState.HALF_OPEN) return;
 
     this.state = CircuitState.HALF_OPEN;
+    this.lastStateChange = Date.now();
     this.consecutiveSuccesses = 0;
     this.logCircuitEvent('CIRCUIT_HALF_OPEN', 'Testing service recovery');
     this.emit('halfOpen', this.getStats());
@@ -234,9 +255,36 @@ export class CircuitBreaker extends EventEmitter {
       successes: this.successes,
       lastFailureTime: this.lastFailureTime,
       lastSuccessTime: this.lastSuccessTime,
+      lastStateChange: this.lastStateChange,
       totalRequests: this.totalRequests,
       rejectedRequests: this.rejectedRequests,
       consecutiveSuccesses: this.consecutiveSuccesses,
+    };
+  }
+
+  /**
+   * Get detailed metrics for observability
+   * ISO/IEC 25010 compliant - Reliability metrics
+   */
+  getMetrics(): CircuitBreakerMetrics {
+    this.cleanupOldFailures();
+    const stats = this.getStats();
+    const totalOps = stats.successes + stats.failures;
+    const healthPercentage = totalOps > 0
+      ? Math.round((stats.successes / totalOps) * 100)
+      : 100;
+
+    return {
+      ...stats,
+      config: {
+        failureThreshold: this.config.failureThreshold,
+        resetTimeout: this.config.resetTimeout,
+        successThreshold: this.config.successThreshold,
+        failureWindow: this.config.failureWindow,
+        name: this.config.name,
+      },
+      windowFailures: this.failureTimestamps.length,
+      healthPercentage,
     };
   }
 
@@ -259,6 +307,7 @@ export class CircuitBreaker extends EventEmitter {
    */
   reset(): void {
     this.state = CircuitState.CLOSED;
+    this.lastStateChange = Date.now();
     this.failures = 0;
     this.consecutiveSuccesses = 0;
     this.failureTimestamps = [];

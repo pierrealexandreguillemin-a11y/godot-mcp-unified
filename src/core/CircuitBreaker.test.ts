@@ -457,6 +457,120 @@ describe('CircuitBreaker', () => {
     });
   });
 
+  describe('getMetrics', () => {
+    it('should return extended metrics', async () => {
+      await breaker.execute(() => Promise.resolve('ok'));
+      const metrics = breaker.getMetrics();
+
+      expect(metrics).toHaveProperty('config');
+      expect(metrics).toHaveProperty('windowFailures');
+      expect(metrics).toHaveProperty('healthPercentage');
+    });
+
+    it('should include configuration in metrics', async () => {
+      const metrics = breaker.getMetrics();
+
+      expect(metrics.config.name).toBe('test');
+      expect(metrics.config.failureThreshold).toBe(3);
+      expect(metrics.config.resetTimeout).toBe(100);
+      expect(metrics.config.successThreshold).toBe(2);
+      expect(metrics.config.failureWindow).toBe(1000);
+    });
+
+    it('should calculate health percentage', async () => {
+      // 3 successes, 1 failure = 75% health
+      await breaker.execute(() => Promise.resolve('ok'));
+      await breaker.execute(() => Promise.resolve('ok'));
+      await breaker.execute(() => Promise.resolve('ok'));
+      try {
+        await breaker.execute(() => Promise.reject(new Error('fail')));
+      } catch {
+        // Expected
+      }
+
+      const metrics = breaker.getMetrics();
+      expect(metrics.healthPercentage).toBe(75);
+    });
+
+    it('should return 100% health when no operations', () => {
+      const metrics = breaker.getMetrics();
+      expect(metrics.healthPercentage).toBe(100);
+    });
+
+    it('should track window failures separately from total', async () => {
+      try {
+        await breaker.execute(() => Promise.reject(new Error('fail')));
+      } catch {
+        // Expected
+      }
+
+      const metrics = breaker.getMetrics();
+      expect(metrics.failures).toBe(1);
+      expect(metrics.windowFailures).toBe(1);
+    });
+  });
+
+  describe('lastStateChange tracking', () => {
+    it('should track lastStateChange on initialization', () => {
+      const stats = breaker.getStats();
+      expect(stats.lastStateChange).toBeDefined();
+      expect(stats.lastStateChange).toBeGreaterThan(0);
+    });
+
+    it('should update lastStateChange when circuit opens', async () => {
+      const initialTime = breaker.getStats().lastStateChange;
+
+      // Wait a bit to ensure time difference
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Open the circuit
+      for (let i = 0; i < 3; i++) {
+        try {
+          await breaker.execute(() => Promise.reject(new Error('fail')));
+        } catch {
+          // Expected
+        }
+      }
+
+      const stats = breaker.getStats();
+      expect(stats.lastStateChange).toBeGreaterThan(initialTime);
+    });
+
+    it('should update lastStateChange when circuit closes', async () => {
+      // Open the circuit
+      for (let i = 0; i < 3; i++) {
+        try {
+          await breaker.execute(() => Promise.reject(new Error('fail')));
+        } catch {
+          // Expected
+        }
+      }
+
+      const openTime = breaker.getStats().lastStateChange;
+
+      // Wait for reset timeout
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
+      // Succeed twice to close
+      await breaker.execute(() => Promise.resolve('ok'));
+      await breaker.execute(() => Promise.resolve('ok'));
+
+      const stats = breaker.getStats();
+      expect(stats.lastStateChange).toBeGreaterThan(openTime);
+    });
+
+    it('should update lastStateChange on reset', async () => {
+      const initialTime = breaker.getStats().lastStateChange;
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      breaker.reset();
+
+      const stats = breaker.getStats();
+      expect(stats.lastStateChange).toBeGreaterThan(initialTime);
+    });
+  });
+
   describe('edge cases', () => {
     it('should handle sync errors in operation', async () => {
       await expect(

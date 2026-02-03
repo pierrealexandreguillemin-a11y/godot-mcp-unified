@@ -113,11 +113,11 @@ describe('config', () => {
       expect(config).toHaveProperty('readOnlyMode');
     });
 
-    it('should have strictPathValidation as false by default', async () => {
+    it('should have strictPathValidation as true by default for ISO 5055 compliance', async () => {
       const { getDefaultConfig } = await import('./config.js');
       const config = getDefaultConfig();
 
-      expect(config.strictPathValidation).toBe(false);
+      expect(config.strictPathValidation).toBe(true);
     });
 
     it('should use GODOT_PATH from env when available', async () => {
@@ -189,7 +189,7 @@ describe('config', () => {
 
       // godotDebugMode should still be the default (true)
       expect(result.godotDebugMode).toBe(true);
-      expect(result.strictPathValidation).toBe(false);
+      expect(result.strictPathValidation).toBe(true);
     });
 
     it('should handle empty user config object', async () => {
@@ -238,9 +238,9 @@ describe('config', () => {
       expect(typeof config.READ_ONLY_MODE).toBe('boolean');
     });
 
-    it('should have strictPathValidation as false', async () => {
+    it('should have strictPathValidation as true for ISO 5055 compliance', async () => {
       const { config } = await import('./config.js');
-      expect(config.strictPathValidation).toBe(false);
+      expect(config.strictPathValidation).toBe(true);
     });
   });
 
@@ -256,7 +256,7 @@ describe('config', () => {
         godotPath: '/usr/bin/godot',
         debugMode: true,
         godotDebugMode: true,
-        strictPathValidation: false,
+        strictPathValidation: true,
         readOnlyMode: false,
       };
 

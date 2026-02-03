@@ -55,7 +55,7 @@ export const getDefaultConfig = (): GodotServerConfig => ({
   godotPath: process.env.GODOT_PATH,
   debugMode: DEBUG_MODE,
   godotDebugMode: GODOT_DEBUG_MODE,
-  strictPathValidation: false,
+  strictPathValidation: true,
   readOnlyMode: READ_ONLY_MODE,
 });
 

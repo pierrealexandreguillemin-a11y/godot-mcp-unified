@@ -4,7 +4,7 @@ export default {
   testEnvironment: 'node',
   extensionsToTreatAsEsm: ['.ts'],
   moduleNameMapper: {
-    '^(\.{1,2}/.*)\.js$': '$1',
+    '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   transform: {
     '^.+\.tsx?$': [
@@ -12,6 +12,9 @@ export default {
       {
         useESM: true,
         tsconfig: 'tsconfig.test.json',
+        diagnostics: {
+          ignoreDiagnostics: [1343, 1378],
+        },
       },
     ],
   },

@@ -11,36 +11,45 @@
  * - Error handling catch block (lines 99-106)
  */
 
+import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
-import {
-  createTempProject,
-  getResponseText,
-  parseJsonResponse,
-  isErrorResponse,
-} from '../test-utils.js';
-import { handleGetProjectInfo } from './GetProjectInfoTool.js';
 
-// Mock the Godot-dependent modules
-jest.mock('../../core/PathManager', () => ({
-  detectGodotPath: jest.fn(),
+// Define mock functions with proper types BEFORE mock module declarations
+const mockDetectGodotPath = jest.fn<(...args: unknown[]) => Promise<string | null>>();
+const mockGetGodotPool = jest.fn<(...args: unknown[]) => unknown>();
+const mockGetProjectStructure = jest.fn<(...args: unknown[]) => unknown>();
+
+// Mock the Godot-dependent modules using unstable_mockModule for ESM
+jest.unstable_mockModule('../../core/PathManager.js', () => ({
+  detectGodotPath: mockDetectGodotPath,
+  validatePath: jest.fn(() => true),
+  normalizePath: jest.fn((p: string) => p),
+  normalizeHandlerPaths: jest.fn((args: Record<string, unknown>) => args),
 }));
 
-jest.mock('../../core/ProcessPool', () => ({
-  getGodotPool: jest.fn(),
+jest.unstable_mockModule('../../core/ProcessPool.js', () => ({
+  getGodotPool: mockGetGodotPool,
 }));
 
-jest.mock('../../utils/FileUtils', () => ({
-  getProjectStructure: jest.fn(),
+jest.unstable_mockModule('../../utils/FileUtils.js', () => ({
+  getProjectStructure: mockGetProjectStructure,
+  isGodotProject: jest.fn(() => true),
+  findGodotProjects: jest.fn(() => []),
 }));
 
-import { detectGodotPath } from '../../core/PathManager';
-import { getGodotPool } from '../../core/ProcessPool';
-import { getProjectStructure } from '../../utils/FileUtils';
+// Dynamic imports AFTER mocks are set up
+const { createTempProject, getResponseText, parseJsonResponse, isErrorResponse } = await import('../test-utils.js');
+const { handleGetProjectInfo } = await import('./GetProjectInfoTool.js');
 
-const mockDetectGodotPath = detectGodotPath as jest.MockedFunction<typeof detectGodotPath>;
-const mockGetGodotPool = getGodotPool as jest.MockedFunction<typeof getGodotPool>;
-const mockGetProjectStructure = getProjectStructure as jest.MockedFunction<typeof getProjectStructure>;
+// Helper to create a typed mock execute function
+type ExecuteResult = { stdout: string; stderr: string; exitCode: number; duration: number };
+const createMockExecute = (resolveValue?: ExecuteResult, rejectValue?: unknown) => {
+  if (rejectValue !== undefined) {
+    return jest.fn<(...args: unknown[]) => Promise<ExecuteResult>>().mockRejectedValue(rejectValue);
+  }
+  return jest.fn<(...args: unknown[]) => Promise<ExecuteResult>>().mockResolvedValue(resolveValue!);
+};
 
 describe('GetProjectInfoTool', () => {
   let projectPath: string;
@@ -71,9 +80,10 @@ describe('GetProjectInfoTool', () => {
     });
 
     it('should reject non-existent project path', async () => {
+      mockDetectGodotPath.mockResolvedValue(null);
       const result = await handleGetProjectInfo({ projectPath: '/non/existent/path' });
       expect(isErrorResponse(result)).toBe(true);
-      expect(getResponseText(result)).toMatch(/not found|does not exist|invalid|Not a valid/i);
+      expect(getResponseText(result)).toMatch(/not found|does not exist|invalid|Not a valid|Could not find/i);
     });
   });
 
@@ -107,14 +117,14 @@ describe('GetProjectInfoTool', () => {
       mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
 
       const mockPool = {
-        execute: jest.fn().mockResolvedValue({
+        execute: createMockExecute({
           stdout: '4.2.stable.official\n',
           stderr: '',
           exitCode: 0,
           duration: 100,
         }),
       };
-      mockGetGodotPool.mockReturnValue(mockPool as unknown as ReturnType<typeof getGodotPool>);
+      mockGetGodotPool.mockReturnValue(mockPool);
 
       mockGetProjectStructure.mockReturnValue({
         scenes: ['scenes/main.tscn'],
@@ -142,14 +152,14 @@ describe('GetProjectInfoTool', () => {
       mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
 
       const mockPool = {
-        execute: jest.fn().mockResolvedValue({
+        execute: createMockExecute({
           stdout: '4.2.stable\n',
           stderr: '',
           exitCode: 0,
           duration: 50,
         }),
       };
-      mockGetGodotPool.mockReturnValue(mockPool as unknown as ReturnType<typeof getGodotPool>);
+      mockGetGodotPool.mockReturnValue(mockPool);
       mockGetProjectStructure.mockReturnValue({});
 
       // The default test project has config/name="Test Project"
@@ -164,14 +174,14 @@ describe('GetProjectInfoTool', () => {
       mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
 
       const mockPool = {
-        execute: jest.fn().mockResolvedValue({
+        execute: createMockExecute({
           stdout: '4.2.stable\n',
           stderr: '',
           exitCode: 0,
           duration: 50,
         }),
       };
-      mockGetGodotPool.mockReturnValue(mockPool as unknown as ReturnType<typeof getGodotPool>);
+      mockGetGodotPool.mockReturnValue(mockPool);
       mockGetProjectStructure.mockReturnValue({});
 
       // Overwrite project.godot without config/name
@@ -193,14 +203,14 @@ describe('GetProjectInfoTool', () => {
     it('should call pool.execute with correct arguments (line 63)', async () => {
       mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
 
-      const mockExecute = jest.fn().mockResolvedValue({
+      const mockExecute = createMockExecute({
         stdout: '4.2\n',
         stderr: '',
         exitCode: 0,
         duration: 50,
       });
       const mockPool = { execute: mockExecute };
-      mockGetGodotPool.mockReturnValue(mockPool as unknown as ReturnType<typeof getGodotPool>);
+      mockGetGodotPool.mockReturnValue(mockPool);
       mockGetProjectStructure.mockReturnValue({});
 
       await handleGetProjectInfo({ projectPath });
@@ -216,14 +226,14 @@ describe('GetProjectInfoTool', () => {
       mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
 
       const mockPool = {
-        execute: jest.fn().mockResolvedValue({
+        execute: createMockExecute({
           stdout: '4.2\n',
           stderr: '',
           exitCode: 0,
           duration: 50,
         }),
       };
-      mockGetGodotPool.mockReturnValue(mockPool as unknown as ReturnType<typeof getGodotPool>);
+      mockGetGodotPool.mockReturnValue(mockPool);
 
       const expectedStructure = {
         scenes: ['a.tscn', 'b.tscn'],
@@ -245,9 +255,9 @@ describe('GetProjectInfoTool', () => {
       mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
 
       const mockPool = {
-        execute: jest.fn().mockRejectedValue(new Error('Godot process crashed')),
+        execute: createMockExecute(undefined, new Error('Godot process crashed')),
       };
-      mockGetGodotPool.mockReturnValue(mockPool as unknown as ReturnType<typeof getGodotPool>);
+      mockGetGodotPool.mockReturnValue(mockPool);
 
       const result = await handleGetProjectInfo({ projectPath });
 
@@ -260,9 +270,9 @@ describe('GetProjectInfoTool', () => {
       mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
 
       const mockPool = {
-        execute: jest.fn().mockRejectedValue('string error'),
+        execute: createMockExecute(undefined, 'string error'),
       };
-      mockGetGodotPool.mockReturnValue(mockPool as unknown as ReturnType<typeof getGodotPool>);
+      mockGetGodotPool.mockReturnValue(mockPool);
 
       const result = await handleGetProjectInfo({ projectPath });
 

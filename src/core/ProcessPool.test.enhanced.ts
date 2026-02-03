@@ -21,7 +21,7 @@
  * - getGodotPool/shutdownGodotPool (lines 468-486)
  */
 
-import { jest } from '@jest/globals';
+import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 import { EventEmitter } from 'events';
 import { Readable } from 'stream';
 

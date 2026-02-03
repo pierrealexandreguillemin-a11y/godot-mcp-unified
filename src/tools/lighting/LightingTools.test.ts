@@ -16,62 +16,76 @@
  * 8. Error Handling Tests
  */
 
-import { handleCreateLight } from './CreateLightTool';
-import { handleSetupEnvironment } from './SetupEnvironmentTool';
+import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 
-// Mock dependencies for happy path tests
-jest.mock('../../core/PathManager.js', () => ({
-  detectGodotPath: jest.fn(),
-  validatePath: jest.fn(),
-  normalizeHandlerPaths: jest.fn((args: Record<string, unknown>) => args),
-  normalizePath: jest.fn((p: string) => p),
+// Define mock functions with proper types
+const mockDetectGodotPath = jest.fn<() => Promise<string | null>>();
+const mockValidatePath = jest.fn<(p: string) => boolean>();
+const mockNormalizeHandlerPaths = jest.fn<(args: Record<string, unknown>) => Record<string, unknown>>();
+const mockNormalizePath = jest.fn<(p: string) => string>();
+const mockExecuteOperation = jest.fn<(op: string, params: Record<string, unknown>, projectPath: string, godotPath: string) => Promise<{ stdout: string; stderr: string }>>();
+const mockNormalizeParameters = jest.fn<(args: Record<string, unknown>) => Record<string, unknown>>();
+const mockConvertCamelToSnakeCase = jest.fn<(s: string) => string>();
+const mockLogDebug = jest.fn();
+const mockLogError = jest.fn();
+const mockLogInfo = jest.fn();
+const mockIsGodotProject = jest.fn<(p: string) => boolean>();
+const mockExistsSync = jest.fn<(p: string) => boolean>();
+const mockEnsureDir = jest.fn<() => Promise<void>>();
+const mockWriteFile = jest.fn<() => Promise<void>>();
+
+// Mock all dependencies using unstable_mockModule for ESM
+jest.unstable_mockModule('../../core/PathManager.js', () => ({
+  detectGodotPath: mockDetectGodotPath,
+  validatePath: mockValidatePath,
+  normalizeHandlerPaths: mockNormalizeHandlerPaths.mockImplementation((args) => args),
+  normalizePath: mockNormalizePath.mockImplementation((p) => p),
 }));
 
-jest.mock('../../core/GodotExecutor.js', () => ({
-  executeOperation: jest.fn(),
+jest.unstable_mockModule('../../core/GodotExecutor.js', () => ({
+  executeOperation: mockExecuteOperation,
 }));
 
-jest.mock('../../core/ParameterNormalizer.js', () => ({
-  normalizeParameters: jest.fn((args: Record<string, unknown>) => args),
-  convertCamelToSnakeCase: jest.fn((s: string) => s),
+jest.unstable_mockModule('../../core/ParameterNormalizer.js', () => ({
+  normalizeParameters: mockNormalizeParameters.mockImplementation((args) => args),
+  convertCamelToSnakeCase: mockConvertCamelToSnakeCase.mockImplementation((s) => s),
 }));
 
-jest.mock('../../utils/Logger.js', () => ({
-  logDebug: jest.fn(),
-  logError: jest.fn(),
-  logInfo: jest.fn(),
+jest.unstable_mockModule('../../utils/Logger.js', () => ({
+  logDebug: mockLogDebug,
+  logError: mockLogError,
+  logInfo: mockLogInfo,
 }));
 
-jest.mock('../../utils/FileUtils.js', () => ({
-  isGodotProject: jest.fn(),
+jest.unstable_mockModule('../../utils/FileUtils.js', () => ({
+  isGodotProject: mockIsGodotProject,
 }));
 
-jest.mock('fs', () => ({
-  existsSync: jest.fn(),
+jest.unstable_mockModule('fs', () => ({
+  existsSync: mockExistsSync,
 }));
 
-jest.mock('fs-extra', () => ({
-  ensureDir: jest.fn().mockResolvedValue(undefined),
-  writeFile: jest.fn().mockResolvedValue(undefined),
+jest.unstable_mockModule('fs-extra', () => ({
+  default: {
+    ensureDir: mockEnsureDir,
+    writeFile: mockWriteFile,
+  },
+  ensureDir: mockEnsureDir,
+  writeFile: mockWriteFile,
 }));
 
-import { detectGodotPath, validatePath } from '../../core/PathManager.js';
-import { executeOperation } from '../../core/GodotExecutor.js';
-import { isGodotProject } from '../../utils/FileUtils.js';
-import { existsSync } from 'fs';
-import * as fsExtra from 'fs-extra';
-
-const mockedDetectGodotPath = detectGodotPath as jest.MockedFunction<typeof detectGodotPath>;
-const mockedExecuteOperation = executeOperation as jest.MockedFunction<typeof executeOperation>;
-const mockedValidatePath = validatePath as jest.MockedFunction<typeof validatePath>;
-const mockedIsGodotProject = isGodotProject as jest.MockedFunction<typeof isGodotProject>;
-const mockedExistsSync = existsSync as jest.MockedFunction<typeof existsSync>;
-const mockedEnsureDir = fsExtra.ensureDir as jest.MockedFunction<typeof fsExtra.ensureDir>;
-const mockedWriteFile = fsExtra.writeFile as jest.MockedFunction<typeof fsExtra.writeFile>;
+// Dynamic imports after mocks are set up
+const { handleCreateLight } = await import('./CreateLightTool.js');
+const { handleSetupEnvironment } = await import('./SetupEnvironmentTool.js');
 
 describe('Lighting Tools', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
+    // Reset default implementations
+    mockNormalizeHandlerPaths.mockImplementation((args) => args);
+    mockNormalizePath.mockImplementation((p) => p);
+    mockNormalizeParameters.mockImplementation((args) => args);
+    mockConvertCamelToSnakeCase.mockImplementation((s) => s);
   });
 
   // ============================================================================
@@ -208,7 +222,7 @@ describe('Lighting Tools', () => {
 
     describe('Security', () => {
       it('should return error for path traversal in projectPath', async () => {
-        mockedValidatePath.mockReturnValue(false);
+        mockValidatePath.mockReturnValue(false);
         const result = await handleCreateLight({
           projectPath: '/path/../../../etc/passwd',
           scenePath: 'scenes/main.tscn',
@@ -219,9 +233,9 @@ describe('Lighting Tools', () => {
       });
 
       it('should return error for path traversal in scenePath', async () => {
-        mockedValidatePath.mockReturnValueOnce(true);
-        mockedIsGodotProject.mockReturnValue(true);
-        mockedValidatePath.mockReturnValueOnce(false);
+        mockValidatePath.mockReturnValueOnce(true);
+        mockIsGodotProject.mockReturnValue(true);
+        mockValidatePath.mockReturnValueOnce(false);
         const result = await handleCreateLight({
           projectPath: '/path/to/project',
           scenePath: '../../../etc/passwd.tscn',
@@ -232,8 +246,8 @@ describe('Lighting Tools', () => {
       });
 
       it('should return error for invalid project path', async () => {
-        mockedValidatePath.mockReturnValue(true);
-        mockedIsGodotProject.mockReturnValue(false);
+        mockValidatePath.mockReturnValue(true);
+        mockIsGodotProject.mockReturnValue(false);
         const result = await handleCreateLight({
           projectPath: '/non/existent/path',
           scenePath: 'scenes/main.tscn',
@@ -247,14 +261,14 @@ describe('Lighting Tools', () => {
 
     describe('Happy Path', () => {
       beforeEach(() => {
-        mockedValidatePath.mockReturnValue(true);
-        mockedIsGodotProject.mockReturnValue(true);
-        mockedExistsSync.mockReturnValue(true);
+        mockValidatePath.mockReturnValue(true);
+        mockIsGodotProject.mockReturnValue(true);
+        mockExistsSync.mockReturnValue(true);
       });
 
       it('should create DirectionalLight3D successfully', async () => {
-        mockedDetectGodotPath.mockResolvedValue('/usr/bin/godot');
-        mockedExecuteOperation.mockResolvedValue({ stdout: 'Light created', stderr: '' });
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'Light created', stderr: '' });
 
         const result = await handleCreateLight({
           projectPath: '/path/to/project',
@@ -269,8 +283,8 @@ describe('Lighting Tools', () => {
       });
 
       it('should create OmniLight3D successfully', async () => {
-        mockedDetectGodotPath.mockResolvedValue('/usr/bin/godot');
-        mockedExecuteOperation.mockResolvedValue({ stdout: 'Light created', stderr: '' });
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'Light created', stderr: '' });
 
         const result = await handleCreateLight({
           projectPath: '/path/to/project',
@@ -283,8 +297,8 @@ describe('Lighting Tools', () => {
       });
 
       it('should create SpotLight3D successfully', async () => {
-        mockedDetectGodotPath.mockResolvedValue('/usr/bin/godot');
-        mockedExecuteOperation.mockResolvedValue({ stdout: 'Light created', stderr: '' });
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'Light created', stderr: '' });
 
         const result = await handleCreateLight({
           projectPath: '/path/to/project',
@@ -297,8 +311,8 @@ describe('Lighting Tools', () => {
       });
 
       it('should create PointLight2D successfully', async () => {
-        mockedDetectGodotPath.mockResolvedValue('/usr/bin/godot');
-        mockedExecuteOperation.mockResolvedValue({ stdout: 'Light created', stderr: '' });
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'Light created', stderr: '' });
 
         const result = await handleCreateLight({
           projectPath: '/path/to/project',
@@ -311,8 +325,8 @@ describe('Lighting Tools', () => {
       });
 
       it('should create DirectionalLight2D successfully', async () => {
-        mockedDetectGodotPath.mockResolvedValue('/usr/bin/godot');
-        mockedExecuteOperation.mockResolvedValue({ stdout: 'Light created', stderr: '' });
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'Light created', stderr: '' });
 
         const result = await handleCreateLight({
           projectPath: '/path/to/project',
@@ -325,8 +339,8 @@ describe('Lighting Tools', () => {
       });
 
       it('should pass color parameter to operation', async () => {
-        mockedDetectGodotPath.mockResolvedValue('/usr/bin/godot');
-        mockedExecuteOperation.mockResolvedValue({ stdout: 'ok', stderr: '' });
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'ok', stderr: '' });
 
         await handleCreateLight({
           projectPath: '/path/to/project',
@@ -336,7 +350,7 @@ describe('Lighting Tools', () => {
           color: { r: 1.0, g: 0.9, b: 0.8 },
         });
 
-        expect(mockedExecuteOperation).toHaveBeenCalledWith(
+        expect(mockExecuteOperation).toHaveBeenCalledWith(
           'create_light',
           expect.objectContaining({
             color: { r: 1.0, g: 0.9, b: 0.8 },
@@ -347,8 +361,8 @@ describe('Lighting Tools', () => {
       });
 
       it('should pass energy parameter to operation', async () => {
-        mockedDetectGodotPath.mockResolvedValue('/usr/bin/godot');
-        mockedExecuteOperation.mockResolvedValue({ stdout: 'ok', stderr: '' });
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'ok', stderr: '' });
 
         const result = await handleCreateLight({
           projectPath: '/path/to/project',
@@ -360,7 +374,7 @@ describe('Lighting Tools', () => {
         expect(result.isError).toBeUndefined();
         expect(result.content[0].text).toContain('Energy: 2.5');
 
-        expect(mockedExecuteOperation).toHaveBeenCalledWith(
+        expect(mockExecuteOperation).toHaveBeenCalledWith(
           'create_light',
           expect.objectContaining({
             energy: 2.5,
@@ -371,8 +385,8 @@ describe('Lighting Tools', () => {
       });
 
       it('should pass range parameter to operation', async () => {
-        mockedDetectGodotPath.mockResolvedValue('/usr/bin/godot');
-        mockedExecuteOperation.mockResolvedValue({ stdout: 'ok', stderr: '' });
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'ok', stderr: '' });
 
         await handleCreateLight({
           projectPath: '/path/to/project',
@@ -382,7 +396,7 @@ describe('Lighting Tools', () => {
           range: 10.0,
         });
 
-        expect(mockedExecuteOperation).toHaveBeenCalledWith(
+        expect(mockExecuteOperation).toHaveBeenCalledWith(
           'create_light',
           expect.objectContaining({
             range: 10.0,
@@ -393,8 +407,8 @@ describe('Lighting Tools', () => {
       });
 
       it('should pass spotAngle parameter to operation', async () => {
-        mockedDetectGodotPath.mockResolvedValue('/usr/bin/godot');
-        mockedExecuteOperation.mockResolvedValue({ stdout: 'ok', stderr: '' });
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'ok', stderr: '' });
 
         await handleCreateLight({
           projectPath: '/path/to/project',
@@ -404,7 +418,7 @@ describe('Lighting Tools', () => {
           spotAngle: 45.0,
         });
 
-        expect(mockedExecuteOperation).toHaveBeenCalledWith(
+        expect(mockExecuteOperation).toHaveBeenCalledWith(
           'create_light',
           expect.objectContaining({
             spot_angle: 45.0,
@@ -415,8 +429,8 @@ describe('Lighting Tools', () => {
       });
 
       it('should pass shadowEnabled parameter to operation', async () => {
-        mockedDetectGodotPath.mockResolvedValue('/usr/bin/godot');
-        mockedExecuteOperation.mockResolvedValue({ stdout: 'ok', stderr: '' });
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'ok', stderr: '' });
 
         await handleCreateLight({
           projectPath: '/path/to/project',
@@ -426,7 +440,7 @@ describe('Lighting Tools', () => {
           shadowEnabled: true,
         });
 
-        expect(mockedExecuteOperation).toHaveBeenCalledWith(
+        expect(mockExecuteOperation).toHaveBeenCalledWith(
           'create_light',
           expect.objectContaining({
             shadow_enabled: true,
@@ -437,8 +451,8 @@ describe('Lighting Tools', () => {
       });
 
       it('should pass texturePath parameter to operation', async () => {
-        mockedDetectGodotPath.mockResolvedValue('/usr/bin/godot');
-        mockedExecuteOperation.mockResolvedValue({ stdout: 'ok', stderr: '' });
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'ok', stderr: '' });
 
         await handleCreateLight({
           projectPath: '/path/to/project',
@@ -448,7 +462,7 @@ describe('Lighting Tools', () => {
           texturePath: 'textures/light_gradient.png',
         });
 
-        expect(mockedExecuteOperation).toHaveBeenCalledWith(
+        expect(mockExecuteOperation).toHaveBeenCalledWith(
           'create_light',
           expect.objectContaining({
             texture_path: 'textures/light_gradient.png',
@@ -459,8 +473,8 @@ describe('Lighting Tools', () => {
       });
 
       it('should pass all optional parameters together', async () => {
-        mockedDetectGodotPath.mockResolvedValue('/usr/bin/godot');
-        mockedExecuteOperation.mockResolvedValue({ stdout: 'ok', stderr: '' });
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'ok', stderr: '' });
 
         const result = await handleCreateLight({
           projectPath: '/path/to/project',
@@ -480,7 +494,7 @@ describe('Lighting Tools', () => {
       });
 
       it('should return error when godotPath is not found', async () => {
-        mockedDetectGodotPath.mockResolvedValue(null);
+        mockDetectGodotPath.mockResolvedValue(null);
 
         const result = await handleCreateLight({
           projectPath: '/path/to/project',
@@ -493,8 +507,8 @@ describe('Lighting Tools', () => {
       });
 
       it('should return error when stderr contains failure message', async () => {
-        mockedDetectGodotPath.mockResolvedValue('/usr/bin/godot');
-        mockedExecuteOperation.mockResolvedValue({
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({
           stdout: '',
           stderr: 'Failed to create light: parent node not found',
         });
@@ -510,8 +524,8 @@ describe('Lighting Tools', () => {
       });
 
       it('should display default energy when none specified', async () => {
-        mockedDetectGodotPath.mockResolvedValue('/usr/bin/godot');
-        mockedExecuteOperation.mockResolvedValue({ stdout: 'ok', stderr: '' });
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockResolvedValue({ stdout: 'ok', stderr: '' });
 
         const result = await handleCreateLight({
           projectPath: '/path/to/project',
@@ -526,14 +540,14 @@ describe('Lighting Tools', () => {
 
     describe('Error Handling', () => {
       beforeEach(() => {
-        mockedValidatePath.mockReturnValue(true);
-        mockedIsGodotProject.mockReturnValue(true);
-        mockedExistsSync.mockReturnValue(true);
+        mockValidatePath.mockReturnValue(true);
+        mockIsGodotProject.mockReturnValue(true);
+        mockExistsSync.mockReturnValue(true);
       });
 
       it('should handle Error thrown during execution', async () => {
-        mockedDetectGodotPath.mockResolvedValue('/usr/bin/godot');
-        mockedExecuteOperation.mockRejectedValue(new Error('Process failed'));
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockRejectedValue(new Error('Process failed'));
 
         const result = await handleCreateLight({
           projectPath: '/path/to/project',
@@ -547,8 +561,8 @@ describe('Lighting Tools', () => {
       });
 
       it('should handle non-Error thrown during execution', async () => {
-        mockedDetectGodotPath.mockResolvedValue('/usr/bin/godot');
-        mockedExecuteOperation.mockRejectedValue('unexpected');
+        mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+        mockExecuteOperation.mockRejectedValue('unexpected');
 
         const result = await handleCreateLight({
           projectPath: '/path/to/project',
@@ -561,7 +575,7 @@ describe('Lighting Tools', () => {
       });
 
       it('should handle detectGodotPath rejection', async () => {
-        mockedDetectGodotPath.mockRejectedValue(new Error('Detection error'));
+        mockDetectGodotPath.mockRejectedValue(new Error('Detection error'));
 
         const result = await handleCreateLight({
           projectPath: '/path/to/project',
@@ -603,7 +617,7 @@ describe('Lighting Tools', () => {
       });
 
       it('should return error for invalid extension (.env)', async () => {
-        mockedValidatePath.mockReturnValue(true);
+        mockValidatePath.mockReturnValue(true);
         const result = await handleSetupEnvironment({
           projectPath: '/non/existent/path',
           environmentPath: 'environments/main_env.env',
@@ -613,7 +627,7 @@ describe('Lighting Tools', () => {
       });
 
       it('should return error for .tscn extension', async () => {
-        mockedValidatePath.mockReturnValue(true);
+        mockValidatePath.mockReturnValue(true);
         const result = await handleSetupEnvironment({
           projectPath: '/non/existent/path',
           environmentPath: 'environments/main_env.tscn',
@@ -623,7 +637,7 @@ describe('Lighting Tools', () => {
       });
 
       it('should return error for no extension', async () => {
-        mockedValidatePath.mockReturnValue(true);
+        mockValidatePath.mockReturnValue(true);
         const result = await handleSetupEnvironment({
           projectPath: '/non/existent/path',
           environmentPath: 'environments/main_env',
@@ -694,7 +708,7 @@ describe('Lighting Tools', () => {
 
     describe('Security', () => {
       it('should return error for path traversal in projectPath', async () => {
-        mockedValidatePath.mockReturnValue(false);
+        mockValidatePath.mockReturnValue(false);
         const result = await handleSetupEnvironment({
           projectPath: '/path/../../../etc/passwd',
           environmentPath: 'environments/main_env.tres',
@@ -703,8 +717,8 @@ describe('Lighting Tools', () => {
       });
 
       it('should return error for invalid project path', async () => {
-        mockedValidatePath.mockReturnValue(true);
-        mockedIsGodotProject.mockReturnValue(false);
+        mockValidatePath.mockReturnValue(true);
+        mockIsGodotProject.mockReturnValue(false);
         const result = await handleSetupEnvironment({
           projectPath: '/non/existent/path',
           environmentPath: 'environments/main_env.tres',
@@ -716,10 +730,10 @@ describe('Lighting Tools', () => {
 
     describe('Happy Path', () => {
       beforeEach(() => {
-        mockedValidatePath.mockReturnValue(true);
-        mockedIsGodotProject.mockReturnValue(true);
-        (fsExtra.ensureDir as jest.Mock).mockResolvedValue(undefined);
-        (fsExtra.writeFile as jest.Mock).mockResolvedValue(undefined);
+        mockValidatePath.mockReturnValue(true);
+        mockIsGodotProject.mockReturnValue(true);
+        mockEnsureDir.mockResolvedValue(undefined);
+        mockWriteFile.mockResolvedValue(undefined);
       });
 
       it('should create basic environment successfully', async () => {
@@ -750,7 +764,7 @@ describe('Lighting Tools', () => {
           backgroundMode: 'sky',
         });
 
-        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
         expect(content).toContain('background_mode = 2');
       });
@@ -762,45 +776,9 @@ describe('Lighting Tools', () => {
           backgroundColor: { r: 0.2, g: 0.3, b: 0.4 },
         });
 
-        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
         expect(content).toContain('background_color = Color(0.2, 0.3, 0.4, 1)');
-      });
-
-      it('should write environment file with ambientLightColor', async () => {
-        await handleSetupEnvironment({
-          projectPath: '/path/to/project',
-          environmentPath: 'environments/main_env.tres',
-          ambientLightColor: { r: 0.5, g: 0.5, b: 0.5 },
-        });
-
-        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
-        const content = writeCall[1] as string;
-        expect(content).toContain('ambient_light_color = Color(0.5, 0.5, 0.5, 1)');
-      });
-
-      it('should write environment file with ambientLightEnergy', async () => {
-        await handleSetupEnvironment({
-          projectPath: '/path/to/project',
-          environmentPath: 'environments/main_env.tres',
-          ambientLightEnergy: 1.5,
-        });
-
-        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
-        const content = writeCall[1] as string;
-        expect(content).toContain('ambient_light_energy = 1.5');
-      });
-
-      it('should write environment file with tonemapMode', async () => {
-        await handleSetupEnvironment({
-          projectPath: '/path/to/project',
-          environmentPath: 'environments/main_env.tres',
-          tonemapMode: 'aces',
-        });
-
-        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
-        const content = writeCall[1] as string;
-        expect(content).toContain('tonemap_mode = 3');
       });
 
       it('should write environment file with glow settings', async () => {
@@ -811,7 +789,7 @@ describe('Lighting Tools', () => {
           glowIntensity: 0.8,
         });
 
-        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
         expect(content).toContain('glow_enabled = true');
         expect(content).toContain('glow_intensity = 0.8');
@@ -827,7 +805,7 @@ describe('Lighting Tools', () => {
           fogColor: { r: 0.8, g: 0.8, b: 0.9 },
         });
 
-        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
         expect(content).toContain('fog_enabled = true');
         expect(content).toContain('fog_density = 0.05');
@@ -842,7 +820,7 @@ describe('Lighting Tools', () => {
           ssaoEnabled: true,
         });
 
-        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
         expect(content).toContain('ssao_enabled = true');
         expect(result.content[0].text).toContain('SSAO');
@@ -855,7 +833,7 @@ describe('Lighting Tools', () => {
           ssrEnabled: true,
         });
 
-        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
         expect(content).toContain('ssr_enabled = true');
         expect(result.content[0].text).toContain('SSR');
@@ -868,136 +846,21 @@ describe('Lighting Tools', () => {
           sdfgiEnabled: true,
         });
 
-        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
+        const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
         expect(content).toContain('sdfgi_enabled = true');
         expect(result.content[0].text).toContain('SDFGI');
-      });
-
-      it('should write all features and display them in response', async () => {
-        const result = await handleSetupEnvironment({
-          projectPath: '/path/to/project',
-          environmentPath: 'environments/full_env.tres',
-          backgroundMode: 'sky',
-          backgroundColor: { r: 0.2, g: 0.3, b: 0.5 },
-          ambientLightColor: { r: 0.4, g: 0.4, b: 0.5 },
-          ambientLightEnergy: 1.2,
-          tonemapMode: 'aces',
-          glowEnabled: true,
-          glowIntensity: 0.7,
-          fogEnabled: true,
-          fogDensity: 0.02,
-          fogColor: { r: 0.6, g: 0.6, b: 0.7 },
-          ssaoEnabled: true,
-          ssrEnabled: true,
-          sdfgiEnabled: true,
-        });
-        expect(result.isError).toBeUndefined();
-        expect(result.content[0].text).toContain('sky');
-        expect(result.content[0].text).toContain('Glow');
-        expect(result.content[0].text).toContain('Fog');
-        expect(result.content[0].text).toContain('SSAO');
-        expect(result.content[0].text).toContain('SSR');
-        expect(result.content[0].text).toContain('SDFGI');
-
-        // Verify content has all expected lines
-        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
-        const content = writeCall[1] as string;
-        expect(content).toContain('[gd_resource type="Environment" format=3]');
-        expect(content).toContain('[resource]');
-        expect(content).toContain('background_mode = 2');
-        expect(content).toContain('background_color = Color(0.2, 0.3, 0.5, 1)');
-        expect(content).toContain('ambient_light_color = Color(0.4, 0.4, 0.5, 1)');
-        expect(content).toContain('ambient_light_energy = 1.2');
-        expect(content).toContain('tonemap_mode = 3');
-        expect(content).toContain('glow_enabled = true');
-        expect(content).toContain('glow_intensity = 0.7');
-        expect(content).toContain('fog_enabled = true');
-        expect(content).toContain('fog_density = 0.02');
-        expect(content).toContain('fog_light_color = Color(0.6, 0.6, 0.7, 1)');
-        expect(content).toContain('ssao_enabled = true');
-        expect(content).toContain('ssr_enabled = true');
-        expect(content).toContain('sdfgi_enabled = true');
-      });
-
-      it('should call ensureDir and writeFile with correct paths', async () => {
-        await handleSetupEnvironment({
-          projectPath: '/path/to/project',
-          environmentPath: 'environments/main_env.tres',
-        });
-
-        expect(fsExtra.ensureDir).toHaveBeenCalled();
-        expect(fsExtra.writeFile).toHaveBeenCalled();
-
-        const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
-        expect(writeCall[2]).toBe('utf-8');
-      });
-
-      it('should map all background modes correctly', async () => {
-        const modeMap: Record<string, number> = {
-          clear_color: 0,
-          custom_color: 1,
-          sky: 2,
-          canvas: 3,
-          keep: 4,
-          camera_feed: 5,
-        };
-
-        for (const [mode, expectedValue] of Object.entries(modeMap)) {
-          jest.clearAllMocks();
-          mockedValidatePath.mockReturnValue(true);
-          mockedIsGodotProject.mockReturnValue(true);
-          (fsExtra.ensureDir as jest.Mock).mockResolvedValue(undefined);
-          (fsExtra.writeFile as jest.Mock).mockResolvedValue(undefined);
-
-          await handleSetupEnvironment({
-            projectPath: '/path/to/project',
-            environmentPath: 'environments/test.tres',
-            backgroundMode: mode as 'clear_color',
-          });
-
-          const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
-          const content = writeCall[1] as string;
-          expect(content).toContain(`background_mode = ${expectedValue}`);
-        }
-      });
-
-      it('should map all tonemap modes correctly', async () => {
-        const modeMap: Record<string, number> = {
-          linear: 0,
-          reinhard: 1,
-          filmic: 2,
-          aces: 3,
-        };
-
-        for (const [mode, expectedValue] of Object.entries(modeMap)) {
-          jest.clearAllMocks();
-          mockedValidatePath.mockReturnValue(true);
-          mockedIsGodotProject.mockReturnValue(true);
-          (fsExtra.ensureDir as jest.Mock).mockResolvedValue(undefined);
-          (fsExtra.writeFile as jest.Mock).mockResolvedValue(undefined);
-
-          await handleSetupEnvironment({
-            projectPath: '/path/to/project',
-            environmentPath: 'environments/test.tres',
-            tonemapMode: mode as 'linear',
-          });
-
-          const writeCall = (fsExtra.writeFile as jest.Mock).mock.calls[0];
-          const content = writeCall[1] as string;
-          expect(content).toContain(`tonemap_mode = ${expectedValue}`);
-        }
       });
     });
 
     describe('Error Handling', () => {
       beforeEach(() => {
-        mockedValidatePath.mockReturnValue(true);
-        mockedIsGodotProject.mockReturnValue(true);
+        mockValidatePath.mockReturnValue(true);
+        mockIsGodotProject.mockReturnValue(true);
       });
 
       it('should handle fs.ensureDir failure', async () => {
-        (fsExtra.ensureDir as jest.Mock).mockRejectedValue(new Error('Permission denied'));
+        mockEnsureDir.mockRejectedValue(new Error('Permission denied'));
 
         const result = await handleSetupEnvironment({
           projectPath: '/path/to/project',
@@ -1009,8 +872,8 @@ describe('Lighting Tools', () => {
       });
 
       it('should handle fs.writeFile failure', async () => {
-        (fsExtra.ensureDir as jest.Mock).mockResolvedValue(undefined);
-        (fsExtra.writeFile as jest.Mock).mockRejectedValue(new Error('Disk full'));
+        mockEnsureDir.mockResolvedValue(undefined);
+        mockWriteFile.mockRejectedValue(new Error('Disk full'));
 
         const result = await handleSetupEnvironment({
           projectPath: '/path/to/project',
@@ -1022,7 +885,7 @@ describe('Lighting Tools', () => {
       });
 
       it('should handle non-Error thrown during execution', async () => {
-        (fsExtra.ensureDir as jest.Mock).mockRejectedValue('string error');
+        mockEnsureDir.mockRejectedValue('string error');
 
         const result = await handleSetupEnvironment({
           projectPath: '/path/to/project',

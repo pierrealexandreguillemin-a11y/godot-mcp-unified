@@ -12,30 +12,29 @@
  * 4. Error Handling - catch blocks and failure scenarios
  */
 
-import {
-  createTempProject,
-  getResponseText,
-  isErrorResponse,
-} from '../test-utils.js';
-import { handleCreateAudioBus } from './CreateAudioBusTool.js';
-import { handleSetupAudioPlayer } from './SetupAudioPlayerTool.js';
-import { handleAddAudioEffect } from './AddAudioEffectTool.js';
+import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 
-// Mock only the Godot-dependent modules (PathManager for detectGodotPath, GodotExecutor)
-jest.mock('../../core/PathManager', () => ({
-  ...jest.requireActual('../../core/PathManager'),
-  detectGodotPath: jest.fn(),
+// Define mock functions with proper types BEFORE mock module declarations
+const mockDetectGodotPath = jest.fn<(...args: unknown[]) => Promise<string | null>>();
+const mockExecuteOperation = jest.fn<(...args: unknown[]) => Promise<{ stdout: string; stderr: string }>>();
+
+// Mock the Godot-dependent modules using unstable_mockModule for ESM
+jest.unstable_mockModule('../../core/PathManager.js', () => ({
+  detectGodotPath: mockDetectGodotPath,
+  validatePath: jest.fn(() => true),
+  normalizePath: jest.fn((p: string) => p),
+  normalizeHandlerPaths: jest.fn((args: Record<string, unknown>) => args),
 }));
 
-jest.mock('../../core/GodotExecutor', () => ({
-  executeOperation: jest.fn(),
+jest.unstable_mockModule('../../core/GodotExecutor.js', () => ({
+  executeOperation: mockExecuteOperation,
 }));
 
-import { detectGodotPath } from '../../core/PathManager';
-import { executeOperation } from '../../core/GodotExecutor';
-
-const mockDetectGodotPath = detectGodotPath as jest.MockedFunction<typeof detectGodotPath>;
-const mockExecuteOperation = executeOperation as jest.MockedFunction<typeof executeOperation>;
+// Dynamic imports AFTER mocks are set up
+const { createTempProject, getResponseText, isErrorResponse } = await import('../test-utils.js');
+const { handleCreateAudioBus } = await import('./CreateAudioBusTool.js');
+const { handleSetupAudioPlayer } = await import('./SetupAudioPlayerTool.js');
+const { handleAddAudioEffect } = await import('./AddAudioEffectTool.js');
 
 describe('Audio Tools', () => {
   let projectPath: string;

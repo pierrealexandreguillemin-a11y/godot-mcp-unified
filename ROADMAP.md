@@ -2,7 +2,7 @@
 
 > Plan d'implementation MCP complet - Conforme ISO 25010/29119/5055/12207
 
-**Version cible**: 1.0.0 | **Outils actuels**: 79 | **Resources**: 20 | **Prompts**: 20
+**Version cible**: 1.0.0 | **Outils actuels**: 81 | **Resources**: 20 | **Prompts**: 20
 
 ---
 
@@ -18,21 +18,21 @@
 
 ---
 
-## Etat actuel : 79 outils (v0.9.0)
+## Etat actuel : 81 outils (v0.9.1)
 
 ### Progression globale
 
 ```
 Primitives MCP:
-  Tools implementes:      79/79   ██████████████████████████████ 100%
+  Tools implementes:      81/81   ██████████████████████████████ 100%
   Resources implementees: 20/20   ██████████████████████████████ 100%
   Prompts implementes:    20/20   ██████████████████████████████ 100%
 
 Qualite:
-  Tests:                 2200+    ██████████████████████████████ 100% pass
+  Tests:                 2300+    ██████████████████████████████ 100% pass
   Coverage:               72%     █████████████████████░░░░░░░░░  72%
-  ISO 5055 (Zod):        79/79   ██████████████████████████████ 100%
-  ISO 29119 (Suites):   44/44   ██████████████████████████████ 100%
+  ISO 5055 (Zod):        81/81   ██████████████████████████████ 100%
+  ISO 29119 (Suites):   46/46   ██████████████████████████████ 100%
 ```
 
 ### Outils par categorie
@@ -44,13 +44,13 @@ Qualite:
 | **Animation** | 7 | create_animation_player, add_animation, add_animation_track, set_keyframe, create_animation_tree, setup_state_machine, blend_animations |
 | **Project** | 14 | launch_editor, run_project, stop_project, list_projects, get_project_info, get_project_settings, set_project_setting, manage_input_actions, validate_project, manage_autoloads, convert_project, validate_conversion, generate_docs, get_godot_version |
 | **Physics** | 3 | create_collision_shape, setup_rigidbody, configure_physics_layers |
-| **TileMap** | 4 | create_tileset, create_tilemap_layer, set_tile, paint_tiles |
+| **TileMap** | 5 | create_tileset, create_tilemap_layer, set_tile, paint_tiles, import_ldtk_level |
 | **Audio** | 3 | create_audio_bus, setup_audio_player, add_audio_effect |
 | **Shader** | 2 | create_shader, create_shader_material |
 | **Navigation** | 2 | create_navigation_region, bake_navigation_mesh |
 | **Particles** | 2 | create_gpu_particles, create_particle_material |
 | **UI** | 2 | create_ui_container, create_control |
-| **Lighting** | 2 | create_light, setup_environment |
+| **Lighting** | 3 | create_light, setup_environment, setup_lightmapper |
 | **Assets** | 3 | list_assets, import_asset, reimport_assets |
 | **Resource** | 2 | list_resources, create_resource |
 | **Export** | 3 | export_project, export_pack, list_export_presets |
@@ -69,7 +69,7 @@ Qualite:
 │                         MODEL CONTEXT PROTOCOL                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│   TOOLS (79 ✅)            RESOURCES (20 ✅)         PROMPTS (0 ❌)          │
+│   TOOLS (81 ✅)            RESOURCES (20 ✅)         PROMPTS (20 ✅)         │
 │   ─────────────────        ─────────────────        ─────────────────       │
 │   Actions executables      Donnees read-only        Templates reusables     │
 │   Client → Server          Server → Client          Server → Client         │
@@ -404,13 +404,13 @@ Use proper Godot 4 syntax and best practices.`
 | tools/call | ✅ | Handlers |
 | Tool annotations | ⚠️ | Partiel (descriptions) |
 | **Resources** | | |
-| resources/list | ❌ | A implementer |
-| resources/read | ❌ | A implementer |
-| resources/subscribe | ❌ | A implementer |
-| Resource templates | ❌ | A implementer |
+| resources/list | ✅ | ResourcesHandler.ts |
+| resources/read | ✅ | ResourcesHandler.ts |
+| resources/subscribe | ⚠️ | Partiel (polling) |
+| Resource templates | ✅ | 4 providers (Scene, Project, Assets, Debug) |
 | **Prompts** | | |
-| prompts/list | ❌ | A implementer |
-| prompts/get | ❌ | A implementer |
+| prompts/list | ✅ | PromptsHandler.ts |
+| prompts/get | ✅ | PromptsHandler.ts (20 prompts) |
 | **Sampling** | | |
 | sampling/createMessage | ❌ | Non prevu |
 | **Logging** | | |
@@ -421,11 +421,11 @@ Use proper Godot 4 syntax and best practices.`
 ### Completion par Primitive
 
 ```
-TOOLS:      ████████████████████████████████████████ 100% (79/79)
+TOOLS:      ████████████████████████████████████████ 100% (81/81)
 RESOURCES:  ████████████████████████████████████████ 100% (20/20)
 PROMPTS:    ████████████████████████████████████████ 100% (20/20)
 
-MCP GLOBAL: ████████████████████████████████████████ 100% (Phase A+B complete)
+MCP GLOBAL: ████████████████████████████████████████ 100% (Phase A+B+Tools complete)
 ```
 
 ### Gap Analysis
@@ -438,25 +438,46 @@ MCP GLOBAL: ██████████████████████�
 | Roots | Pas de workspace awareness | BASSE | 0.5 jour |
 | Sampling | Pas de generation LLM | N/A | - |
 
-### Plan de Completion
+### Plan de Completion vers v1.0.0
 
 ```
-SEMAINE 1: Resources (Priorite HAUTE)
-├── Jour 1-2: Infrastructure ResourceProvider
-├── Jour 3-4: Implementer 20 resources
-└── Jour 5: Tests + deprecation tools
+PHASE COMPLETEE: 2 Outils Specialises ✅
+├── import_ldtk_level (Phase 18) - Parsing JSON LDtk → .tscn avec PackedByteArray
+└── setup_lightmapper (Phase 13) - Config LightmapGI + baking via TscnParser
 
-SEMAINE 2: Prompts (Priorite HAUTE)
-├── Jour 1-2: Infrastructure PromptProvider
-├── Jour 3-4: Implementer 15 prompts
-└── Jour 5: Tests + documentation
+PHASE ACTUELLE: Qualite & Coverage (PRIORITE HAUTE)
+├── Monter coverage de 72% a 85% (seuil ISO)
+├── Corriger config Jest (Zod v4 + ESM)
+└── Tests pour Resource providers et Tools faiblement couverts
 
-SEMAINE 3: Finalisation
-├── Jour 1-2: HTTP transport (optionnel)
-├── Jour 3: Roots support
-├── Jour 4: Documentation complete
-└── Jour 5: Release v1.0.0
+PHASE FINALE: Polish & Release
+├── HTTP transport (optionnel, basse priorite)
+├── Roots support (optionnel)
+├── Documentation complete
+└── Release v1.0.0
 ```
+
+### Validation Prompt-vs-Tool (Phases Legacy 8-20)
+
+Recherche effectuee sur la documentation officielle Godot 4.x et sites specialises.
+Sur 55 outils legacy prevus, **53 sont validement remplaces par des Prompts** (96.4%).
+
+| Phase Legacy | Outils Prevus | Verdict | Raison |
+|--------------|:------------:|---------|--------|
+| Phase 8: Physics Avancee | 4 | Prompt OK | Nodes scene + GDScript |
+| Phase 9: TileMap Avance | 3 | Prompt OK | TileSet API = GDScript |
+| Phase 10: UI Avancee | 5 | Prompt OK | Nodes Control + themes texte |
+| Phase 11: Multiplayer | 5 | Prompt OK | ENet/RPC = 100% GDScript |
+| Phase 12: Shaders Avances | 5 | Prompt OK | .gdshader = texte pur |
+| Phase 13: 3D Avance | 6 | **5 Prompt + 1 Tool** | `setup_lightmapper` ✅ IMPLEMENTE |
+| Phase 14: AI & Behavior | 4 | Prompt OK | FSM/BT = patterns GDScript |
+| Phase 15: Save/Load | 7 | Prompt OK | ResourceSaver/FileAccess = GDScript |
+| Phase 16: GDExtension & C# | 5 | Prompt OK | Templates code |
+| Phase 17: Dialogue & Localization | 6 | Prompt OK | TranslationServer = API GDScript |
+| Phase 18: Level Design | 8 | **7 Prompt + 1 Tool** | `import_ldtk_level` ✅ IMPLEMENTE |
+| Phase 19: Templates | 8 | Prompt OK | Deja remplace par /scaffold-* |
+| Phase 20: Debug Avance | 5 | Prompt OK | Performance singleton + CanvasLayer |
+| **Total** | **71** | **53 Prompt + 2 Tools** | |
 
 ---
 
@@ -466,8 +487,8 @@ SEMAINE 3: Finalisation
 
 | Caracteristique | Implementation | Mesure |
 |-----------------|----------------|--------|
-| **Fiabilite** | Tests Jest, error handling | 1757 tests, 100% pass |
-| **Securite** | Validation Zod, path traversal | 79/79 outils valides |
+| **Fiabilite** | Tests Jest, error handling | 2300+ tests, 100% pass |
+| **Securite** | Validation Zod, path traversal | 81/81 outils valides |
 | **Maintenabilite** | 1 fichier/outil, TypeScript strict | 100% modularite |
 | **Portabilite** | Cross-platform | Win/Mac/Linux |
 
@@ -475,8 +496,8 @@ SEMAINE 3: Finalisation
 
 | Type | Implementation | Couverture |
 |------|----------------|------------|
-| Unitaire | Jest + fixtures (1757 tests) | 32 suites |
-| Integration | createTempProject mocks | 79 outils |
+| Unitaire | Jest + fixtures (2300+ tests) | 46 suites |
+| Integration | createTempProject mocks | 81 outils |
 | Conformite | ISO 29119 (validation, limites, integration) | 100% |
 
 ### ISO/IEC 5055 - Qualite code
@@ -656,5 +677,5 @@ SEMAINE 3: Finalisation
 
 ---
 
-*Document mis a jour le 8 janvier 2026*
-*godot-mcp-unified v0.9.0 → v1.0.0 roadmap*
+*Document mis a jour le 3 fevrier 2026*
+*godot-mcp-unified v0.9.1 → v1.0.0 roadmap*

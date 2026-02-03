@@ -757,6 +757,48 @@ export const SetupEnvironmentSchema = ProjectToolSchema.extend({
 });
 
 // ============================================================================
+// LDtk Import Tool Schemas
+// ============================================================================
+
+export const LdtkEntityMappingSchema = z.object({
+  ldtkIdentifier: z.string().min(1).describe('LDtk entity identifier'),
+  godotNodeType: z.string().min(1).describe('Godot node type to create'),
+  properties: z.record(z.string(), z.unknown()).optional().describe('Additional properties to set on the node'),
+});
+
+export const ImportLdtkLevelSchema = ProjectToolSchema.extend({
+  ldtkPath: PathSchema.describe('Path to the .ldtk file (relative to project)'),
+  outputPath: PathSchema.optional().describe('Output path for generated .tscn files (relative to project)'),
+  levelIdentifier: z.string().optional().describe('Specific level identifier to import (imports all if not specified)'),
+  createCollision: z.boolean().default(false).describe('Generate collision shapes from IntGrid layers'),
+  entityMapping: z.array(LdtkEntityMappingSchema).optional().describe('Mapping of LDtk entities to Godot node types'),
+  tileSize: Vector2Schema.optional().describe('Override tile size (uses LDtk default if not specified)'),
+});
+
+// ============================================================================
+// Lightmapper Tool Schemas
+// ============================================================================
+
+export const LightmapQualitySchema = z.enum(['low', 'medium', 'high', 'ultra']);
+
+export const EnvironmentModeSchema = z.enum(['disabled', 'scene', 'custom_sky', 'custom_color']);
+
+export const SetupLightmapperSchema = SceneToolSchema.extend({
+  quality: LightmapQualitySchema.default('medium').describe('Lightmap bake quality'),
+  bounces: z.number().int().min(0).max(16).default(3).describe('Number of light bounces'),
+  useDenoiser: z.boolean().default(true).describe('Enable lightmap denoiser'),
+  createNode: z.boolean().default(true).describe('Create LightmapGI node if not present'),
+  bake: z.boolean().default(false).describe('Trigger lightmap bake via headless Godot'),
+  bakeTimeout: z.number().int().min(10000).max(3600000).default(300000).describe('Bake timeout in milliseconds'),
+  directional: z.boolean().default(false).describe('Enable directional lightmaps'),
+  interior: z.boolean().default(false).describe('Mark as interior (no sky contribution)'),
+  maxTextureSize: z.number().int().min(128).max(16384).optional().describe('Maximum lightmap texture size'),
+  environmentMode: EnvironmentModeSchema.optional().describe('Environment lighting mode'),
+  environmentColor: z.object({ r: z.number(), g: z.number(), b: z.number() }).optional().describe('Custom environment color'),
+  environmentEnergy: z.number().min(0).optional().describe('Environment energy multiplier'),
+});
+
+// ============================================================================
 // Asset Tool Schemas
 // ============================================================================
 
@@ -909,6 +951,11 @@ export type CreateControlInput = z.infer<typeof CreateControlSchema>;
 // Lighting Types
 export type CreateLightInput = z.infer<typeof CreateLightSchema>;
 export type SetupEnvironmentInput = z.infer<typeof SetupEnvironmentSchema>;
+export type SetupLightmapperInput = z.infer<typeof SetupLightmapperSchema>;
+
+// LDtk Types
+export type ImportLdtkLevelInput = z.infer<typeof ImportLdtkLevelSchema>;
+export type LdtkEntityMappingInput = z.infer<typeof LdtkEntityMappingSchema>;
 
 // Asset Types
 export type ImportAssetInput = z.infer<typeof ImportAssetSchema>;

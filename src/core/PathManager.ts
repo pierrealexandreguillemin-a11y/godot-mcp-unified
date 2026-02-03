@@ -245,6 +245,8 @@ const PATH_KEYS = [
   'filePath',
   'directory',
   'scriptPath',
+  'ldtkPath',
+  'lightmapDataPath',
 ] as const;
 
 /**

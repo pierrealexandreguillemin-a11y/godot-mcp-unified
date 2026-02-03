@@ -97,6 +97,7 @@ import { createTileSetDefinition, handleCreateTileSet } from './tilemap/CreateTi
 import { createTileMapLayerDefinition, handleCreateTileMapLayer } from './tilemap/CreateTileMapLayerTool';
 import { setTileDefinition, handleSetTile } from './tilemap/SetTileTool';
 import { paintTilesDefinition, handlePaintTiles } from './tilemap/PaintTilesTool';
+import { importLdtkLevelDefinition, handleImportLdtkLevel } from './tilemap/ImportLdtkLevelTool';
 
 // Audio tools
 import { createAudioBusDefinition, handleCreateAudioBus } from './audio/CreateAudioBusTool';
@@ -122,6 +123,7 @@ import { createControlDefinition, handleCreateControl } from './ui/CreateControl
 // Lighting tools
 import { createLightDefinition, handleCreateLight } from './lighting/CreateLightTool';
 import { setupEnvironmentDefinition, handleSetupEnvironment } from './lighting/SetupEnvironmentTool';
+import { setupLightmapperDefinition, handleSetupLightmapper } from './lighting/SetupLightmapperTool';
 
 // Asset tools
 import { listAssetsDefinition, handleListAssets } from './asset/ListAssetsTool';
@@ -658,6 +660,14 @@ export const toolRegistry: Map<string, ToolRegistration> = new Map([
       readOnly: false,
     },
   ],
+  [
+    'import_ldtk_level',
+    {
+      definition: importLdtkLevelDefinition,
+      handler: handleImportLdtkLevel,
+      readOnly: false,
+    },
+  ],
 
   // Audio tools
   [
@@ -771,6 +781,14 @@ export const toolRegistry: Map<string, ToolRegistration> = new Map([
     {
       definition: setupEnvironmentDefinition,
       handler: handleSetupEnvironment,
+      readOnly: false,
+    },
+  ],
+  [
+    'setup_lightmapper',
+    {
+      definition: setupLightmapperDefinition,
+      handler: handleSetupLightmapper,
       readOnly: false,
     },
   ],

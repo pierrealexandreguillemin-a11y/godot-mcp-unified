@@ -21,6 +21,7 @@ import {
 
 import { config } from '../config/config';
 import { detectGodotPath } from '../core/PathManager';
+import { globalRateLimiter } from '../core/RateLimiter.js';
 import { getAllToolDefinitions, getToolHandler, isToolRegistered } from '../tools/ToolRegistry';
 import {
   listGodotResources,
@@ -99,6 +100,24 @@ export class GodotMCPServer {
       const { name: toolName, arguments: args } = request.params;
 
       this.log('info', `Tool call: ${toolName}`, { args });
+
+      // Rate limiting check (DoS protection per ISO/IEC 25010 Security)
+      if (!globalRateLimiter.tryConsume()) {
+        const stats = globalRateLimiter.getStats();
+        const retryAfter = globalRateLimiter.getTimeUntilNextToken();
+        this.log('warning', `Rate limit exceeded for tool: ${toolName}`, {
+          availableTokens: stats.availableTokens,
+          totalRequests: stats.totalRequests,
+          rejectedRequests: stats.rejectedRequests,
+        });
+        return this.createErrorResult(
+          `Rate limit exceeded. Please retry after ${retryAfter}ms.`,
+          [
+            'The server is experiencing high load',
+            `Retry-After: ${retryAfter}ms`,
+          ]
+        );
+      }
 
       if (!isToolRegistered(toolName)) {
         this.log('error', `Unknown tool: ${toolName}`);

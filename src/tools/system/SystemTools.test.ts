@@ -26,6 +26,7 @@ const getAllResponseText = (response: { content: Array<{ text: string }> }): str
 // Create mock functions before mocking modules
 const mockDetectGodotPath = jest.fn<() => Promise<string | null>>();
 const mockGetGodotVersion = jest.fn<(godotPath: string) => Promise<string>>();
+const mockIsValidGodotPath = jest.fn<(path: string) => Promise<boolean>>();
 
 // Mock the dependencies using unstable_mockModule for ESM support
 // PathManager needs all exports that transitive imports might use
@@ -35,7 +36,7 @@ jest.unstable_mockModule('../../core/PathManager.js', () => ({
   normalizePath: jest.fn((p: string) => p),
   normalizeHandlerPaths: jest.fn(<T>(args: T) => args),
   isValidGodotPathSync: jest.fn(() => true),
-  isValidGodotPath: jest.fn(async () => true),
+  isValidGodotPath: mockIsValidGodotPath,
   getPlatformGodotPaths: jest.fn(() => []),
   clearPathCache: jest.fn(),
   getPathCacheStats: jest.fn(() => ({ hits: 0, misses: 0, size: 0 })),
@@ -49,6 +50,7 @@ jest.unstable_mockModule('../../core/GodotExecutor.js', () => ({
 
 // Dynamic import after mocking
 const { getGodotVersionDefinition, handleGetGodotVersion } = await import('./GetGodotVersionTool.js');
+const { systemHealthDefinition, handleSystemHealth } = await import('./SystemHealthTool.js');
 
 describe('GetGodotVersionTool', () => {
   /**
@@ -662,6 +664,178 @@ describe('GetGodotVersionTool', () => {
       // Then: Should handle gracefully with 'Unknown error'
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Unknown error');
+    });
+  });
+});
+
+describe('SystemHealthTool', () => {
+  /**
+   * Test Suite ID: TS-SYSTEM-002
+   * Test Suite Name: SystemHealth Tool Tests
+   * Purpose: Verify the SystemHealth tool returns correct health status and metrics
+   */
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
+    mockIsValidGodotPath.mockResolvedValue(true);
+    mockGetGodotVersion.mockResolvedValue('4.2.stable');
+  });
+
+  afterEach(() => {
+    jest.resetAllMocks();
+  });
+
+  describe('Tool Definition', () => {
+    it('should have correct tool name', () => {
+      expect(systemHealthDefinition.name).toBe('system_health');
+    });
+
+    it('should have a description', () => {
+      expect(systemHealthDefinition.description).toBeDefined();
+      expect(systemHealthDefinition.description.length).toBeGreaterThan(0);
+      expect(systemHealthDefinition.description).toContain('health');
+    });
+
+    it('should have valid input schema', () => {
+      const inputSchema = systemHealthDefinition.inputSchema;
+      expect(inputSchema).toBeDefined();
+      expect(inputSchema.type).toBe('object');
+    });
+  });
+
+  describe('Successful Execution', () => {
+    it('should return healthy status with all metrics', async () => {
+      // Given: Default healthy environment
+      // When: We call handleSystemHealth with all metrics
+      const result = await handleSystemHealth({ includeMetrics: true, includeGodotStatus: true });
+
+      // Then: The result should contain health info
+      expect(isErrorResponse(result)).toBe(false);
+      const responseText = getResponseText(result);
+      expect(responseText).toContain('status');
+      expect(responseText).toContain('healthy');
+    });
+
+    it('should return version information', async () => {
+      const result = await handleSystemHealth({});
+      expect(isErrorResponse(result)).toBe(false);
+      const responseText = getResponseText(result);
+      expect(responseText).toContain('version');
+    });
+
+    it('should return uptime', async () => {
+      const result = await handleSystemHealth({});
+      expect(isErrorResponse(result)).toBe(false);
+      const responseText = getResponseText(result);
+      expect(responseText).toContain('uptime');
+    });
+
+    it('should return timestamp', async () => {
+      const result = await handleSystemHealth({});
+      expect(isErrorResponse(result)).toBe(false);
+      const responseText = getResponseText(result);
+      expect(responseText).toContain('timestamp');
+    });
+  });
+
+  describe('Metrics', () => {
+    it('should include rate limiter stats when includeMetrics is true', async () => {
+      const result = await handleSystemHealth({ includeMetrics: true });
+      expect(isErrorResponse(result)).toBe(false);
+      const responseText = getResponseText(result);
+      expect(responseText).toContain('rateLimiter');
+    });
+
+    it('should include memory usage when includeMetrics is true', async () => {
+      const result = await handleSystemHealth({ includeMetrics: true });
+      expect(isErrorResponse(result)).toBe(false);
+      const responseText = getResponseText(result);
+      expect(responseText).toContain('memory');
+    });
+
+    it('should not include metrics when includeMetrics is false', async () => {
+      const result = await handleSystemHealth({ includeMetrics: false, includeGodotStatus: false });
+      expect(isErrorResponse(result)).toBe(false);
+      const responseText = getResponseText(result);
+      // Should still have basic fields but no metrics section
+      expect(responseText).toContain('status');
+      expect(responseText).toContain('uptime');
+    });
+  });
+
+  describe('Godot Status', () => {
+    it('should include Godot availability when includeGodotStatus is true', async () => {
+      const result = await handleSystemHealth({ includeGodotStatus: true });
+      expect(isErrorResponse(result)).toBe(false);
+      const responseText = getResponseText(result);
+      expect(responseText).toContain('godot');
+      expect(responseText).toContain('available');
+    });
+
+    it('should include Godot version when available', async () => {
+      mockGetGodotVersion.mockResolvedValue('4.2.stable');
+      const result = await handleSystemHealth({ includeGodotStatus: true });
+      expect(isErrorResponse(result)).toBe(false);
+      const responseText = getResponseText(result);
+      expect(responseText).toContain('4.2.stable');
+    });
+
+    it('should report degraded status when Godot is not available', async () => {
+      mockDetectGodotPath.mockResolvedValue(null);
+      mockIsValidGodotPath.mockResolvedValue(false);
+
+      const result = await handleSystemHealth({ includeGodotStatus: true, includeMetrics: false });
+      expect(isErrorResponse(result)).toBe(false);
+      const responseText = getResponseText(result);
+      expect(responseText).toContain('degraded');
+    });
+
+    it('should not include Godot status when includeGodotStatus is false', async () => {
+      const result = await handleSystemHealth({ includeGodotStatus: false, includeMetrics: false });
+      expect(isErrorResponse(result)).toBe(false);
+      const responseText = getResponseText(result);
+      // Should not contain godot section in response
+      expect(responseText).toContain('status');
+    });
+  });
+
+  describe('Default Parameters', () => {
+    it('should use default values when no parameters provided', async () => {
+      const result = await handleSystemHealth({});
+      expect(isErrorResponse(result)).toBe(false);
+      // Default is includeMetrics: true, includeGodotStatus: true
+      const responseText = getResponseText(result);
+      expect(responseText).toContain('rateLimiter');
+      expect(responseText).toContain('godot');
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('should handle Godot version retrieval failure gracefully', async () => {
+      mockGetGodotVersion.mockRejectedValue(new Error('Version check failed'));
+
+      const result = await handleSystemHealth({ includeGodotStatus: true });
+      expect(isErrorResponse(result)).toBe(false);
+      // Should still return health status, just without version
+      const responseText = getResponseText(result);
+      expect(responseText).toContain('status');
+    });
+  });
+
+  describe('Response Format', () => {
+    it('should return response with correct content structure', async () => {
+      const result = await handleSystemHealth({});
+      expect(result).toHaveProperty('content');
+      expect(Array.isArray(result.content)).toBe(true);
+      expect(result.content.length).toBeGreaterThan(0);
+      expect(result.content[0]).toHaveProperty('type', 'text');
+    });
+
+    it('should return JSON-parseable response', async () => {
+      const result = await handleSystemHealth({});
+      const responseText = getResponseText(result);
+      expect(() => JSON.parse(responseText)).not.toThrow();
     });
   });
 });

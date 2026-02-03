@@ -13,6 +13,7 @@ import { READ_ONLY_MODE } from '../config/config';
 
 // System tools
 import { getGodotVersionDefinition, handleGetGodotVersion } from './system/GetGodotVersionTool';
+import { systemHealthDefinition, handleSystemHealth } from './system/SystemHealthTool';
 
 // Debug tools
 import { stopProjectDefinition, handleStopProject } from './debug/StopProjectTool';
@@ -149,6 +150,14 @@ export const toolRegistry: Map<string, ToolRegistration> = new Map([
     {
       definition: getGodotVersionDefinition,
       handler: handleGetGodotVersion,
+      readOnly: true,
+    },
+  ],
+  [
+    'system_health',
+    {
+      definition: systemHealthDefinition,
+      handler: handleSystemHealth,
       readOnly: true,
     },
   ],

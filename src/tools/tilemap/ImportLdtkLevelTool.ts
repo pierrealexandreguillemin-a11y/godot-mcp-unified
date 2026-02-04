@@ -146,7 +146,7 @@ tile_size = Vector2i(${gridSize}, ${gridSize})
  * Generate a RectangleShape2D sub_resource for collision
  */
 function generateRectangleShapeSubResource(id: number, gridSize: number): string {
-  const halfSize = gridSize / 2;
+  // RectangleShape2D size is full width/height (centered on position)
   return `[sub_resource type="RectangleShape2D" id="${id}"]
 size = Vector2(${gridSize}, ${gridSize})`;
 }

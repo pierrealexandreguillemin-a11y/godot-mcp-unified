@@ -173,10 +173,38 @@ export class ProcessPool extends EventEmitter {
   /**
    * Execute a command in the process pool
    * Protected by circuit breaker for fault tolerance
+   * @throws {CircuitOpenError} When circuit breaker is open (too many failures)
    */
   execute(command: string, args: string[], options: { cwd?: string; timeout?: number } = {}): Promise<ProcessResult> {
     // Wrap execution with circuit breaker
     return this.circuitBreaker.execute(() => this.executeInternal(command, args, options));
+  }
+
+  /**
+   * Check if the circuit breaker is allowing requests
+   * Use this before execute() to provide graceful degradation
+   */
+  isCircuitOpen(): boolean {
+    return this.circuitBreaker.getState() === CircuitState.OPEN;
+  }
+
+  /**
+   * Execute with explicit circuit error handling
+   * Returns null if circuit is open instead of throwing
+   */
+  async tryExecute(
+    command: string,
+    args: string[],
+    options: { cwd?: string; timeout?: number } = {}
+  ): Promise<ProcessResult | { circuitOpen: true; error: CircuitOpenError }> {
+    try {
+      return await this.execute(command, args, options);
+    } catch (error) {
+      if (error instanceof CircuitOpenError) {
+        return { circuitOpen: true, error };
+      }
+      throw error;
+    }
   }
 
   /**

@@ -30,7 +30,7 @@ export const RunProjectSchema = ProjectToolSchema.extend({
 export const LaunchEditorSchema = ProjectToolSchema.extend({});
 
 export const ListProjectsSchema = z.object({
-  directory: z.string().min(1).describe('Directory to search for Godot projects'),
+  directory: PathSchema.describe('Directory to search for Godot projects'),
   recursive: z.boolean().default(false).describe('Search recursively'),
 });
 
@@ -38,7 +38,7 @@ export const ExportModeSchema = z.enum(['release', 'debug']);
 
 export const ExportProjectSchema = ProjectToolSchema.extend({
   preset: z.string().min(1).describe('Export preset name'),
-  outputPath: z.string().min(1).describe('Output path for the exported project'),
+  outputPath: PathSchema.describe('Output path for the exported project'),
   mode: ExportModeSchema.default('release').describe('Export mode'),
 });
 
@@ -47,7 +47,7 @@ export const AutoloadActionSchema = z.enum(['add', 'remove', 'list']);
 export const ManageAutoloadsSchema = ProjectToolSchema.extend({
   action: AutoloadActionSchema.describe('Action to perform'),
   name: z.string().optional().describe('Autoload name (required for add/remove)'),
-  path: z.string().optional().describe('Path to the script or scene (required for add)'),
+  path: PathSchema.optional().describe('Path to the script or scene (required for add)'),
 });
 
 export const InputActionTypeSchema = z.enum(['key', 'mouse_button', 'joypad_button', 'joypad_axis']);
@@ -76,23 +76,23 @@ export const ValidateProjectSchema = ProjectToolSchema.extend({
 export const DocsFormatSchema = z.enum(['xml', 'rst']);
 
 export const GenerateDocsSchema = ProjectToolSchema.extend({
-  outputPath: z.string().optional().describe('Output directory for documentation'),
+  outputPath: PathSchema.optional().describe('Output directory for documentation'),
   format: DocsFormatSchema.default('xml').describe('Documentation format'),
 });
 
 export const ConvertProjectSchema = z.object({
-  sourcePath: z.string().min(1).describe('Path to the Godot 3.x project directory'),
-  targetPath: z.string().optional().describe('Optional output path for converted project'),
+  sourcePath: PathSchema.describe('Path to the Godot 3.x project directory'),
+  targetPath: PathSchema.optional().describe('Optional output path for converted project'),
   noConvertSign: z.boolean().default(false).describe('Skip conversion signature'),
 });
 
 export const ValidateConversionSchema = z.object({
-  sourcePath: z.string().min(1).describe('Path to the Godot 3.x project directory'),
+  sourcePath: PathSchema.describe('Path to the Godot 3.x project directory'),
 });
 
 export const ExportPackSchema = ProjectToolSchema.extend({
   preset: z.string().min(1).describe('Export preset name'),
-  outputPath: z.string().min(1).describe('Output path for the pack file (.pck or .zip)'),
+  outputPath: PathSchema.describe('Output path for the pack file (.pck or .zip)'),
 });
 
 export const ListExportPresetsSchema = ProjectToolSchema.extend({});

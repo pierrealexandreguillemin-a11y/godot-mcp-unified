@@ -11,7 +11,7 @@
  * - godot://script/errors - Script compilation errors
  */
 
-import { readFileSync, existsSync, statSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { relative } from 'path';
 import {
   ResourceProvider,

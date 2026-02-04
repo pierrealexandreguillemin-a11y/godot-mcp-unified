@@ -40,7 +40,9 @@ export class AssetsResourceProvider implements ResourceProvider {
     );
   }
 
-  async listResources(projectPath: string): Promise<GodotResource[]> {
+  async listResources(_projectPath: string): Promise<GodotResource[]> {
+    // Note: projectPath not used here as we return static resource definitions
+    // Actual project content is read in readResource()
     const resources: GodotResource[] = [
       {
         uri: RESOURCE_URIS.ASSETS,

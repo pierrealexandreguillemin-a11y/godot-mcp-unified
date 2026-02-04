@@ -10,7 +10,7 @@
  * - State Transition Testing: File creation states
  */
 
-import { existsSync, readFileSync, mkdirSync, writeFileSync, rmSync } from 'fs';
+import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import {
   createTempProject,

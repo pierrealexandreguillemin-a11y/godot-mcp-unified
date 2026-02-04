@@ -10,7 +10,9 @@
  */
 
 import { handleBatchOperations, BatchOperationsResult, BatchOperationResult } from './BatchOperationsTool';
-import { createTempProject, parseJsonResponse, isErrorResponse } from '../test-utils.js';
+import { createTempProject, parseJsonResponse } from '../test-utils.js';
+
+// isErrorResponse reserved for future error validation tests
 
 describe('BatchOperations', () => {
   let projectPath: string;

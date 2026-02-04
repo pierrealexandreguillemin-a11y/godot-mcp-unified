@@ -299,7 +299,6 @@ describe('Project Tools', () => {
         const result = await handleGetProjectInfo(args);
 
         // Assert
-        const responseText = getResponseText(result);
         if (!isErrorResponse(result)) {
           const data = parseJsonResponse<{ name: string }>(result);
           expect(data.name).toBe('Test Project');

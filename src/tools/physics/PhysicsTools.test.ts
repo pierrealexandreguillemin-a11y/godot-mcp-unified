@@ -9,16 +9,10 @@
  * - SetupRigidBodyTool
  */
 
-import { readFileSync } from 'fs';
-import { join } from 'path';
 import { handleCreateCollisionShape } from './CreateCollisionShapeTool';
 import { handleSetupRigidBody } from './SetupRigidBodyTool';
 import { handleConfigurePhysicsLayers } from './ConfigurePhysicsLayersTool';
-import {
-  createTempProject,
-  getResponseText,
-  isErrorResponse,
-} from '../test-utils.js';
+import { createTempProject } from '../test-utils.js';
 
 describe('Physics Tools', () => {
   // ============================================================================

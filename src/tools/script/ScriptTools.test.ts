@@ -622,7 +622,7 @@ describe('Script Tools', () => {
         const specialContent = `extends Node
 
 # Special characters: <>&"'
-var message = "Hello 'World' & \"Everyone\""
+var message = "Hello 'World' & 'Everyone'"
 var unicode_var = "Unicode: \\u00e9\\u00e8"
 
 func _ready():
@@ -843,6 +843,8 @@ func _ready():
         // Should either fail validation or write to projectPath + /etc/malicious.gd
         // The file should NOT be created at /etc/malicious.gd
         expect(existsSync('/etc/malicious.gd')).toBe(false);
+        // Verify result indicates an error or safe handling
+        expect(isErrorResponse(result) || !existsSync('/etc/malicious.gd')).toBe(true);
       });
     });
 

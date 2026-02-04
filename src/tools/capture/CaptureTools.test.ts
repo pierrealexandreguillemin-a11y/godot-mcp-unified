@@ -13,7 +13,7 @@
  * ISO/IEC 25010 compliant - quality assurance
  */
 
-import { existsSync, mkdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import {
   createTempProject,

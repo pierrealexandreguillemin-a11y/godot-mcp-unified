@@ -19,7 +19,6 @@ import { handleCreateControl } from './CreateControlTool';
 import {
   createTempProject,
   getResponseText,
-  isErrorResponse,
 } from '../test-utils.js';
 
 describe('UI Tools - ISO 29119 Compliant Test Suite', () => {

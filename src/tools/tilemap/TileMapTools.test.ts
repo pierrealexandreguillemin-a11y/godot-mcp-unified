@@ -12,7 +12,7 @@
  * 6. Error Handling
  */
 
-import { writeFileSync, mkdirSync } from 'fs';
+import { mkdirSync } from 'fs';
 import { join } from 'path';
 import { handleCreateTileSet } from './CreateTileSetTool';
 import { handleCreateTileMapLayer } from './CreateTileMapLayerTool';
@@ -21,7 +21,6 @@ import { handlePaintTiles } from './PaintTilesTool';
 import {
   createTempProject,
   getResponseText,
-  isErrorResponse,
 } from '../test-utils.js';
 
 describe('TileMap Tools - ISO 29119 Compliant Test Suite', () => {

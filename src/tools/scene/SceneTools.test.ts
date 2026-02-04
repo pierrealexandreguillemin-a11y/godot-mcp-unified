@@ -28,7 +28,7 @@
  * 7. Boundary conditions
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import {
   createTempProject,

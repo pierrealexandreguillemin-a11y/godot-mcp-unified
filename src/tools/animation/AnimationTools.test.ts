@@ -114,11 +114,7 @@ describe('Animation Tools', () => {
       });
 
       it('should return error for non-existent scene', async () => {
-        let projectPath: string;
-        let cleanup: () => void;
-        const temp = createTempProject();
-        projectPath = temp.projectPath;
-        cleanup = temp.cleanup;
+        const { projectPath, cleanup } = createTempProject();
 
         try {
           const result = await handleCreateAnimationPlayer({

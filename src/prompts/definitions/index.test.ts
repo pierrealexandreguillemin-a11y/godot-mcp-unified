@@ -44,11 +44,11 @@ import {
 } from './index.js';
 
 import {
-  RegisteredPrompt,
-  PromptCategory,
   PROMPT_CATEGORIES,
   isRegisteredPrompt,
 } from '../domain/types.js';
+
+import type { RegisteredPrompt, PromptCategory } from '../domain/types.js';
 
 // =============================================================================
 // AGGREGATE EXPORT TESTS
@@ -81,8 +81,17 @@ describe('Prompt Definitions Index', () => {
 
     it('all prompts have valid categories', () => {
       allPrompts.forEach((prompt) => {
-        expect(PROMPT_CATEGORIES).toContain(prompt.definition.category);
+        // Use PromptCategory type to verify category assignment
+        const category: PromptCategory = prompt.definition.category;
+        expect(PROMPT_CATEGORIES).toContain(category);
       });
+    });
+
+    it('type assertion works for RegisteredPrompt', () => {
+      // Verify explicit type assignment works
+      const firstPrompt: RegisteredPrompt = allPrompts[0];
+      expect(firstPrompt.definition).toBeDefined();
+      expect(firstPrompt.generator).toBeDefined();
     });
 
     it('all prompts have non-empty descriptions', () => {

@@ -7,17 +7,30 @@
 import {
   parseProjectGodot,
   parseExportPresets,
-  type ProjectSetting,
-  type ParsedProjectGodot,
 } from './configParser.js';
+
+import type { ProjectSetting, ParsedProjectGodot } from './configParser.js';
 
 describe('configParser', () => {
   describe('parseProjectGodot', () => {
     it('should parse empty content', () => {
-      const result = parseProjectGodot('');
+      const result: ParsedProjectGodot = parseProjectGodot('');
 
       expect(result.settings).toEqual([]);
       expect(result.configVersion).toBe(5);
+    });
+
+    it('returns correctly typed ProjectSetting objects', () => {
+      const content = `[application]
+name="Test"`;
+      const result = parseProjectGodot(content);
+
+      // Type assertion to verify ProjectSetting interface
+      const setting: ProjectSetting = result.settings[0];
+      expect(setting.section).toBe('application');
+      expect(setting.key).toBe('application/name');
+      expect(setting.value).toBe('Test');
+      expect(setting.rawValue).toBeDefined();
     });
 
     it('should parse content with only whitespace and blank lines', () => {

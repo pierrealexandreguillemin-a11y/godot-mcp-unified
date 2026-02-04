@@ -33,50 +33,104 @@ export * from './system.js';
 // ============================================================================
 
 /**
- * Convert Zod schema to MCP-compatible JSON Schema
+ * MCP-compatible JSON Schema structure
+ * @interface McpJsonSchema
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function toMcpSchema(schema: z.ZodObject<any>): {
+interface McpJsonSchema {
   type: 'object';
   properties: Record<string, unknown>;
   required: string[];
-} {
-  // Use zodToJsonSchema with proper options for Zod 4
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const result = zodToJsonSchema(schema as any, {
+}
+
+/**
+ * Internal type for zodToJsonSchema result with definitions
+ */
+interface ZodJsonSchemaResult {
+  definitions?: { schema?: McpJsonSchema };
+  properties?: Record<string, unknown>;
+  required?: string[];
+}
+
+/**
+ * Convert Zod schema to MCP-compatible JSON Schema
+ *
+ * @param schema - Zod object schema to convert
+ * @returns MCP-compatible JSON Schema with properties and required fields
+ *
+ * @example
+ * ```typescript
+ * const schema = z.object({ name: z.string() });
+ * const mcpSchema = toMcpSchema(schema);
+ * // { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] }
+ * ```
+ */
+export function toMcpSchema<T extends z.ZodRawShape>(schema: z.ZodObject<T>): McpJsonSchema {
+  // Cast through unknown for library type compatibility between Zod 4 and zod-to-json-schema
+  // This is safe as zodToJsonSchema accepts any Zod schema type
+  const zodSchema = schema as unknown;
+  const result = zodToJsonSchema(zodSchema as Parameters<typeof zodToJsonSchema>[0], {
     name: 'schema',
     target: 'jsonSchema7',
-  });
+  }) as ZodJsonSchemaResult;
 
   // Handle the wrapper structure from zodToJsonSchema
-  const jsonSchema = (result as { definitions?: { schema?: unknown } })?.definitions?.schema || result;
+  const jsonSchema = result.definitions?.schema || result;
 
   return {
     type: 'object',
-    properties: (jsonSchema as { properties?: Record<string, unknown> }).properties || {},
-    required: (jsonSchema as { required?: string[] }).required || [],
+    properties: jsonSchema.properties || {},
+    required: jsonSchema.required || [],
   };
 }
 
 /**
- * Validate input and return typed result or throw
+ * Validate input against schema and return typed result
+ *
+ * @param schema - Zod schema to validate against
+ * @param input - Unknown input to validate
+ * @returns Validated and typed data
+ * @throws {z.ZodError} If validation fails
+ *
+ * @example
+ * ```typescript
+ * const data = validateInput(MySchema, { name: 'test' });
+ * ```
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function validateInput<T extends z.ZodObject<any>>(
-  schema: T,
+export function validateInput<T extends z.ZodRawShape>(
+  schema: z.ZodObject<T>,
   input: unknown
-): z.infer<T> {
+): z.infer<z.ZodObject<T>> {
   return schema.parse(input);
 }
 
 /**
- * Safe validation that returns result object
+ * Validation result type for safeValidateInput
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function safeValidateInput<T extends z.ZodObject<any>>(
-  schema: T,
+type ValidationResult<T> =
+  | { success: true; data: T }
+  | { success: false; error: string };
+
+/**
+ * Safe validation that returns result object instead of throwing
+ *
+ * @param schema - Zod schema to validate against
+ * @param input - Unknown input to validate
+ * @returns Success with data or failure with error message
+ *
+ * @example
+ * ```typescript
+ * const result = safeValidateInput(MySchema, input);
+ * if (result.success) {
+ *   console.log(result.data);
+ * } else {
+ *   console.error(result.error);
+ * }
+ * ```
+ */
+export function safeValidateInput<T extends z.ZodRawShape>(
+  schema: z.ZodObject<T>,
   input: unknown
-): { success: true; data: z.infer<T> } | { success: false; error: string } {
+): ValidationResult<z.infer<z.ZodObject<T>>> {
   const result = schema.safeParse(input);
 
   if (result.success) {

@@ -388,8 +388,10 @@ describe('CircuitBreaker', () => {
 
       breaker.reset();
       const stats = breaker.getStats();
-      // Note: total failures remain for statistics, but window is cleared
+      // Verify reset clears window but state is closed
       expect(breaker.getState()).toBe(CircuitState.CLOSED);
+      expect(stats.state).toBe(CircuitState.CLOSED);
+      expect(stats.consecutiveSuccesses).toBe(0);
     });
   });
 

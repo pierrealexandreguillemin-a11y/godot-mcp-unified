@@ -226,6 +226,22 @@ describe('AuditLogger', () => {
       const events = memoryBackend.getEvents();
       expect(events[0].eventId).toMatch(/^EVT-\d+-[a-z0-9]+$/);
     });
+
+    it('should conform to AuditEvent interface', () => {
+      auditLogger.toolStart('test_tool', { param: 'value' });
+
+      const events = memoryBackend.getEvents();
+      const event: AuditEvent = events[0];
+
+      // Validate all required AuditEvent fields
+      expect(typeof event.eventId).toBe('string');
+      expect(typeof event.timestamp).toBe('string');
+      expect(typeof event.category).toBe('string');
+      expect(typeof event.action).toBe('string');
+      expect(typeof event.severity).toBe('string');
+      expect(typeof event.outcome).toBe('string');
+      expect(typeof event.details).toBe('object');
+    });
   });
 
   describe('parameter sanitization', () => {

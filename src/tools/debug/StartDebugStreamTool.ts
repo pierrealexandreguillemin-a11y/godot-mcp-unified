@@ -9,7 +9,6 @@
 import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import { prepareToolArgs, createJsonResponse } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { debugStreamServer, DEFAULT_DEBUG_STREAM_PORT } from '../../debug/DebugStreamServer.js';
 import {
   StartDebugStreamSchema,

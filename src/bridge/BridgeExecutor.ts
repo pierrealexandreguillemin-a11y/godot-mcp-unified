@@ -1,9 +1,62 @@
 /**
  * Bridge Executor - Helper for executing tools via Godot plugin bridge
- * ISO/IEC 25010 compliant - Reliability with fallback
  *
- * Provides executeWithBridge helper that tries the plugin bridge first,
- * then falls back to traditional GodotExecutor if unavailable.
+ * This module provides the `executeWithBridge` helper function that implements
+ * the bridge-first pattern: try the WebSocket plugin bridge first, and fall
+ * back to traditional methods (GodotExecutor, TscnParser) if unavailable.
+ *
+ * ## Architecture
+ *
+ * ```
+ * Tool Handler
+ *      │
+ *      ▼
+ * executeWithBridge(action, params, fallback)
+ *      │
+ *      ├── Plugin connected? ──Yes──► bridge.send(action, params)
+ *      │         │                         │
+ *      │         │                         ├── Success? ──Yes──► Return result
+ *      │         │                         │
+ *      │         │                         └── Error? ──► Return plugin error
+ *      │         │
+ *      │         │                    (Connection error or timeout)
+ *      │         │                         │
+ *      └── No ◄──┴─────────────────────────┘
+ *              │
+ *              ▼
+ *         fallback()  ──► Return fallback result
+ * ```
+ *
+ * ## Decision Logic
+ *
+ * - **Plugin connected + circuit closed/half-open**: Try bridge first
+ * - **Plugin error response**: Return error (plugin handled it, no fallback)
+ * - **Connection error/timeout**: Fall back to traditional method
+ * - **Plugin disconnected or circuit open**: Use fallback directly
+ *
+ * ## Compliance
+ *
+ * - ISO/IEC 25010:2023 - Reliability (graceful degradation)
+ * - ISO/IEC 25010:2023 - Maintainability (single point of bridge integration)
+ *
+ * @module bridge/BridgeExecutor
+ * @see {@link GodotPluginBridge} for the WebSocket client
+ *
+ * @example Basic usage in a tool handler
+ * ```typescript
+ * import { executeWithBridge } from '../bridge/BridgeExecutor.js';
+ *
+ * export async function handleCreateScene(args) {
+ *   return executeWithBridge(
+ *     'create_scene',
+ *     { scene_path: args.scenePath, root_type: args.rootType },
+ *     async () => {
+ *       // Fallback: use GodotExecutor or TscnParser
+ *       return createSceneViaExecutor(args);
+ *     }
+ *   );
+ * }
+ * ```
  */
 
 import { ToolResponse } from '../server/types.js';
@@ -13,12 +66,71 @@ import { createErrorResponse } from '../utils/ErrorHandler.js';
 import { logDebug, logWarn } from '../utils/Logger.js';
 
 /**
- * Execute an action via the Godot plugin bridge with fallback
+ * Execute an action via the Godot plugin bridge with automatic fallback.
  *
- * @param action - Bridge action name (e.g., 'create_scene')
- * @param params - Parameters for the action (snake_case)
- * @param fallback - Fallback function if bridge is unavailable
- * @returns Tool response from bridge or fallback
+ * This is the primary integration point for tools to use the plugin bridge.
+ * It handles the complexity of:
+ * - Checking plugin connection status
+ * - Checking circuit breaker state
+ * - Routing to bridge or fallback
+ * - Formatting responses consistently
+ *
+ * ## Behavior
+ *
+ * 1. If plugin is connected and circuit is not open:
+ *    - Sends action to plugin via WebSocket
+ *    - On success: returns formatted success response
+ *    - On plugin error: returns error (no fallback - plugin handled it)
+ *    - On connection error/timeout: falls through to fallback
+ *
+ * 2. If plugin is not available (disconnected or circuit open):
+ *    - Calls fallback function directly
+ *
+ * ## Parameter Naming Convention
+ *
+ * Parameters must use **snake_case** to match GDScript conventions:
+ * - `scene_path` (not `scenePath`)
+ * - `node_type` (not `nodeType`)
+ * - `parent_path` (not `parentPath`)
+ *
+ * @param action - Bridge action name matching GDScript command (e.g., 'create_scene', 'add_node')
+ * @param params - Parameters object with snake_case keys
+ * @param fallback - Async function to call if bridge is unavailable or connection fails
+ * @returns ToolResponse from either bridge or fallback
+ *
+ * @example Scene creation with fallback
+ * ```typescript
+ * return executeWithBridge(
+ *   'create_scene',
+ *   {
+ *     scene_path: 'res://scenes/player.tscn',
+ *     root_type: 'CharacterBody2D'
+ *   },
+ *   async () => {
+ *     // Fallback: use TscnParser for direct file manipulation
+ *     const parser = new TscnParser(projectPath);
+ *     await parser.createScene(scenePath, rootType);
+ *     return createSuccessResponse('Scene created');
+ *   }
+ * );
+ * ```
+ *
+ * @example Node manipulation with fallback
+ * ```typescript
+ * return executeWithBridge(
+ *   'add_node',
+ *   {
+ *     node_type: 'Sprite2D',
+ *     node_name: 'PlayerSprite',
+ *     parent_path: '.',
+ *     properties: { centered: true }
+ *   },
+ *   async () => {
+ *     // Fallback: use GodotExecutor for headless script execution
+ *     return executeOperation('add_node', { ... }, projectPath, godotPath);
+ *   }
+ * );
+ * ```
  */
 export async function executeWithBridge(
   action: string,
@@ -63,7 +175,29 @@ export async function executeWithBridge(
 }
 
 /**
- * Check if the bridge is available for use
+ * Check if the plugin bridge is currently available for use.
+ *
+ * Returns true only if:
+ * - WebSocket is connected
+ * - Circuit breaker is not in OPEN state
+ *
+ * Use this for conditional logic when you need to know bridge availability
+ * without actually sending a request.
+ *
+ * @returns true if bridge can accept requests, false otherwise
+ *
+ * @example
+ * ```typescript
+ * import { isBridgeAvailable } from '../bridge/BridgeExecutor.js';
+ *
+ * if (isBridgeAvailable()) {
+ *   // Plugin is available - can show real-time features
+ *   showLivePreview();
+ * } else {
+ *   // Plugin not available - use static fallback
+ *   showStaticPreview();
+ * }
+ * ```
  */
 export function isBridgeAvailable(): boolean {
   const bridge = getGodotPluginBridge();
@@ -72,8 +206,35 @@ export function isBridgeAvailable(): boolean {
 }
 
 /**
- * Try to connect to the plugin bridge (non-blocking)
- * Call this at startup to attempt connection
+ * Attempt to initialize the plugin bridge connection at startup.
+ *
+ * This is a non-blocking convenience function for application startup.
+ * It attempts to connect to the Godot plugin and logs the result,
+ * but does not throw if connection fails.
+ *
+ * Call this once during MCP server initialization. Subsequent tool calls
+ * will automatically use the bridge if connected, or fall back if not.
+ *
+ * @returns true if connection succeeded, false if plugin is not available
+ *
+ * @example Application startup
+ * ```typescript
+ * import { tryInitializeBridge } from './bridge/BridgeExecutor.js';
+ *
+ * async function startServer() {
+ *   // Try to connect to Godot plugin (optional)
+ *   const pluginAvailable = await tryInitializeBridge();
+ *
+ *   if (pluginAvailable) {
+ *     console.log('Plugin mode: real-time editor integration');
+ *   } else {
+ *     console.log('Headless mode: using GodotExecutor fallback');
+ *   }
+ *
+ *   // Start MCP server (works either way)
+ *   await startMcpServer();
+ * }
+ * ```
  */
 export async function tryInitializeBridge(): Promise<boolean> {
   const bridge = getGodotPluginBridge();
@@ -89,7 +250,17 @@ export async function tryInitializeBridge(): Promise<boolean> {
 }
 
 /**
- * Format result for display
+ * Format a bridge result for display in tool response.
+ *
+ * Converts various result types to human-readable strings:
+ * - null/undefined → "Operation completed successfully"
+ * - string → returned as-is
+ * - object → JSON formatted with 2-space indentation
+ * - other → String conversion
+ *
+ * @param result - The result data from bridge response
+ * @returns Formatted string suitable for tool response content
+ * @internal
  */
 function formatResult(result: unknown): string {
   if (result === null || result === undefined) {

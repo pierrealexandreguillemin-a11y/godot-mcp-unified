@@ -13,7 +13,6 @@ import {
   createJsonResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
 import { readdirSync, statSync, existsSync } from 'fs';
 import { join, extname, relative } from 'path';

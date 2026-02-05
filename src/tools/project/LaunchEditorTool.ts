@@ -15,7 +15,6 @@ import {
 import { detectGodotPath } from '../../core/PathManager.js';
 import { launchGodotEditor } from '../../core/ProcessManager.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import {
   LaunchEditorSchema,
   LaunchEditorInput,

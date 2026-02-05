@@ -9,7 +9,6 @@
 import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import { createJsonResponse } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { debugStreamServer } from '../../debug/DebugStreamServer.js';
 import { StopDebugStreamSchema, toMcpSchema } from '../../core/ZodSchemas.js';
 

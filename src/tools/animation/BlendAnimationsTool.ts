@@ -175,76 +175,95 @@ export const handleBlendAnimations = async (args: BaseToolArgs): Promise<ToolRes
     return sceneValidationError;
   }
 
-  try {
-    const godotPath = await detectGodotPath();
-    if (!godotPath) {
-      return createErrorResponse('Could not find a valid Godot executable path', [
-        'Ensure Godot is installed correctly',
-        'Set GODOT_PATH environment variable',
-      ]);
-    }
+  logDebug(
+    `Creating BlendSpace${typedArgs.type.toUpperCase()} '${typedArgs.blendSpaceName}' with ${typedArgs.points.length} points`,
+  );
 
-    logDebug(
-      `Creating BlendSpace${typedArgs.type.toUpperCase()} '${typedArgs.blendSpaceName}' with ${typedArgs.points.length} points`,
-    );
-
-    const params: BaseToolArgs = {
-      scenePath: typedArgs.scenePath,
-      animTreePath: typedArgs.animTreePath,
-      blendSpaceName: typedArgs.blendSpaceName,
+  // Try bridge first, fallback to GodotExecutor
+  return executeWithBridge(
+    'blend_animations',
+    {
+      anim_tree_path: typedArgs.animTreePath,
+      blend_space_name: typedArgs.blendSpaceName,
       type: typedArgs.type,
       points: typedArgs.points,
-    };
+      min_space: typedArgs.minSpace,
+      max_space: typedArgs.maxSpace,
+      min_space_y: typedArgs.minSpaceY,
+      max_space_y: typedArgs.maxSpaceY,
+      blend_mode: typedArgs.blendMode,
+      sync: typedArgs.sync,
+    },
+    async () => {
+      // Fallback: traditional GodotExecutor method
+      try {
+        const godotPath = await detectGodotPath();
+        if (!godotPath) {
+          return createErrorResponse('Could not find a valid Godot executable path', [
+            'Ensure Godot is installed correctly',
+            'Set GODOT_PATH environment variable',
+          ]);
+        }
 
-    if (typedArgs.minSpace !== undefined) {
-      params.minSpace = typedArgs.minSpace;
-    }
-    if (typedArgs.maxSpace !== undefined) {
-      params.maxSpace = typedArgs.maxSpace;
-    }
-    if (typedArgs.type === '2d') {
-      if (typedArgs.minSpaceY !== undefined) {
-        params.minSpaceY = typedArgs.minSpaceY;
+        const params: BaseToolArgs = {
+          scenePath: typedArgs.scenePath,
+          animTreePath: typedArgs.animTreePath,
+          blendSpaceName: typedArgs.blendSpaceName,
+          type: typedArgs.type,
+          points: typedArgs.points,
+        };
+
+        if (typedArgs.minSpace !== undefined) {
+          params.minSpace = typedArgs.minSpace;
+        }
+        if (typedArgs.maxSpace !== undefined) {
+          params.maxSpace = typedArgs.maxSpace;
+        }
+        if (typedArgs.type === '2d') {
+          if (typedArgs.minSpaceY !== undefined) {
+            params.minSpaceY = typedArgs.minSpaceY;
+          }
+          if (typedArgs.maxSpaceY !== undefined) {
+            params.maxSpaceY = typedArgs.maxSpaceY;
+          }
+        }
+        if (typedArgs.blendMode) {
+          params.blendMode = typedArgs.blendMode;
+        }
+        if (typedArgs.sync !== undefined) {
+          params.sync = typedArgs.sync;
+        }
+
+        const { stderr } = await executeOperation(
+          'blend_animations',
+          params,
+          typedArgs.projectPath,
+          godotPath,
+        );
+
+        if (stderr && stderr.includes('Failed to')) {
+          return createErrorResponse(`Failed to configure blend space: ${stderr}`, [
+            'Check if the AnimationTree node exists',
+            'Verify animation names are correct',
+          ]);
+        }
+
+        const result: BlendAnimationsResult = {
+          animTreePath: typedArgs.animTreePath,
+          blendSpaceName: typedArgs.blendSpaceName,
+          type: typedArgs.type,
+          pointsAdded: typedArgs.points.length,
+          message: `BlendSpace${typedArgs.type.toUpperCase()} '${typedArgs.blendSpaceName}' configured with ${typedArgs.points.length} blend points`,
+        };
+
+        return createJsonResponse(result);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return createErrorResponse(`Failed to configure blend space: ${errorMessage}`, [
+          'Ensure Godot is installed correctly',
+          'Verify the AnimationTree path is correct',
+        ]);
       }
-      if (typedArgs.maxSpaceY !== undefined) {
-        params.maxSpaceY = typedArgs.maxSpaceY;
-      }
     }
-    if (typedArgs.blendMode) {
-      params.blendMode = typedArgs.blendMode;
-    }
-    if (typedArgs.sync !== undefined) {
-      params.sync = typedArgs.sync;
-    }
-
-    const { stderr } = await executeOperation(
-      'blend_animations',
-      params,
-      typedArgs.projectPath,
-      godotPath,
-    );
-
-    if (stderr && stderr.includes('Failed to')) {
-      return createErrorResponse(`Failed to configure blend space: ${stderr}`, [
-        'Check if the AnimationTree node exists',
-        'Verify animation names are correct',
-      ]);
-    }
-
-    const result: BlendAnimationsResult = {
-      animTreePath: typedArgs.animTreePath,
-      blendSpaceName: typedArgs.blendSpaceName,
-      type: typedArgs.type,
-      pointsAdded: typedArgs.points.length,
-      message: `BlendSpace${typedArgs.type.toUpperCase()} '${typedArgs.blendSpaceName}' configured with ${typedArgs.points.length} blend points`,
-    };
-
-    return createJsonResponse(result);
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return createErrorResponse(`Failed to configure blend space: ${errorMessage}`, [
-      'Ensure Godot is installed correctly',
-      'Verify the AnimationTree path is correct',
-    ]);
-  }
+  );
 };

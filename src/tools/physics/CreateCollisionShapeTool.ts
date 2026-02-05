@@ -14,6 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { executeOperation } from '../../core/GodotExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
@@ -70,17 +71,29 @@ export const handleCreateCollisionShape = async (args: BaseToolArgs): Promise<To
     return sceneValidationError;
   }
 
-  try {
-    const godotPath = await detectGodotPath();
-    if (!godotPath) {
-      return createErrorResponse('Could not find a valid Godot executable path', [
-        'Ensure Godot is installed correctly',
-        'Set GODOT_PATH environment variable to specify the correct path',
-      ]);
-    }
+  const nodeType = is3D ? 'CollisionShape3D' : 'CollisionShape2D';
+  logDebug(`Creating ${nodeType} with ${typedArgs.shapeType} shape in scene: ${typedArgs.scenePath}`);
 
-    const nodeType = is3D ? 'CollisionShape3D' : 'CollisionShape2D';
-    logDebug(`Creating ${nodeType} with ${typedArgs.shapeType} shape in scene: ${typedArgs.scenePath}`);
+  // Try bridge first, fallback to GodotExecutor
+  return executeWithBridge(
+    'create_collision_shape',
+    {
+      node_name: typedArgs.nodeName,
+      parent_path: typedArgs.parentNodePath,
+      shape_type: typedArgs.shapeType,
+      is_3d: is3D,
+      shape_params: typedArgs.shapeParams,
+    },
+    async () => {
+      // Fallback: traditional GodotExecutor method
+      try {
+        const godotPath = await detectGodotPath();
+        if (!godotPath) {
+          return createErrorResponse('Could not find a valid Godot executable path', [
+            'Ensure Godot is installed correctly',
+            'Set GODOT_PATH environment variable to specify the correct path',
+          ]);
+        }
 
     const params: BaseToolArgs = {
       scenePath: typedArgs.scenePath,
@@ -110,14 +123,16 @@ export const handleCreateCollisionShape = async (args: BaseToolArgs): Promise<To
       ]);
     }
 
-    return createSuccessResponse(
-      `CollisionShape created successfully: ${typedArgs.nodeName} (${nodeType} with ${typedArgs.shapeType})\n\nOutput: ${stdout}`,
-    );
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return createErrorResponse(`Failed to create collision shape: ${errorMessage}`, [
-      'Ensure Godot is installed correctly',
-      'Verify the project path and scene path are accessible',
-    ]);
-  }
+        return createSuccessResponse(
+          `CollisionShape created successfully: ${typedArgs.nodeName} (${nodeType} with ${typedArgs.shapeType})\n\nOutput: ${stdout}`,
+        );
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return createErrorResponse(`Failed to create collision shape: ${errorMessage}`, [
+          'Ensure Godot is installed correctly',
+          'Verify the project path and scene path are accessible',
+        ]);
+      }
+    }
+  );
 };

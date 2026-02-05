@@ -156,60 +156,73 @@ export const handleSetupStateMachine = async (args: BaseToolArgs): Promise<ToolR
     return sceneValidationError;
   }
 
-  try {
-    const godotPath = await detectGodotPath();
-    if (!godotPath) {
-      return createErrorResponse('Could not find a valid Godot executable path', [
-        'Ensure Godot is installed correctly',
-        'Set GODOT_PATH environment variable',
-      ]);
-    }
+  logDebug(
+    `Setting up state machine at ${typedArgs.animTreePath} with ${typedArgs.states.length} states`,
+  );
 
-    logDebug(
-      `Setting up state machine at ${typedArgs.animTreePath} with ${typedArgs.states.length} states`,
-    );
-
-    const params: BaseToolArgs = {
-      scenePath: typedArgs.scenePath,
-      animTreePath: typedArgs.animTreePath,
+  // Try bridge first, fallback to GodotExecutor
+  return executeWithBridge(
+    'setup_state_machine',
+    {
+      anim_tree_path: typedArgs.animTreePath,
       states: typedArgs.states,
-    };
+      transitions: typedArgs.transitions,
+      start_state: typedArgs.startState,
+    },
+    async () => {
+      // Fallback: traditional GodotExecutor method
+      try {
+        const godotPath = await detectGodotPath();
+        if (!godotPath) {
+          return createErrorResponse('Could not find a valid Godot executable path', [
+            'Ensure Godot is installed correctly',
+            'Set GODOT_PATH environment variable',
+          ]);
+        }
 
-    if (typedArgs.transitions && typedArgs.transitions.length > 0) {
-      params.transitions = typedArgs.transitions;
+        const params: BaseToolArgs = {
+          scenePath: typedArgs.scenePath,
+          animTreePath: typedArgs.animTreePath,
+          states: typedArgs.states,
+        };
+
+        if (typedArgs.transitions && typedArgs.transitions.length > 0) {
+          params.transitions = typedArgs.transitions;
+        }
+        if (typedArgs.startState) {
+          params.startState = typedArgs.startState;
+        }
+
+        const { stderr } = await executeOperation(
+          'setup_state_machine',
+          params,
+          typedArgs.projectPath,
+          godotPath,
+        );
+
+        if (stderr && stderr.includes('Failed to')) {
+          return createErrorResponse(`Failed to setup state machine: ${stderr}`, [
+            'Check if the AnimationTree node exists',
+            'Verify animation names are correct',
+          ]);
+        }
+
+        const result: SetupStateMachineResult = {
+          animTreePath: typedArgs.animTreePath,
+          statesAdded: typedArgs.states.length,
+          transitionsAdded: typedArgs.transitions?.length ?? 0,
+          startState: typedArgs.startState,
+          message: `State machine configured with ${typedArgs.states.length} states and ${typedArgs.transitions?.length ?? 0} transitions`,
+        };
+
+        return createJsonResponse(result);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return createErrorResponse(`Failed to setup state machine: ${errorMessage}`, [
+          'Ensure Godot is installed correctly',
+          'Verify the AnimationTree path is correct',
+        ]);
+      }
     }
-    if (typedArgs.startState) {
-      params.startState = typedArgs.startState;
-    }
-
-    const { stderr } = await executeOperation(
-      'setup_state_machine',
-      params,
-      typedArgs.projectPath,
-      godotPath,
-    );
-
-    if (stderr && stderr.includes('Failed to')) {
-      return createErrorResponse(`Failed to setup state machine: ${stderr}`, [
-        'Check if the AnimationTree node exists',
-        'Verify animation names are correct',
-      ]);
-    }
-
-    const result: SetupStateMachineResult = {
-      animTreePath: typedArgs.animTreePath,
-      statesAdded: typedArgs.states.length,
-      transitionsAdded: typedArgs.transitions?.length ?? 0,
-      startState: typedArgs.startState,
-      message: `State machine configured with ${typedArgs.states.length} states and ${typedArgs.transitions?.length ?? 0} transitions`,
-    };
-
-    return createJsonResponse(result);
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return createErrorResponse(`Failed to setup state machine: ${errorMessage}`, [
-      'Ensure Godot is installed correctly',
-      'Verify the AnimationTree path is correct',
-    ]);
-  }
+  );
 };

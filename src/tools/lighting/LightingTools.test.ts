@@ -29,6 +29,7 @@ const mockConvertCamelToSnakeCase = jest.fn<(s: string) => string>();
 const mockLogDebug = jest.fn();
 const mockLogError = jest.fn();
 const mockLogInfo = jest.fn();
+const mockLogWarn = jest.fn();
 const mockIsGodotProject = jest.fn<(p: string) => boolean>();
 const mockExistsSync = jest.fn<(p: string) => boolean>();
 const mockEnsureDir = jest.fn<() => Promise<void>>();
@@ -55,6 +56,16 @@ jest.unstable_mockModule('../../utils/Logger.js', () => ({
   logDebug: mockLogDebug,
   logError: mockLogError,
   logInfo: mockLogInfo,
+  logWarn: mockLogWarn,
+}));
+
+// Mock BridgeExecutor to always use fallback (no bridge connected)
+jest.unstable_mockModule('../../bridge/BridgeExecutor.js', () => ({
+  executeWithBridge: async (
+    _action: string,
+    _params: Record<string, unknown>,
+    fallback: () => Promise<unknown>,
+  ) => fallback(),
 }));
 
 jest.unstable_mockModule('../../utils/FileUtils.js', () => ({

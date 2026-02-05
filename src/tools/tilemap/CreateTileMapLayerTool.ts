@@ -14,6 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { executeOperation } from '../../core/GodotExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
@@ -84,23 +85,36 @@ export const handleCreateTileMapLayer = async (args: BaseToolArgs): Promise<Tool
       params.parentNodePath = typedArgs.parentNodePath;
     }
 
-    const { stdout, stderr } = await executeOperation(
+    // Use bridge if available, fallback to GodotExecutor
+    return await executeWithBridge(
       'add_node',
-      params,
-      typedArgs.projectPath,
-      godotPath,
-    );
+      {
+        scene_path: typedArgs.scenePath,
+        node_type: 'TileMapLayer',
+        node_name: typedArgs.nodeName,
+        parent_path: typedArgs.parentNodePath ?? '.',
+        properties,
+      },
+      async () => {
+        const { stdout, stderr } = await executeOperation(
+          'add_node',
+          params,
+          typedArgs.projectPath,
+          godotPath,
+        );
 
-    if (stderr && stderr.includes('Failed to')) {
-      return createErrorResponse(`Failed to create TileMapLayer: ${stderr}`, [
-        'Check if the parent node path exists',
-        'Verify the TileSet path is correct',
-        'Ensure the scene file is valid',
-      ]);
-    }
+        if (stderr && stderr.includes('Failed to')) {
+          return createErrorResponse(`Failed to create TileMapLayer: ${stderr}`, [
+            'Check if the parent node path exists',
+            'Verify the TileSet path is correct',
+            'Ensure the scene file is valid',
+          ]);
+        }
 
-    return createSuccessResponse(
-      `TileMapLayer created successfully: ${typedArgs.nodeName}\nTileSet: ${typedArgs.tilesetPath}${typedArgs.zIndex !== undefined ? `\nZ-Index: ${typedArgs.zIndex}` : ''}\n\nOutput: ${stdout}`,
+        return createSuccessResponse(
+          `TileMapLayer created successfully: ${typedArgs.nodeName}\nTileSet: ${typedArgs.tilesetPath}${typedArgs.zIndex !== undefined ? `\nZ-Index: ${typedArgs.zIndex}` : ''}\n\nOutput: ${stdout}`,
+        );
+      },
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

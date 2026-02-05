@@ -14,6 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { executeOperation } from '../../core/GodotExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
@@ -102,28 +103,41 @@ export const handleSetupAudioPlayer = async (args: BaseToolArgs): Promise<ToolRe
       params.parentNodePath = typedArgs.parentNodePath;
     }
 
-    const { stdout, stderr } = await executeOperation(
+    // Use bridge if available, fallback to GodotExecutor
+    return await executeWithBridge(
       'add_node',
-      params,
-      typedArgs.projectPath,
-      godotPath,
-    );
+      {
+        scene_path: typedArgs.scenePath,
+        node_type: nodeType,
+        node_name: typedArgs.nodeName,
+        parent_path: typedArgs.parentNodePath ?? '.',
+        properties,
+      },
+      async () => {
+        const { stdout, stderr } = await executeOperation(
+          'add_node',
+          params,
+          typedArgs.projectPath,
+          godotPath,
+        );
 
-    if (stderr && stderr.includes('Failed to')) {
-      return createErrorResponse(`Failed to setup audio player: ${stderr}`, [
-        'Check if the parent node path exists',
-        'Verify the audio stream path is correct (if provided)',
-        'Ensure the bus name exists',
-      ]);
-    }
+        if (stderr && stderr.includes('Failed to')) {
+          return createErrorResponse(`Failed to setup audio player: ${stderr}`, [
+            'Check if the parent node path exists',
+            'Verify the audio stream path is correct (if provided)',
+            'Ensure the bus name exists',
+          ]);
+        }
 
-    const streamInfo = typedArgs.streamPath ? `\nStream: ${typedArgs.streamPath}` : '';
-    const busInfo = typedArgs.bus ? `\nBus: ${typedArgs.bus}` : '';
-    const autoplayInfo = typedArgs.autoplay ? '\nAutoplay: enabled' : '';
-    const volumeInfo = typedArgs.volumeDb !== undefined ? `\nVolume: ${typedArgs.volumeDb} dB` : '';
+        const streamInfo = typedArgs.streamPath ? `\nStream: ${typedArgs.streamPath}` : '';
+        const busInfo = typedArgs.bus ? `\nBus: ${typedArgs.bus}` : '';
+        const autoplayInfo = typedArgs.autoplay ? '\nAutoplay: enabled' : '';
+        const volumeInfo = typedArgs.volumeDb !== undefined ? `\nVolume: ${typedArgs.volumeDb} dB` : '';
 
-    return createSuccessResponse(
-      `AudioStreamPlayer created successfully: ${typedArgs.nodeName} (${nodeType})${streamInfo}${busInfo}${autoplayInfo}${volumeInfo}\n\nOutput: ${stdout}`,
+        return createSuccessResponse(
+          `AudioStreamPlayer created successfully: ${typedArgs.nodeName} (${nodeType})${streamInfo}${busInfo}${autoplayInfo}${volumeInfo}\n\nOutput: ${stdout}`,
+        );
+      },
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

@@ -14,6 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { executeOperation } from '../../core/GodotExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
@@ -106,22 +107,47 @@ export const handleCreateUIContainer = async (args: BaseToolArgs): Promise<ToolR
       params.anchors_preset = typedArgs.anchorsPreset;
     }
 
-    const { stdout, stderr } = await executeOperation(
-      'create_ui_container',
-      params,
-      typedArgs.projectPath,
-      godotPath,
-    );
-
-    if (stderr && stderr.includes('Failed to')) {
-      return createErrorResponse(`Failed to create UI container: ${stderr}`, [
-        'Check if the parent node exists',
-        'Verify the scene path is correct',
-      ]);
+    // Build properties for bridge
+    const bridgeProperties: Record<string, unknown> = {};
+    if (typedArgs.columns !== undefined && typedArgs.containerType === 'grid') {
+      bridgeProperties.columns = typedArgs.columns;
+    }
+    if (typedArgs.customMinimumSize) {
+      bridgeProperties.custom_minimum_size = typedArgs.customMinimumSize;
+    }
+    if (typedArgs.anchorsPreset) {
+      bridgeProperties.anchors_preset = typedArgs.anchorsPreset;
     }
 
-    return createSuccessResponse(
-      `UI Container created successfully: ${typedArgs.nodeName} (${nodeType})\n\nOutput: ${stdout}`,
+    // Use bridge if available, fallback to GodotExecutor
+    return await executeWithBridge(
+      'add_node',
+      {
+        scene_path: typedArgs.scenePath,
+        node_type: nodeType,
+        node_name: typedArgs.nodeName,
+        parent_path: typedArgs.parentNodePath ?? '.',
+        properties: bridgeProperties,
+      },
+      async () => {
+        const { stdout, stderr } = await executeOperation(
+          'create_ui_container',
+          params,
+          typedArgs.projectPath,
+          godotPath,
+        );
+
+        if (stderr && stderr.includes('Failed to')) {
+          return createErrorResponse(`Failed to create UI container: ${stderr}`, [
+            'Check if the parent node exists',
+            'Verify the scene path is correct',
+          ]);
+        }
+
+        return createSuccessResponse(
+          `UI Container created successfully: ${typedArgs.nodeName} (${nodeType})\n\nOutput: ${stdout}`,
+        );
+      },
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

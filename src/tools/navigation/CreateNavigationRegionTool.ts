@@ -14,6 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { executeOperation } from '../../core/GodotExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
@@ -77,22 +78,41 @@ export const handleCreateNavigationRegion = async (args: BaseToolArgs): Promise<
       params.navigation_mesh_path = typedArgs.navigationMeshPath;
     }
 
-    const { stdout, stderr } = await executeOperation(
-      'create_navigation_region',
-      params,
-      typedArgs.projectPath,
-      godotPath,
-    );
-
-    if (stderr && stderr.includes('Failed to')) {
-      return createErrorResponse(`Failed to create navigation region: ${stderr}`, [
-        'Check if the parent node exists',
-        'Verify the scene path is correct',
-      ]);
+    // Build properties for bridge
+    const bridgeProperties: Record<string, unknown> = {};
+    if (typedArgs.navigationMeshPath) {
+      bridgeProperties.navigation_mesh = typedArgs.navigationMeshPath;
     }
 
-    return createSuccessResponse(
-      `NavigationRegion created successfully: ${typedArgs.nodeName} (${nodeType})\n\nOutput: ${stdout}`,
+    // Use bridge if available, fallback to GodotExecutor
+    return await executeWithBridge(
+      'add_node',
+      {
+        scene_path: typedArgs.scenePath,
+        node_type: nodeType,
+        node_name: typedArgs.nodeName,
+        parent_path: typedArgs.parentNodePath ?? '.',
+        properties: bridgeProperties,
+      },
+      async () => {
+        const { stdout, stderr } = await executeOperation(
+          'create_navigation_region',
+          params,
+          typedArgs.projectPath,
+          godotPath,
+        );
+
+        if (stderr && stderr.includes('Failed to')) {
+          return createErrorResponse(`Failed to create navigation region: ${stderr}`, [
+            'Check if the parent node exists',
+            'Verify the scene path is correct',
+          ]);
+        }
+
+        return createSuccessResponse(
+          `NavigationRegion created successfully: ${typedArgs.nodeName} (${nodeType})\n\nOutput: ${stdout}`,
+        );
+      },
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

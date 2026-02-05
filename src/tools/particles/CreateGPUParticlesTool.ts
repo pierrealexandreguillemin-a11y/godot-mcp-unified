@@ -14,6 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { executeOperation } from '../../core/GodotExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
@@ -97,22 +98,44 @@ export const handleCreateGPUParticles = async (args: BaseToolArgs): Promise<Tool
       params.material_path = typedArgs.materialPath;
     }
 
-    const { stdout, stderr } = await executeOperation(
-      'create_gpu_particles',
-      params,
-      typedArgs.projectPath,
-      godotPath,
-    );
+    // Build properties for bridge
+    const bridgeProperties: Record<string, unknown> = {};
+    if (typedArgs.amount !== undefined) bridgeProperties.amount = typedArgs.amount;
+    if (typedArgs.lifetime !== undefined) bridgeProperties.lifetime = typedArgs.lifetime;
+    if (typedArgs.oneShot !== undefined) bridgeProperties.one_shot = typedArgs.oneShot;
+    if (typedArgs.preprocess !== undefined) bridgeProperties.preprocess = typedArgs.preprocess;
+    if (typedArgs.emitting !== undefined) bridgeProperties.emitting = typedArgs.emitting;
+    if (typedArgs.materialPath) bridgeProperties.process_material = typedArgs.materialPath;
 
-    if (stderr && stderr.includes('Failed to')) {
-      return createErrorResponse(`Failed to create GPU particles: ${stderr}`, [
-        'Check if the parent node exists',
-        'Verify the scene path is correct',
-      ]);
-    }
+    // Use bridge if available, fallback to GodotExecutor
+    return await executeWithBridge(
+      'add_node',
+      {
+        scene_path: typedArgs.scenePath,
+        node_type: nodeType,
+        node_name: typedArgs.nodeName,
+        parent_path: typedArgs.parentNodePath ?? '.',
+        properties: bridgeProperties,
+      },
+      async () => {
+        const { stdout, stderr } = await executeOperation(
+          'create_gpu_particles',
+          params,
+          typedArgs.projectPath,
+          godotPath,
+        );
 
-    return createSuccessResponse(
-      `GPUParticles created successfully: ${typedArgs.nodeName} (${nodeType})\nAmount: ${typedArgs.amount ?? 8}\n\nOutput: ${stdout}`,
+        if (stderr && stderr.includes('Failed to')) {
+          return createErrorResponse(`Failed to create GPU particles: ${stderr}`, [
+            'Check if the parent node exists',
+            'Verify the scene path is correct',
+          ]);
+        }
+
+        return createSuccessResponse(
+          `GPUParticles created successfully: ${typedArgs.nodeName} (${nodeType})\nAmount: ${typedArgs.amount ?? 8}\n\nOutput: ${stdout}`,
+        );
+      },
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

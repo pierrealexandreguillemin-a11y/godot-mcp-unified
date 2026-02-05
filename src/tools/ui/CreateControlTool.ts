@@ -14,6 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { executeOperation } from '../../core/GodotExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
@@ -126,22 +127,45 @@ export const handleCreateControl = async (args: BaseToolArgs): Promise<ToolRespo
       params.value = typedArgs.value;
     }
 
-    const { stdout, stderr } = await executeOperation(
-      'create_control',
-      params,
-      typedArgs.projectPath,
-      godotPath,
-    );
+    // Build properties for bridge
+    const bridgeProperties: Record<string, unknown> = {};
+    if (typedArgs.text !== undefined) bridgeProperties.text = typedArgs.text;
+    if (typedArgs.placeholderText !== undefined) bridgeProperties.placeholder_text = typedArgs.placeholderText;
+    if (typedArgs.texturePath !== undefined) bridgeProperties.texture = typedArgs.texturePath;
+    if (typedArgs.color !== undefined) bridgeProperties.color = typedArgs.color;
+    if (typedArgs.minValue !== undefined) bridgeProperties.min_value = typedArgs.minValue;
+    if (typedArgs.maxValue !== undefined) bridgeProperties.max_value = typedArgs.maxValue;
+    if (typedArgs.value !== undefined) bridgeProperties.value = typedArgs.value;
 
-    if (stderr && stderr.includes('Failed to')) {
-      return createErrorResponse(`Failed to create control: ${stderr}`, [
-        'Check if the parent node exists',
-        'Verify the scene path is correct',
-      ]);
-    }
+    // Use bridge if available, fallback to GodotExecutor
+    return await executeWithBridge(
+      'add_node',
+      {
+        scene_path: typedArgs.scenePath,
+        node_type: nodeType,
+        node_name: typedArgs.nodeName,
+        parent_path: typedArgs.parentNodePath ?? '.',
+        properties: bridgeProperties,
+      },
+      async () => {
+        const { stdout, stderr } = await executeOperation(
+          'create_control',
+          params,
+          typedArgs.projectPath,
+          godotPath,
+        );
 
-    return createSuccessResponse(
-      `Control created successfully: ${typedArgs.nodeName} (${nodeType})\n\nOutput: ${stdout}`,
+        if (stderr && stderr.includes('Failed to')) {
+          return createErrorResponse(`Failed to create control: ${stderr}`, [
+            'Check if the parent node exists',
+            'Verify the scene path is correct',
+          ]);
+        }
+
+        return createSuccessResponse(
+          `Control created successfully: ${typedArgs.nodeName} (${nodeType})\n\nOutput: ${stdout}`,
+        );
+      },
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

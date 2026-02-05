@@ -14,6 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { executeOperation } from '../../core/GodotExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
@@ -81,53 +82,78 @@ export const handleCreateLight = async (args: BaseToolArgs): Promise<ToolRespons
     const nodeType = lightTypeToClass[typedArgs.lightType];
     logDebug(`Creating ${nodeType}: ${typedArgs.nodeName}`);
 
-    const params: BaseToolArgs = {
-      scene_path: typedArgs.scenePath,
-      node_type: nodeType,
-      node_name: typedArgs.nodeName,
-      parent_node_path: typedArgs.parentNodePath ?? '',
-    };
-
+    // Build properties for the light node
+    const properties: Record<string, unknown> = {};
     if (typedArgs.color) {
-      params.color = typedArgs.color;
+      properties.light_color = typedArgs.color;
     }
-
     if (typedArgs.energy !== undefined) {
-      params.energy = typedArgs.energy;
+      properties.light_energy = typedArgs.energy;
     }
-
     if (typedArgs.range !== undefined) {
-      params.range = typedArgs.range;
+      properties.omni_range = typedArgs.range;
     }
-
     if (typedArgs.spotAngle !== undefined) {
-      params.spot_angle = typedArgs.spotAngle;
+      properties.spot_angle = typedArgs.spotAngle;
     }
-
     if (typedArgs.shadowEnabled !== undefined) {
-      params.shadow_enabled = typedArgs.shadowEnabled;
+      properties.shadow_enabled = typedArgs.shadowEnabled;
     }
 
-    if (typedArgs.texturePath) {
-      params.texture_path = typedArgs.texturePath;
-    }
+    // Use bridge if available, fallback to GodotExecutor
+    return await executeWithBridge(
+      'add_node',
+      {
+        node_type: nodeType,
+        node_name: typedArgs.nodeName,
+        parent_path: typedArgs.parentNodePath ?? '.',
+        properties,
+      },
+      async () => {
+        const params: BaseToolArgs = {
+          scene_path: typedArgs.scenePath,
+          node_type: nodeType,
+          node_name: typedArgs.nodeName,
+          parent_node_path: typedArgs.parentNodePath ?? '',
+        };
 
-    const { stdout, stderr } = await executeOperation(
-      'create_light',
-      params,
-      typedArgs.projectPath,
-      godotPath,
-    );
+        if (typedArgs.color) {
+          params.color = typedArgs.color;
+        }
+        if (typedArgs.energy !== undefined) {
+          params.energy = typedArgs.energy;
+        }
+        if (typedArgs.range !== undefined) {
+          params.range = typedArgs.range;
+        }
+        if (typedArgs.spotAngle !== undefined) {
+          params.spot_angle = typedArgs.spotAngle;
+        }
+        if (typedArgs.shadowEnabled !== undefined) {
+          params.shadow_enabled = typedArgs.shadowEnabled;
+        }
+        if (typedArgs.texturePath) {
+          params.texture_path = typedArgs.texturePath;
+        }
 
-    if (stderr && stderr.includes('Failed to')) {
-      return createErrorResponse(`Failed to create light: ${stderr}`, [
-        'Check if the parent node exists',
-        'Verify the scene path is correct',
-      ]);
-    }
+        const { stdout, stderr } = await executeOperation(
+          'create_light',
+          params,
+          typedArgs.projectPath,
+          godotPath,
+        );
 
-    return createSuccessResponse(
-      `Light created successfully: ${typedArgs.nodeName} (${nodeType})\nEnergy: ${typedArgs.energy ?? 1.0}\n\nOutput: ${stdout}`,
+        if (stderr && stderr.includes('Failed to')) {
+          return createErrorResponse(`Failed to create light: ${stderr}`, [
+            'Check if the parent node exists',
+            'Verify the scene path is correct',
+          ]);
+        }
+
+        return createSuccessResponse(
+          `Light created successfully: ${typedArgs.nodeName} (${nodeType})\nEnergy: ${typedArgs.energy ?? 1.0}\n\nOutput: ${stdout}`,
+        );
+      },
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

@@ -36,6 +36,15 @@ jest.unstable_mockModule('../../core/GodotExecutor', () => ({
   executeOperation: mockExecuteOperation,
 }));
 
+// Mock BridgeExecutor to always use fallback (no bridge connected)
+jest.unstable_mockModule('../../bridge/BridgeExecutor', () => ({
+  executeWithBridge: async (
+    _action: string,
+    _params: Record<string, unknown>,
+    fallback: () => Promise<unknown>,
+  ) => await fallback(),
+}));
+
 // Must import after mocks are set up
 const { handleCreateTileSet } = await import('./CreateTileSetTool.js');
 const { handleCreateTileMapLayer } = await import('./CreateTileMapLayerTool.js');

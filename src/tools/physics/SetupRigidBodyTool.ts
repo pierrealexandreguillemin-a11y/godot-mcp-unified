@@ -14,6 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { executeOperation } from '../../core/GodotExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
@@ -111,24 +112,35 @@ export const handleSetupRigidBody = async (args: BaseToolArgs): Promise<ToolResp
       properties: properties,
     };
 
-    const { stdout, stderr } = await executeOperation(
+    // Use bridge if available, fallback to GodotExecutor
+    return await executeWithBridge(
       'edit_node',
-      params,
-      typedArgs.projectPath,
-      godotPath,
-    );
+      {
+        scene_path: typedArgs.scenePath,
+        node_path: typedArgs.nodePath,
+        properties,
+      },
+      async () => {
+        const { stdout, stderr } = await executeOperation(
+          'edit_node',
+          params,
+          typedArgs.projectPath,
+          godotPath,
+        );
 
-    if (stderr && stderr.includes('Failed to')) {
-      return createErrorResponse(`Failed to setup RigidBody: ${stderr}`, [
-        'Check if the node path is correct',
-        'Verify the node is a RigidBody2D or RigidBody3D',
-        'Ensure the scene file is not corrupted',
-      ]);
-    }
+        if (stderr && stderr.includes('Failed to')) {
+          return createErrorResponse(`Failed to setup RigidBody: ${stderr}`, [
+            'Check if the node path is correct',
+            'Verify the node is a RigidBody2D or RigidBody3D',
+            'Ensure the scene file is not corrupted',
+          ]);
+        }
 
-    const configuredProps = Object.keys(properties).join(', ') || 'no changes';
-    return createSuccessResponse(
-      `RigidBody configured successfully at ${typedArgs.nodePath}\nProperties set: ${configuredProps}\n\nOutput: ${stdout}`,
+        const configuredProps = Object.keys(properties).join(', ') || 'no changes';
+        return createSuccessResponse(
+          `RigidBody configured successfully at ${typedArgs.nodePath}\nProperties set: ${configuredProps}\n\nOutput: ${stdout}`,
+        );
+      },
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

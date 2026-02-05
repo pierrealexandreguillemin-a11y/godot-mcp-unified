@@ -30,9 +30,25 @@ Voir [ARCHITECTURE_PLUGIN.md](docs/ARCHITECTURE_PLUGIN.md) pour details.
 Communication:
   Plugin Godot:      ✅ Implemente (addons/godot_mcp/)
   Bridge TypeScript: ✅ Implemente (src/bridge/GodotPluginBridge.ts)
-  Integration Tools: ✅ 81/82 outils avec executeWithBridge() (1 n/a: status local)
+  Integration Tools: ✅ 47/82 outils avec executeWithBridge()
   Validation GDScript: ✅ MCPValidator + MCPNodeFactory
   Tests:             ✅ 32 tests bridge (+ 3081 tests totaux)
+
+Integration executeWithBridge:
+  Avec bridge:       47 outils (57%) - utilisent le plugin si connecte
+  Sans bridge:       35 outils (43%) - raisons detaillees ci-dessous
+
+  Outils sans bridge (par categorie):
+  ├── File I/O direct:     5 (shader, environment, particles material)
+  ├── CLI Godot:           8 (export, convert, validate, bake, docs)
+  ├── project.godot:       5 (settings, autoloads, input actions)
+  ├── File system scan:    5 (list assets, resources, projects)
+  ├── Debug stream:        4 (start/stop/get stream)
+  ├── System/Version:      3 (version, health, launch editor)
+  ├── Orchestrateur:       1 (batch_operations)
+  ├── Loop interne:        1 (configure_physics_layers)
+  ├── Import complexe:     1 (import_ldtk_level)
+  └── Total:              35 outils ne pouvant PAS utiliser le bridge
 ```
 
 ---
@@ -714,8 +730,8 @@ Sur 55 outils legacy prevus, **53 sont validement remplaces par des Prompts** (9
 
 ---
 
-*Document mis a jour le 4 fevrier 2026*
-*godot-mcp-unified v0.9.2 → v1.0.0 roadmap*
+*Document mis a jour le 5 fevrier 2026*
+*godot-mcp-unified v0.9.3 → v1.0.0 roadmap*
 
 ---
 

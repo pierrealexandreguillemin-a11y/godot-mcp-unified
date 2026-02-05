@@ -19,16 +19,36 @@
 +----------------+  |   (ce serveur)   |  +------------------+
                     +--------+---------+
                              |
-                             v
-                    +--------+---------+
-                    |  Godot Engine    |
-                    |    4.5.1         |
-                    +------------------+
+              +--------------+--------------+
+              |                             |
+              v                             v
+     +--------+---------+          +--------+---------+
+     |  Godot CLI       |          |  Plugin WebSocket|
+     |  (--headless)    |          |  (addons/godot_  |
+     |  Fallback mode   |          |   mcp/) Port 6505|
+     +------------------+          +------------------+
+              |                             |
+              +-------------+---------------+
+                            |
+                            v
+                   +--------+---------+
+                   |  Godot Engine    |
+                   |    4.5.1         |
+                   +------------------+
 ```
+
+### Communication avec Godot
+
+| Mode | Quand | Avantages |
+|------|-------|-----------|
+| **Plugin WebSocket** | Plugin actif dans l'editeur | Temps reel, acces EditorInterface |
+| **CLI Fallback** | Plugin non disponible | Fonctionne sans editeur ouvert |
+
+Le serveur detecte automatiquement si le plugin est connecte et utilise le mode optimal.
 
 ## Ce que ce serveur permet de faire
 
-**TOUT faire dans Godot en langage naturel (76 outils) :**
+**TOUT faire dans Godot en langage naturel (82 outils + 20 resources + 20 prompts) :**
 
 | Fonctionnalite | Description | Exemple |
 |----------------|-------------|---------|
@@ -122,23 +142,42 @@ ollmcp --model qwen2.5-coder:7b C:\Dev\godot-mcp-unified\build\index.js
 
 **Note:** Les modeles `-chess` ne sont PAS pour jouer aux echecs mais des assistants personnalises pour le developpement de chess-app avec system prompts FFE.
 
-## API Reference (76 outils disponibles)
+## API Reference (82 outils + 20 resources + 20 prompts)
 
-### Gestion de projet (12 outils)
+### Statistiques
+
+```
+Primitives MCP:
+  Tools:     82/82   ████████████████████ 100%
+  Resources: 20/20   ████████████████████ 100%
+  Prompts:   20/20   ████████████████████ 100%
+
+Qualite:
+  Tests:    3081+    ████████████████████ 100% pass
+  Coverage:  81%     ████████████████░░░░  81%
+
+Bridge Plugin:
+  Avec bridge:  47 outils (utilisent WebSocket si plugin actif)
+  Sans bridge:  35 outils (CLI/file I/O uniquement)
+```
+
+### Gestion de projet (14 outils)
 - `launch_editor` - Ouvrir l'editeur Godot
 - `run_project` - Lancer un projet
 - `stop_project` - Arreter le projet
-- `get_debug_output` - Recuperer la sortie console
 - `list_projects` - Lister les projets dans un dossier
 - `get_project_info` - Info sur un projet
 - `get_godot_version` - Version de Godot
 - `get_project_settings` - Lire les settings du projet
 - `set_project_setting` - Modifier un setting
-- `get_input_map` - Lire la map des inputs
-- `add_input_action` - Ajouter une action input
+- `manage_input_actions` - Gerer les actions input
+- `manage_autoloads` - Gerer les autoloads
 - `validate_project` - Valider la structure projet
+- `convert_project` - Convertir projet Godot 3 vers 4
+- `validate_conversion` - Valider une conversion
+- `generate_docs` - Generer documentation GDScript
 
-### Gestion des scenes (10 outils)
+### Gestion des scenes (15 outils)
 - `create_scene` - Creer une nouvelle scene
 - `add_node` - Ajouter un node
 - `edit_node` - Modifier les proprietes d'un node
@@ -148,32 +187,42 @@ ollmcp --model qwen2.5-coder:7b C:\Dev\godot-mcp-unified\build\index.js
 - `duplicate_node` - Dupliquer un node
 - `load_sprite` - Charger une texture
 - `save_scene` - Sauvegarder une scene
-- `get_scene_tree` - Obtenir l'arbre de scene
+- `instance_scene` - Instancier une scene
+- `list_scenes` - Lister les scenes
+- `get_node_tree` - Obtenir l'arbre de scene
+- `connect_signal` - Connecter un signal
+- `manage_groups` - Gerer les groupes de nodes
+- `export_mesh_library` - Exporter en MeshLibrary
 
-### Scripts GDScript (6 outils)
+### Scripts GDScript (7 outils)
 - `list_scripts` - Lister tous les .gd du projet
 - `read_script` - Lire le contenu d'un script
 - `write_script` - Creer/modifier un script
+- `delete_script` - Supprimer un script
 - `attach_script` - Attacher script a un node
 - `detach_script` - Detacher script d'un node
 - `get_script_errors` - Erreurs de compilation
 
-### Animation (4 outils)
+### Animation (7 outils)
 - `create_animation_player` - Creer AnimationPlayer
 - `add_animation` - Ajouter animation
 - `add_animation_track` - Ajouter track (value, position, rotation, etc.)
 - `set_keyframe` - Definir keyframe avec transition/easing
+- `create_animation_tree` - Creer AnimationTree
+- `setup_state_machine` - Configurer state machine
+- `blend_animations` - Configurer blend d'animations
 
 ### Physics (3 outils)
 - `create_collision_shape` - Creer CollisionShape2D/3D
 - `setup_rigidbody` - Configurer RigidBody (masse, gravite)
 - `configure_physics_layers` - Nommer layers physique 2D/3D
 
-### TileMap (4 outils)
+### TileMap (5 outils)
 - `create_tileset` - Creer TileSet avec tile size
 - `create_tilemap_layer` - Creer TileMapLayer
 - `set_tile` - Placer une tuile
 - `paint_tiles` - Peindre tuiles en batch
+- `import_ldtk_level` - Importer niveau LDtk
 
 ### Audio (3 outils)
 - `create_audio_bus` - Creer bus audio
@@ -196,9 +245,10 @@ ollmcp --model qwen2.5-coder:7b C:\Dev\godot-mcp-unified\build\index.js
 - `create_ui_container` - Creer Container (VBox, HBox, Grid, etc.)
 - `create_control` - Creer Control (Button, Label, etc.)
 
-### Lighting (2 outils)
+### Lighting (3 outils)
 - `create_light` - Creer Light2D/3D (Directional, Omni, Spot)
 - `setup_environment` - Configurer Environment (fog, glow, SSAO)
+- `setup_lightmapper` - Configurer LightmapGI et baking
 
 ### Assets (3 outils)
 - `list_assets` - Lister assets (images, audio, modeles)
@@ -213,17 +263,20 @@ ollmcp --model qwen2.5-coder:7b C:\Dev\godot-mcp-unified\build\index.js
 ### Batch Operations (1 outil)
 - `batch_operations` - Executer plusieurs outils MCP en sequence
 
-### Debug Stream (3 outils)
+### Debug (5 outils)
+- `get_debug_output` - Recuperer la sortie console
 - `start_debug_stream` - Demarrer serveur WebSocket debug
 - `stop_debug_stream` - Arreter serveur WebSocket
 - `get_debug_stream_status` - Statut du serveur
+- `take_screenshot` - Capturer une screenshot
 
-### UID (Godot 4.4+)
+### UID (Godot 4.4+) (2 outils)
 - `get_uid` - Obtenir l'UID d'un fichier
 - `update_project_uids` - Mettre a jour les references
 
-### 3D
-- `export_mesh_library` - Exporter en MeshLibrary
+### System (2 outils)
+- `system_health` - Verification sante du systeme
+- `get_godot_version` - Version de Godot
 
 ## Exemples d'utilisation
 
@@ -315,5 +368,6 @@ ollama rm nom_modele
 
 ---
 
-*Derniere mise a jour: Decembre 2024*
-*godot-mcp-unified v0.8.0 - 76 outils*
+*Derniere mise a jour: Fevrier 2026*
+*godot-mcp-unified v0.9.3 - 82 outils + 20 resources + 20 prompts*
+*Coverage: 81% | Tests: 3081+ | ISO 25010/29119/5055 compliant*

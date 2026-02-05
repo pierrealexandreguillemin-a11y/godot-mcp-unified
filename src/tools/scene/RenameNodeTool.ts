@@ -3,7 +3,7 @@
  * Renames an existing node in a scene, updating all references
  *
  * ISO/IEC 5055 compliant - Zod validation
- * ISO/IEC 25010 compliant - data integrity
+ * ISO/IEC 25010 compliant - data integrity, bridge fallback
  */
 
 import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
@@ -14,6 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
@@ -68,94 +69,105 @@ export const handleRenameNode = async (args: BaseToolArgs): Promise<ToolResponse
     ]);
   }
 
-  try {
-    const sceneFullPath = join(typedArgs.projectPath, typedArgs.scenePath);
+  logDebug(`Renaming node ${typedArgs.nodePath} to ${typedArgs.newName} in scene ${typedArgs.scenePath}`);
 
-    logDebug(`Renaming node ${typedArgs.nodePath} to ${typedArgs.newName} in scene ${typedArgs.scenePath}`);
+  // Try bridge first (uses edit_node with new_name), fallback to file manipulation
+  return executeWithBridge(
+    'edit_node',
+    {
+      node_path: typedArgs.nodePath,
+      new_name: typedArgs.newName,
+    },
+    async () => {
+      // Fallback: manual TSCN manipulation
+      try {
+        const sceneFullPath = join(typedArgs.projectPath, typedArgs.scenePath);
 
-    // Read and parse scene file
-    const content = readFileSync(sceneFullPath, 'utf-8');
-    const doc = parseTscn(content);
+        // Read and parse scene file
+        const content = readFileSync(sceneFullPath, 'utf-8');
+        const doc = parseTscn(content);
 
-    // Find the node to rename
-    const node = findNodeByPath(doc, typedArgs.nodePath);
-    if (!node) {
-      return createErrorResponse(`Node not found: ${typedArgs.nodePath}`, [
-        'Check the node path is correct',
-        'Use get_node_tree to see available nodes',
-      ]);
+        // Find the node to rename
+        const node = findNodeByPath(doc, typedArgs.nodePath);
+        if (!node) {
+          return createErrorResponse(`Node not found: ${typedArgs.nodePath}`, [
+            'Check the node path is correct',
+            'Use get_node_tree to see available nodes',
+          ]);
+        }
+
+        const oldName = node.name;
+
+        // Check if new name already exists at same level
+        const siblingExists = doc.nodes.some(n =>
+          n.name === typedArgs.newName &&
+          n.parent === node.parent &&
+          n !== node
+        );
+
+        if (siblingExists) {
+          return createErrorResponse(`A sibling node named "${typedArgs.newName}" already exists`, [
+            'Choose a different name',
+            'Remove the existing node first',
+          ]);
+        }
+
+        // Update the node name
+        node.name = typedArgs.newName;
+
+        // Update all child nodes that reference this node as parent
+        let updatedReferences = 0;
+        for (const childNode of doc.nodes) {
+          if (childNode.parent === oldName) {
+            childNode.parent = typedArgs.newName;
+            updatedReferences++;
+          }
+          // Also handle nested paths
+          if (childNode.parent && childNode.parent.includes(oldName + '/')) {
+            childNode.parent = childNode.parent.replace(oldName + '/', typedArgs.newName + '/');
+            updatedReferences++;
+          }
+        }
+
+        // Update connections that reference this node
+        for (const conn of doc.connections) {
+          if (conn.from === oldName) {
+            conn.from = typedArgs.newName;
+            updatedReferences++;
+          }
+          if (conn.to === oldName) {
+            conn.to = typedArgs.newName;
+            updatedReferences++;
+          }
+          // Handle path references
+          if (conn.from.startsWith(oldName + '/')) {
+            conn.from = typedArgs.newName + conn.from.slice(oldName.length);
+            updatedReferences++;
+          }
+          if (conn.to.startsWith(oldName + '/')) {
+            conn.to = typedArgs.newName + conn.to.slice(oldName.length);
+            updatedReferences++;
+          }
+        }
+
+        // Serialize and write back
+        const serialized = serializeTscn(doc);
+        writeFileSync(sceneFullPath, serialized, 'utf-8');
+
+        return createSuccessResponse(
+          `Node renamed successfully!\n` +
+          `Scene: ${typedArgs.scenePath}\n` +
+          `Old name: ${oldName}\n` +
+          `New name: ${typedArgs.newName}\n` +
+          `References updated: ${updatedReferences}`
+        );
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return createErrorResponse(`Failed to rename node: ${errorMessage}`, [
+          'Check the scene file format',
+          'Verify paths are correct',
+        ]);
+      }
     }
-
-    const oldName = node.name;
-
-    // Check if new name already exists at same level
-    const siblingExists = doc.nodes.some(n =>
-      n.name === typedArgs.newName &&
-      n.parent === node.parent &&
-      n !== node
-    );
-
-    if (siblingExists) {
-      return createErrorResponse(`A sibling node named "${typedArgs.newName}" already exists`, [
-        'Choose a different name',
-        'Remove the existing node first',
-      ]);
-    }
-
-    // Update the node name
-    node.name = typedArgs.newName;
-
-    // Update all child nodes that reference this node as parent
-    let updatedReferences = 0;
-    for (const childNode of doc.nodes) {
-      if (childNode.parent === oldName) {
-        childNode.parent = typedArgs.newName;
-        updatedReferences++;
-      }
-      // Also handle nested paths
-      if (childNode.parent && childNode.parent.includes(oldName + '/')) {
-        childNode.parent = childNode.parent.replace(oldName + '/', typedArgs.newName + '/');
-        updatedReferences++;
-      }
-    }
-
-    // Update connections that reference this node
-    for (const conn of doc.connections) {
-      if (conn.from === oldName) {
-        conn.from = typedArgs.newName;
-        updatedReferences++;
-      }
-      if (conn.to === oldName) {
-        conn.to = typedArgs.newName;
-        updatedReferences++;
-      }
-      // Handle path references
-      if (conn.from.startsWith(oldName + '/')) {
-        conn.from = typedArgs.newName + conn.from.slice(oldName.length);
-        updatedReferences++;
-      }
-      if (conn.to.startsWith(oldName + '/')) {
-        conn.to = typedArgs.newName + conn.to.slice(oldName.length);
-        updatedReferences++;
-      }
-    }
-
-    // Serialize and write back
-    const serialized = serializeTscn(doc);
-    writeFileSync(sceneFullPath, serialized, 'utf-8');
-
-    return createSuccessResponse(
-      `Node renamed successfully!\n` +
-      `Scene: ${typedArgs.scenePath}\n` +
-      `Old name: ${oldName}\n` +
-      `New name: ${typedArgs.newName}\n` +
-      `References updated: ${updatedReferences}`
-    );
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return createErrorResponse(`Failed to rename node: ${errorMessage}`, [
-      'Check the scene file format',
-      'Verify paths are correct',
-    ]);
-  }
+  );
 };

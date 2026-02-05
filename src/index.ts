@@ -7,14 +7,25 @@
  * maintainable, and extensible structure.
  */
 
-import { GodotMCPServer } from './server/GodotMCPServer';
-import { logInfo, logError } from './utils/Logger';
+import { GodotMCPServer } from './server/GodotMCPServer.js';
+import { logInfo, logError, logDebug } from './utils/Logger.js';
+import { tryInitializeBridge } from './bridge/BridgeExecutor.js';
 
 /**
  * Main function to start the server
  */
 const main = async (): Promise<void> => {
   try {
+    // Try to connect to Godot plugin bridge (non-blocking)
+    // This enables enhanced functionality when plugin is running
+    tryInitializeBridge().then((connected) => {
+      if (connected) {
+        logInfo('[MCP] Godot plugin bridge connected - using real-time editor integration');
+      } else {
+        logDebug('[MCP] Godot plugin not detected - using headless script execution');
+      }
+    });
+
     const server = new GodotMCPServer();
     await server.start();
 

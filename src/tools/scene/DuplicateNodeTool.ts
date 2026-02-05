@@ -3,7 +3,7 @@
  * Duplicates an existing node in a scene
  *
  * ISO/IEC 5055 compliant - Zod validation
- * ISO/IEC 25010 compliant - data integrity
+ * ISO/IEC 25010 compliant - data integrity, bridge fallback
  */
 
 import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
@@ -14,6 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
@@ -62,96 +63,107 @@ export const handleDuplicateNode = async (args: BaseToolArgs): Promise<ToolRespo
     ]);
   }
 
-  try {
-    const sceneFullPath = join(typedArgs.projectPath, typedArgs.scenePath);
+  logDebug(`Duplicating node ${typedArgs.nodePath} in scene ${typedArgs.scenePath}`);
 
-    logDebug(`Duplicating node ${typedArgs.nodePath} in scene ${typedArgs.scenePath}`);
+  // Try bridge first, fallback to file manipulation
+  return executeWithBridge(
+    'duplicate_node',
+    {
+      node_path: typedArgs.nodePath,
+      new_name: typedArgs.newName || '',
+    },
+    async () => {
+      // Fallback: manual TSCN manipulation
+      try {
+        const sceneFullPath = join(typedArgs.projectPath, typedArgs.scenePath);
 
-    // Read and parse scene file
-    const content = readFileSync(sceneFullPath, 'utf-8');
-    const doc = parseTscn(content);
+        // Read and parse scene file
+        const content = readFileSync(sceneFullPath, 'utf-8');
+        const doc = parseTscn(content);
 
-    // Find the source node
-    const sourceNode = findNodeByPath(doc, typedArgs.nodePath);
-    if (!sourceNode) {
-      return createErrorResponse(`Node not found: ${typedArgs.nodePath}`, [
-        'Check the node path is correct',
-        'Use get_node_tree to see available nodes',
-      ]);
+        // Find the source node
+        const sourceNode = findNodeByPath(doc, typedArgs.nodePath);
+        if (!sourceNode) {
+          return createErrorResponse(`Node not found: ${typedArgs.nodePath}`, [
+            'Check the node path is correct',
+            'Use get_node_tree to see available nodes',
+          ]);
+        }
+
+        // Generate new name
+        const baseName = sourceNode.name;
+        let newName = typedArgs.newName || `${baseName}2`;
+
+        // Ensure name is unique
+        let counter = 2;
+        while (doc.nodes.some(n => n.name === newName && n.parent === sourceNode.parent)) {
+          newName = `${baseName}${counter}`;
+          counter++;
+        }
+
+        // Clone the node
+        const clonedNode: TscnNode = {
+          name: newName,
+          type: sourceNode.type,
+          parent: sourceNode.parent,
+          instance: sourceNode.instance,
+          script: sourceNode.script,
+          groups: sourceNode.groups ? [...sourceNode.groups] : undefined,
+          properties: { ...sourceNode.properties },
+        };
+
+        // Find the index to insert after the source node
+        const sourceIndex = doc.nodes.findIndex(n => n.name === sourceNode.name && n.parent === sourceNode.parent);
+        if (sourceIndex === -1) {
+          return createErrorResponse('Failed to locate source node in document', [
+            'The scene file may be corrupted',
+            'Try opening and saving the scene in Godot editor',
+          ]);
+        }
+
+        // Also duplicate child nodes
+        const childNodes = findChildNodes(doc, sourceNode.name, sourceNode.parent);
+        const clonedChildren: TscnNode[] = [];
+
+        for (const child of childNodes) {
+          const clonedChild: TscnNode = {
+            name: child.name,
+            type: child.type,
+            parent: child.parent?.replace(baseName, newName),
+            instance: child.instance,
+            script: child.script,
+            groups: child.groups ? [...child.groups] : undefined,
+            properties: { ...child.properties },
+          };
+          clonedChildren.push(clonedChild);
+        }
+
+        // Insert cloned node and children after source and its children
+        const insertIndex = sourceIndex + childNodes.length + 1;
+        doc.nodes.splice(insertIndex, 0, clonedNode, ...clonedChildren);
+
+        // Serialize and write back
+        const serialized = serializeTscn(doc);
+        writeFileSync(sceneFullPath, serialized, 'utf-8');
+
+        const totalDuplicatedNodes = 1 + clonedChildren.length;
+
+        return createSuccessResponse(
+          `Node duplicated successfully!\n` +
+          `Scene: ${typedArgs.scenePath}\n` +
+          `Original: ${typedArgs.nodePath}\n` +
+          `Duplicate: ${newName}\n` +
+          `Nodes duplicated: ${totalDuplicatedNodes}`
+        );
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return createErrorResponse(`Failed to duplicate node: ${errorMessage}`, [
+          'Check the scene file format',
+          'Verify paths are correct',
+        ]);
+      }
     }
-
-    // Generate new name
-    const baseName = sourceNode.name;
-    let newName = typedArgs.newName || `${baseName}2`;
-
-    // Ensure name is unique
-    let counter = 2;
-    while (doc.nodes.some(n => n.name === newName && n.parent === sourceNode.parent)) {
-      newName = `${baseName}${counter}`;
-      counter++;
-    }
-
-    // Clone the node
-    const clonedNode: TscnNode = {
-      name: newName,
-      type: sourceNode.type,
-      parent: sourceNode.parent,
-      instance: sourceNode.instance,
-      script: sourceNode.script,
-      groups: sourceNode.groups ? [...sourceNode.groups] : undefined,
-      properties: { ...sourceNode.properties },
-    };
-
-    // Find the index to insert after the source node
-    const sourceIndex = doc.nodes.findIndex(n => n.name === sourceNode.name && n.parent === sourceNode.parent);
-    if (sourceIndex === -1) {
-      return createErrorResponse('Failed to locate source node in document', [
-        'The scene file may be corrupted',
-        'Try opening and saving the scene in Godot editor',
-      ]);
-    }
-
-    // Also duplicate child nodes
-    const childNodes = findChildNodes(doc, sourceNode.name, sourceNode.parent);
-    const clonedChildren: TscnNode[] = [];
-
-    for (const child of childNodes) {
-      const clonedChild: TscnNode = {
-        name: child.name,
-        type: child.type,
-        parent: child.parent?.replace(baseName, newName),
-        instance: child.instance,
-        script: child.script,
-        groups: child.groups ? [...child.groups] : undefined,
-        properties: { ...child.properties },
-      };
-      clonedChildren.push(clonedChild);
-    }
-
-    // Insert cloned node and children after source and its children
-    const insertIndex = sourceIndex + childNodes.length + 1;
-    doc.nodes.splice(insertIndex, 0, clonedNode, ...clonedChildren);
-
-    // Serialize and write back
-    const serialized = serializeTscn(doc);
-    writeFileSync(sceneFullPath, serialized, 'utf-8');
-
-    const totalDuplicatedNodes = 1 + clonedChildren.length;
-
-    return createSuccessResponse(
-      `Node duplicated successfully!\n` +
-      `Scene: ${typedArgs.scenePath}\n` +
-      `Original: ${typedArgs.nodePath}\n` +
-      `Duplicate: ${newName}\n` +
-      `Nodes duplicated: ${totalDuplicatedNodes}`
-    );
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return createErrorResponse(`Failed to duplicate node: ${errorMessage}`, [
-      'Check the scene file format',
-      'Verify paths are correct',
-    ]);
-  }
+  );
 };
 
 /**

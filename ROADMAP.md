@@ -8,17 +8,36 @@
 
 ## Table des matieres
 
-1. [Etat actuel](#etat-actuel--79-outils-v090)
-2. [Architecture MCP Complete](#architecture-mcp-complete)
-3. [Phase A: MCP Resources](#phase-a-mcp-resources-priorite-haute)
-4. [Phase B: MCP Prompts](#phase-b-mcp-prompts-priorite-haute)
-5. [Analyse de Completion](#analyse-de-completion-mcpcdc)
-6. [Conformite ISO](#conformite-aux-normes-iso)
-7. [Annexe: Phases Tools Legacy](#annexe-phases-tools-legacy-8-20)
+1. [Etat actuel](#etat-actuel--82-outils-v093)
+2. [Plugin WebSocket](#plugin-websocket-v093)
+3. [Architecture MCP Complete](#architecture-mcp-complete)
+4. [Phase A: MCP Resources](#phase-a-mcp-resources-priorite-haute)
+5. [Phase B: MCP Prompts](#phase-b-mcp-prompts-priorite-haute)
+6. [Analyse de Completion](#analyse-de-completion-mcpcdc)
+7. [Conformite ISO](#conformite-aux-normes-iso)
+8. [Annexe: Phases Tools Legacy](#annexe-phases-tools-legacy-8-20)
 
 ---
 
-## Etat actuel : 82 outils (v0.9.2)
+## Etat actuel : 82 outils (v0.9.3)
+
+### Nouveaute v0.9.3: Plugin WebSocket
+
+Plugin Godot Editor pour communication bidirectionnelle temps reel avec le serveur MCP.
+Voir [ARCHITECTURE_PLUGIN.md](docs/ARCHITECTURE_PLUGIN.md) pour details.
+
+```
+Communication:
+  Plugin Godot:      ✅ Implemente (addons/godot_mcp/)
+  Bridge TypeScript: ✅ Implemente (src/bridge/GodotPluginBridge.ts)
+  Integration Tools: 🔄 18/82 outils avec executeWithBridge()
+  Validation GDScript: ✅ MCPValidator + MCPNodeFactory
+  Tests:             ✅ 32 tests bridge (+ 3081 tests totaux)
+```
+
+---
+
+## Etat actuel : 82 outils
 
 ### Progression globale
 

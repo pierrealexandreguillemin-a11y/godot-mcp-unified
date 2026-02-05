@@ -3,7 +3,7 @@
  * Handles running Godot projects in debug mode
  *
  * ISO/IEC 5055 compliant - Zod validation
- * ISO/IEC 25010 compliant - data integrity
+ * ISO/IEC 25010 compliant - data integrity, bridge fallback
  */
 
 import { spawn } from 'child_process';
@@ -13,6 +13,7 @@ import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { isGodotProject } from '../../utils/FileUtils.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { getActiveProcess, setActiveProcess } from '../../core/ProcessManager.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
 import { ToolResponse, ToolDefinition, BaseToolArgs } from '../../server/types.js';
 import {
@@ -45,88 +46,99 @@ export const handleRunProject = async (args: BaseToolArgs): Promise<ToolResponse
 
   const typedArgs: RunProjectInput = validation.data;
 
-  try {
-    // Validate project
-    if (!isGodotProject(typedArgs.projectPath)) {
-      return createErrorResponse(`Not a valid Godot project: ${typedArgs.projectPath}`, [
-        'Ensure the path points to a directory containing a project.godot file',
-        'Use list_projects to find valid Godot projects',
-      ]);
-    }
-
-    // Ensure Godot path is available
-    const godotPath = await detectGodotPath();
-    if (!godotPath) {
-      return createErrorResponse('Could not find a valid Godot executable path', [
-        'Ensure Godot is installed correctly',
-        'Set GODOT_PATH environment variable to specify the correct path',
-      ]);
-    }
-
-    // Kill any existing process
-    const activeProcess = getActiveProcess();
-    if (activeProcess) {
-      logDebug('Killing existing Godot process before starting a new one');
-      activeProcess.process.kill();
-    }
-
-    const cmdArgs: string[] = ['-d', '--path', typedArgs.projectPath];
-    if (typedArgs.scene) {
-      logDebug(`Adding scene parameter: ${typedArgs.scene}`);
-      cmdArgs.push(typedArgs.scene);
-    }
-
-    logDebug(`Running Godot project: ${typedArgs.projectPath}`);
-    const process = spawn(godotPath, cmdArgs, { stdio: 'pipe' });
-    const output: string[] = [];
-    const errors: string[] = [];
-
-    process.stdout?.on('data', (data: Buffer) => {
-      const lines = data.toString().split('\n');
-      output.push(...lines);
-      lines.forEach((line: string) => {
-        if (line.trim()) logDebug(`[Godot stdout] ${line}`);
-      });
-    });
-
-    process.stderr?.on('data', (data: Buffer) => {
-      const lines = data.toString().split('\n');
-      errors.push(...lines);
-      lines.forEach((line: string) => {
-        if (line.trim()) logDebug(`[Godot stderr] ${line}`);
-      });
-    });
-
-    process.on('exit', (code: number | null) => {
-      logDebug(`Godot process exited with code ${code}`);
-      if (getActiveProcess()?.process === process) {
-        setActiveProcess(null);
-      }
-    });
-
-    process.on('error', (err: Error) => {
-      console.error('Failed to start Godot process:', err);
-      if (getActiveProcess()?.process === process) {
-        setActiveProcess(null);
-      }
-    });
-
-    setActiveProcess({ process, output, errors });
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Godot project started in debug mode. Use get_debug_output to see output.`,
-        },
-      ],
-    };
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return createErrorResponse(`Failed to run Godot project: ${errorMessage}`, [
-      'Ensure Godot is installed correctly',
-      'Check if the GODOT_PATH environment variable is set correctly',
-      'Verify the project path is accessible',
+  // Validate project
+  if (!isGodotProject(typedArgs.projectPath)) {
+    return createErrorResponse(`Not a valid Godot project: ${typedArgs.projectPath}`, [
+      'Ensure the path points to a directory containing a project.godot file',
+      'Use list_projects to find valid Godot projects',
     ]);
   }
+
+  logDebug(`Running Godot project: ${typedArgs.projectPath}`);
+
+  // Try bridge first, fallback to spawning process
+  return executeWithBridge(
+    'run_project',
+    {
+      scene: typedArgs.scene || '',
+      debug: true,
+    },
+    async () => {
+      // Fallback: spawn Godot process directly
+      try {
+        const godotPath = await detectGodotPath();
+        if (!godotPath) {
+          return createErrorResponse('Could not find a valid Godot executable path', [
+            'Ensure Godot is installed correctly',
+            'Set GODOT_PATH environment variable to specify the correct path',
+          ]);
+        }
+
+        // Kill any existing process
+        const activeProcess = getActiveProcess();
+        if (activeProcess) {
+          logDebug('Killing existing Godot process before starting a new one');
+          activeProcess.process.kill();
+        }
+
+        const cmdArgs: string[] = ['-d', '--path', typedArgs.projectPath];
+        if (typedArgs.scene) {
+          logDebug(`Adding scene parameter: ${typedArgs.scene}`);
+          cmdArgs.push(typedArgs.scene);
+        }
+
+        const process = spawn(godotPath, cmdArgs, { stdio: 'pipe' });
+        const output: string[] = [];
+        const errors: string[] = [];
+
+        process.stdout?.on('data', (data: Buffer) => {
+          const lines = data.toString().split('\n');
+          output.push(...lines);
+          lines.forEach((line: string) => {
+            if (line.trim()) logDebug(`[Godot stdout] ${line}`);
+          });
+        });
+
+        process.stderr?.on('data', (data: Buffer) => {
+          const lines = data.toString().split('\n');
+          errors.push(...lines);
+          lines.forEach((line: string) => {
+            if (line.trim()) logDebug(`[Godot stderr] ${line}`);
+          });
+        });
+
+        process.on('exit', (code: number | null) => {
+          logDebug(`Godot process exited with code ${code}`);
+          if (getActiveProcess()?.process === process) {
+            setActiveProcess(null);
+          }
+        });
+
+        process.on('error', (err: Error) => {
+          console.error('Failed to start Godot process:', err);
+          if (getActiveProcess()?.process === process) {
+            setActiveProcess(null);
+          }
+        });
+
+        setActiveProcess({ process, output, errors });
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Godot project started in debug mode. Use get_debug_output to see output.`,
+            },
+          ],
+        };
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return createErrorResponse(`Failed to run Godot project: ${errorMessage}`, [
+          'Ensure Godot is installed correctly',
+          'Check if the GODOT_PATH environment variable is set correctly',
+          'Verify the project path is accessible',
+        ]);
+      }
+    }
+  );
 };

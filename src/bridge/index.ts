@@ -17,6 +17,31 @@ export {
 } from './GodotBridge.js';
 
 export {
+  GodotPluginBridge,
+  getGodotPluginBridge,
+  resetGodotPluginBridge,
+  tryConnectToPlugin,
+} from './GodotPluginBridge.js';
+
+export {
+  executeWithBridge,
+  isBridgeAvailable,
+  tryInitializeBridge,
+} from './BridgeExecutor.js';
+
+export {
+  type BridgeRequest,
+  type BridgeResponse as PluginBridgeResponse,
+  type BridgeEvent,
+  type BridgeError,
+  type BridgeStatus,
+  type BridgeAction,
+  type BridgeEventType,
+  type GodotBridgeConfig,
+  type PendingRequest,
+} from './BridgeProtocol.js';
+
+export {
   GodotLSPClient,
   getGodotLSPClient,
   tryConnectToLSP,

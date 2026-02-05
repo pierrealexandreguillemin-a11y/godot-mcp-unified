@@ -3,7 +3,7 @@
  * Connects signals between nodes in a scene
  *
  * ISO/IEC 5055 compliant - Zod validation
- * ISO/IEC 25010 compliant - data integrity
+ * ISO/IEC 25010 compliant - data integrity, bridge fallback
  */
 
 import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
@@ -14,6 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
@@ -54,81 +55,95 @@ export const handleConnectSignal = async (args: BaseToolArgs): Promise<ToolRespo
     return sceneValidationError;
   }
 
-  try {
-    const sceneFullPath = join(typedArgs.projectPath, typedArgs.scenePath);
+  logDebug(`Connecting signal ${typedArgs.signal} from ${typedArgs.fromNodePath} to ${typedArgs.toNodePath}::${typedArgs.method}`);
 
-    logDebug(`Connecting signal ${typedArgs.signal} from ${typedArgs.fromNodePath} to ${typedArgs.toNodePath}::${typedArgs.method}`);
-
-    // Read and parse scene file
-    const content = readFileSync(sceneFullPath, 'utf-8');
-    const doc = parseTscn(content);
-
-    // Verify source node exists
-    const fromNode = findNodeByPath(doc, typedArgs.fromNodePath);
-    if (!fromNode) {
-      return createErrorResponse(`Source node not found: ${typedArgs.fromNodePath}`, [
-        'Check the node path is correct',
-        'Use get_node_tree to see available nodes',
-      ]);
-    }
-
-    // Verify target node exists
-    const toNode = findNodeByPath(doc, typedArgs.toNodePath);
-    if (!toNode) {
-      return createErrorResponse(`Target node not found: ${typedArgs.toNodePath}`, [
-        'Check the node path is correct',
-        'Use get_node_tree to see available nodes',
-      ]);
-    }
-
-    // Convert node paths to TSCN format
-    const fromPath = convertToTscnPath(typedArgs.fromNodePath, doc);
-    const toPath = convertToTscnPath(typedArgs.toNodePath, doc);
-
-    // Check if connection already exists
-    const connectionExists = doc.connections.some(c =>
-      c.signal === typedArgs.signal &&
-      c.from === fromPath &&
-      c.to === toPath &&
-      c.method === typedArgs.method
-    );
-
-    if (connectionExists) {
-      return createErrorResponse('This signal connection already exists', [
-        'Choose a different signal or method',
-        'The connection is already configured',
-      ]);
-    }
-
-    // Add connection
-    const newConnection: TscnConnection = {
+  // Try bridge first, fallback to TSCN manipulation
+  return executeWithBridge(
+    'connect_signal',
+    {
+      from_node_path: typedArgs.fromNodePath,
       signal: typedArgs.signal,
-      from: fromPath,
-      to: toPath,
+      to_node_path: typedArgs.toNodePath,
       method: typedArgs.method,
-      flags: typedArgs.flags,
-    };
+      flags: typedArgs.flags || 0,
+    },
+    async () => {
+      // Fallback: manual TSCN manipulation
+      try {
+        const sceneFullPath = join(typedArgs.projectPath, typedArgs.scenePath);
 
-    doc.connections.push(newConnection);
+        // Read and parse scene file
+        const content = readFileSync(sceneFullPath, 'utf-8');
+        const doc = parseTscn(content);
 
-    // Serialize and write back
-    const serialized = serializeTscn(doc);
-    writeFileSync(sceneFullPath, serialized, 'utf-8');
+        // Verify source node exists
+        const fromNode = findNodeByPath(doc, typedArgs.fromNodePath);
+        if (!fromNode) {
+          return createErrorResponse(`Source node not found: ${typedArgs.fromNodePath}`, [
+            'Check the node path is correct',
+            'Use get_node_tree to see available nodes',
+          ]);
+        }
 
-    return createSuccessResponse(
-      `Signal connected successfully!\n` +
-      `Scene: ${typedArgs.scenePath}\n` +
-      `Signal: ${typedArgs.signal}\n` +
-      `From: ${typedArgs.fromNodePath}\n` +
-      `To: ${typedArgs.toNodePath}::${typedArgs.method}`
-    );
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return createErrorResponse(`Failed to connect signal: ${errorMessage}`, [
-      'Check the scene file format',
-      'Verify paths are correct',
-    ]);
-  }
+        // Verify target node exists
+        const toNode = findNodeByPath(doc, typedArgs.toNodePath);
+        if (!toNode) {
+          return createErrorResponse(`Target node not found: ${typedArgs.toNodePath}`, [
+            'Check the node path is correct',
+            'Use get_node_tree to see available nodes',
+          ]);
+        }
+
+        // Convert node paths to TSCN format
+        const fromPath = convertToTscnPath(typedArgs.fromNodePath, doc);
+        const toPath = convertToTscnPath(typedArgs.toNodePath, doc);
+
+        // Check if connection already exists
+        const connectionExists = doc.connections.some(c =>
+          c.signal === typedArgs.signal &&
+          c.from === fromPath &&
+          c.to === toPath &&
+          c.method === typedArgs.method
+        );
+
+        if (connectionExists) {
+          return createErrorResponse('This signal connection already exists', [
+            'Choose a different signal or method',
+            'The connection is already configured',
+          ]);
+        }
+
+        // Add connection
+        const newConnection: TscnConnection = {
+          signal: typedArgs.signal,
+          from: fromPath,
+          to: toPath,
+          method: typedArgs.method,
+          flags: typedArgs.flags,
+        };
+
+        doc.connections.push(newConnection);
+
+        // Serialize and write back
+        const serialized = serializeTscn(doc);
+        writeFileSync(sceneFullPath, serialized, 'utf-8');
+
+        return createSuccessResponse(
+          `Signal connected successfully!\n` +
+          `Scene: ${typedArgs.scenePath}\n` +
+          `Signal: ${typedArgs.signal}\n` +
+          `From: ${typedArgs.fromNodePath}\n` +
+          `To: ${typedArgs.toNodePath}::${typedArgs.method}`
+        );
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return createErrorResponse(`Failed to connect signal: ${errorMessage}`, [
+          'Check the scene file format',
+          'Verify paths are correct',
+        ]);
+      }
+    }
+  );
 };
 
 /**

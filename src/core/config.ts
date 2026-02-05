@@ -161,6 +161,30 @@ export const NETWORK_CONFIG = {
    * @default 6551
    */
   DEBUG_STREAM_PORT: safeParseInt(process.env.GODOT_MCP_DEBUG_PORT, 6551, 1024, 65535),
+
+  /**
+   * Godot plugin WebSocket port for editor communication
+   * @default 6505
+   */
+  GODOT_PLUGIN_PORT: safeParseInt(process.env.GODOT_MCP_PLUGIN_PORT, 6505, 1024, 65535),
+
+  /**
+   * Request timeout for plugin communication in milliseconds
+   * @default 30000 (30 seconds)
+   */
+  PLUGIN_REQUEST_TIMEOUT_MS: safeParseInt(process.env.GODOT_MCP_PLUGIN_TIMEOUT, 30000, 1000),
+
+  /**
+   * Maximum reconnect attempts for plugin connection
+   * @default 5
+   */
+  PLUGIN_MAX_RECONNECT_ATTEMPTS: safeParseInt(process.env.GODOT_MCP_PLUGIN_RECONNECTS, 5, 0, 100),
+
+  /**
+   * Reconnect interval for plugin connection in milliseconds
+   * @default 3000 (3 seconds)
+   */
+  PLUGIN_RECONNECT_INTERVAL_MS: safeParseInt(process.env.GODOT_MCP_PLUGIN_RECONNECT_INTERVAL, 3000, 500),
 } as const;
 
 /**

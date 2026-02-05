@@ -3,7 +3,7 @@
  * Returns the complete node hierarchy of a scene
  *
  * ISO/IEC 5055 compliant - Zod validation
- * ISO/IEC 25010 compliant - data integrity
+ * ISO/IEC 25010 compliant - data integrity, bridge fallback
  */
 
 import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
@@ -14,6 +14,7 @@ import {
   createJsonResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -191,41 +192,53 @@ export const handleGetNodeTree = async (args: BaseToolArgs): Promise<ToolRespons
     return sceneValidationError;
   }
 
-  try {
-    const sceneFullPath = join(typedArgs.projectPath, typedArgs.scenePath);
-    logDebug(`Reading node tree from: ${typedArgs.scenePath}`);
+  logDebug(`Reading node tree from: ${typedArgs.scenePath}`);
 
-    // Read and parse scene file
-    const content = readFileSync(sceneFullPath, 'utf-8');
-    const doc = parseTscn(content);
+  // Try bridge first, fallback to file parsing
+  return executeWithBridge(
+    'get_scene_tree',
+    {
+      scene_path: `res://${typedArgs.scenePath.replace(/\\/g, '/')}`,
+      max_depth: typedArgs.maxDepth ?? 50,
+    },
+    async () => {
+      // Fallback: parse TSCN file directly
+      try {
+        const sceneFullPath = join(typedArgs.projectPath, typedArgs.scenePath);
 
-    // Build tree structure
-    const maxDepth = typedArgs.maxDepth ?? Infinity;
-    const tree = buildNodeTree(doc, maxDepth);
+        // Read and parse scene file
+        const content = readFileSync(sceneFullPath, 'utf-8');
+        const doc = parseTscn(content);
 
-    if (!tree) {
-      return createErrorResponse('Could not parse scene tree', [
-        'Check the scene file format',
-        'Ensure the scene has at least one node',
-      ]);
+        // Build tree structure
+        const maxDepth = typedArgs.maxDepth ?? Infinity;
+        const tree = buildNodeTree(doc, maxDepth);
+
+        if (!tree) {
+          return createErrorResponse('Could not parse scene tree', [
+            'Check the scene file format',
+            'Ensure the scene has at least one node',
+          ]);
+        }
+
+        // Create ASCII representation for easy reading
+        const asciiTree = formatTreeAsAscii(tree, '', true).replace(/^ {4}/, '');
+
+        return createJsonResponse({
+          scenePath: typedArgs.scenePath,
+          nodeCount: countNodes(tree),
+          tree,
+          display: asciiTree,
+        });
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return createErrorResponse(`Failed to read node tree: ${errorMessage}`, [
+          'Check the scene file format',
+          'Verify the scene path is correct',
+        ]);
+      }
     }
-
-    // Create ASCII representation for easy reading
-    const asciiTree = formatTreeAsAscii(tree, '', true).replace(/^ {4}/, '');
-
-    return createJsonResponse({
-      scenePath: typedArgs.scenePath,
-      nodeCount: countNodes(tree),
-      tree,
-      display: asciiTree,
-    });
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return createErrorResponse(`Failed to read node tree: ${errorMessage}`, [
-      'Check the scene file format',
-      'Verify the scene path is correct',
-    ]);
-  }
+  );
 };
 
 /**

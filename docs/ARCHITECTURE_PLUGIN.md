@@ -159,14 +159,30 @@ Plugin connecté?
 
 ```
 addons/godot_mcp/
-├── plugin.cfg              # Métadonnées plugin
-├── plugin.gd               # Point d'entrée EditorPlugin
-├── mcp_server.gd           # WebSocket server
-├── command_handler.gd      # Dispatch des commandes
-├── scene_operations.gd     # Opérations sur scènes
-├── node_operations.gd      # Opérations sur noeuds
-├── script_operations.gd    # Opérations sur scripts
-└── utils.gd                # Utilitaires
+├── plugin.cfg                    # Métadonnées plugin
+├── plugin.gd                     # Point d'entrée EditorPlugin (@tool)
+├── mcp_websocket_server.gd       # WebSocket server (TCPServer + WebSocketPeer)
+├── mcp_command_handler.gd        # Dispatch des commandes
+├── commands/
+│   ├── base_command.gd           # Classe de base MCPBaseCommand
+│   ├── scene_commands.gd         # create_scene, open_scene, save_scene, etc.
+│   ├── node_commands.gd          # add_node, edit_node, remove_node, etc.
+│   ├── script_commands.gd        # write_script, attach_script, etc.
+│   └── project_commands.gd       # run_project, stop_project, get_project_info
+└── utils/
+    ├── json_utils.gd             # Serialization JSON Godot types
+    └── path_utils.gd             # Normalisation chemins res://
+```
+
+## Structure TypeScript Bridge
+
+```
+src/bridge/
+├── BridgeProtocol.ts             # Types du protocole (BridgeRequest, BridgeResponse, etc.)
+├── GodotPluginBridge.ts          # Client WebSocket avec CircuitBreaker
+├── GodotPluginBridge.test.ts     # Tests unitaires
+├── BridgeExecutor.ts             # Helper executeWithBridge() avec fallback
+└── index.ts                      # Exports
 ```
 
 ## Configuration
@@ -208,22 +224,60 @@ export GODOT_MCP_PORT=6505
 
 ## Implémentation
 
-### Phase 1: Plugin de base
-- [ ] WebSocket server GDScript
-- [ ] Actions CRUD scènes/noeuds
-- [ ] Réponses JSON
+### Phase 1: Plugin de base ✅
+- [x] WebSocket server GDScript (mcp_websocket_server.gd)
+- [x] Actions CRUD scènes/noeuds (commands/*.gd)
+- [x] Réponses JSON avec success/error
 
-### Phase 2: Intégration MCP
-- [ ] GodotBridge.ts (WebSocket client)
-- [ ] Fallback TscnParser
-- [ ] Tests d'intégration
+### Phase 2: Intégration MCP ✅
+- [x] GodotPluginBridge.ts (WebSocket client avec CircuitBreaker)
+- [x] BridgeExecutor.ts (executeWithBridge avec fallback)
+- [x] Tests unitaires GodotPluginBridge.test.ts
 
 ### Phase 3: Temps réel
-- [ ] Événements scene_changed
-- [ ] Sync état éditeur
-- [ ] Notifications erreurs
+- [x] Événements scene_modified (send_event dans plugin)
+- [ ] Sync état éditeur (à implémenter si nécessaire)
+- [ ] Notifications erreurs (à implémenter si nécessaire)
+
+## Usage
+
+### Installation du plugin Godot
+
+1. Copier le dossier `addons/godot_mcp/` dans votre projet Godot
+2. Aller dans Project > Project Settings > Plugins
+3. Activer "Godot MCP"
+4. Vérifier dans la console: `[MCP] Plugin started on ws://localhost:6505`
+
+### Connexion automatique
+
+Le serveur MCP tente de se connecter au plugin automatiquement au démarrage.
+Si le plugin n'est pas disponible, les outils utilisent le fallback GodotExecutor.
+
+```typescript
+// Côté MCP Server (automatique)
+import { tryInitializeBridge } from './bridge/BridgeExecutor';
+
+// Au démarrage
+const connected = await tryInitializeBridge();
+// connected: true si plugin actif, false sinon
+```
+
+### Utilisation manuelle
+
+```typescript
+import { getGodotPluginBridge } from './bridge/GodotPluginBridge';
+
+const bridge = getGodotPluginBridge();
+if (await bridge.tryConnect()) {
+  // Plugin connecté, utiliser les APIs
+  const scene = await bridge.createScene('res://new_scene.tscn', 'Node2D');
+  await bridge.addNode('Sprite2D', 'Player', '.');
+  await bridge.saveScene();
+}
+```
 
 ---
 
 *Document créé le 4 février 2026*
-*godot-mcp-unified v0.9.2*
+*Mis à jour le 5 février 2026*
+*godot-mcp-unified v0.9.3*

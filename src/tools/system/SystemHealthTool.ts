@@ -18,6 +18,7 @@ import { z } from 'zod';
 import { ToolDefinition, ToolResponse } from '../../server/types.js';
 import { createJsonResponse } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { toMcpSchema } from '../../core/ZodSchemas.js';
 import { globalRateLimiter } from '../../core/RateLimiter.js';
 import { detectGodotPath, isValidGodotPath } from '../../core/PathManager.js';

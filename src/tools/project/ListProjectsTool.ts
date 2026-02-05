@@ -11,6 +11,7 @@ import { existsSync } from 'fs';
 import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import { prepareToolArgs } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { findGodotProjects } from '../../utils/FileUtils.js';
 import { logDebug } from '../../utils/Logger.js';
 import {

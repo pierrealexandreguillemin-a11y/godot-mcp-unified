@@ -13,6 +13,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import { logDebug } from '../../utils/Logger.js';

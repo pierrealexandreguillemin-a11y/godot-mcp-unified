@@ -9,6 +9,7 @@
 import { ToolDefinition, ToolResponse } from '../../server/types.js';
 import { createSuccessResponse } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { getGodotVersion } from '../../core/GodotExecutor.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { GetGodotVersionSchema, toMcpSchema } from '../../core/ZodSchemas.js';

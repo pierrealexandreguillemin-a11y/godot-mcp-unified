@@ -14,6 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { executeOperation } from '../../core/GodotExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
@@ -104,23 +105,35 @@ export const handlePaintTiles = async (args: BaseToolArgs): Promise<ToolResponse
       })),
     };
 
-    const { stdout, stderr } = await executeOperation(
+    // Use bridge if available, fallback to GodotExecutor
+    return await executeWithBridge(
       'paint_tiles',
-      params,
-      typedArgs.projectPath,
-      godotPath,
-    );
+      {
+        scene_path: typedArgs.scenePath,
+        tilemap_node_path: typedArgs.tilemapNodePath,
+        layer: typedArgs.layer ?? 0,
+        tiles: params.tiles,
+      },
+      async () => {
+        const { stdout, stderr } = await executeOperation(
+          'paint_tiles',
+          params,
+          typedArgs.projectPath,
+          godotPath,
+        );
 
-    if (stderr && stderr.includes('Failed to')) {
-      return createErrorResponse(`Failed to paint tiles: ${stderr}`, [
-        'Check if the TileMapLayer node path is correct',
-        'Verify all tile positions and atlas coordinates are valid',
-        'Ensure the TileSet is properly configured',
-      ]);
-    }
+        if (stderr && stderr.includes('Failed to')) {
+          return createErrorResponse(`Failed to paint tiles: ${stderr}`, [
+            'Check if the TileMapLayer node path is correct',
+            'Verify all tile positions and atlas coordinates are valid',
+            'Ensure the TileSet is properly configured',
+          ]);
+        }
 
-    return createSuccessResponse(
-      `Successfully painted ${typedArgs.tiles.length} tiles in ${typedArgs.tilemapNodePath}\n\nOutput: ${stdout}`,
+        return createSuccessResponse(
+          `Successfully painted ${typedArgs.tiles.length} tiles in ${typedArgs.tilemapNodePath}\n\nOutput: ${stdout}`,
+        );
+      },
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

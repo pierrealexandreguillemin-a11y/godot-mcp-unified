@@ -14,6 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { executeOperation } from '../../core/GodotExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
@@ -99,22 +100,30 @@ export const handleGetUid = async (args: BaseToolArgs): Promise<ToolResponse> =>
       filePath: typedArgs.filePath,
     };
 
-    // Execute the operation
-    const { stdout, stderr } = await executeOperation(
+    // Use bridge if available, fallback to GodotExecutor
+    return await executeWithBridge(
       'get_uid',
-      params,
-      typedArgs.projectPath,
-      godotPath,
+      {
+        file_path: typedArgs.filePath,
+      },
+      async () => {
+        const { stdout, stderr } = await executeOperation(
+          'get_uid',
+          params,
+          typedArgs.projectPath,
+          godotPath,
+        );
+
+        if (stderr && stderr.includes('Failed to')) {
+          return createErrorResponse(`Failed to get UID: ${stderr}`, [
+            'Check if the file exists and is a valid resource',
+            'Ensure the file is imported in Godot',
+          ]);
+        }
+
+        return createSuccessResponse(`UID for ${typedArgs.filePath}: ${stdout.trim()}`);
+      },
     );
-
-    if (stderr && stderr.includes('Failed to')) {
-      return createErrorResponse(`Failed to get UID: ${stderr}`, [
-        'Check if the file exists and is a valid resource',
-        'Ensure the file is imported in Godot',
-      ]);
-    }
-
-    return createSuccessResponse(`UID for ${typedArgs.filePath}: ${stdout.trim()}`);
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return createErrorResponse(`Failed to get UID: ${errorMessage}`, [

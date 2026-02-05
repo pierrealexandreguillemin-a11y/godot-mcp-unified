@@ -13,6 +13,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { executeOperation } from '../../core/GodotExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
@@ -81,24 +82,35 @@ export const handleCreateTileSet = async (args: BaseToolArgs): Promise<ToolRespo
       params.texturePath = typedArgs.texturePath;
     }
 
-    const { stdout, stderr } = await executeOperation(
+    // Use bridge if available, fallback to GodotExecutor
+    return await executeWithBridge(
       'create_tileset',
-      params,
-      typedArgs.projectPath,
-      godotPath,
-    );
+      {
+        tileset_path: typedArgs.tilesetPath,
+        tile_size: typedArgs.tileSize,
+        texture_path: typedArgs.texturePath,
+      },
+      async () => {
+        const { stdout, stderr } = await executeOperation(
+          'create_tileset',
+          params,
+          typedArgs.projectPath,
+          godotPath,
+        );
 
-    if (stderr && stderr.includes('Failed to')) {
-      return createErrorResponse(`Failed to create TileSet: ${stderr}`, [
-        'Check if the output path is valid',
-        'Verify the texture path exists (if provided)',
-        'Ensure the project has write permissions',
-      ]);
-    }
+        if (stderr && stderr.includes('Failed to')) {
+          return createErrorResponse(`Failed to create TileSet: ${stderr}`, [
+            'Check if the output path is valid',
+            'Verify the texture path exists (if provided)',
+            'Ensure the project has write permissions',
+          ]);
+        }
 
-    const textureInfo = typedArgs.texturePath ? ` with texture: ${typedArgs.texturePath}` : '';
-    return createSuccessResponse(
-      `TileSet created successfully at ${typedArgs.tilesetPath}\nTile size: ${typedArgs.tileSize.x}x${typedArgs.tileSize.y}${textureInfo}\n\nOutput: ${stdout}`,
+        const textureInfo = typedArgs.texturePath ? ` with texture: ${typedArgs.texturePath}` : '';
+        return createSuccessResponse(
+          `TileSet created successfully at ${typedArgs.tilesetPath}\nTile size: ${typedArgs.tileSize.x}x${typedArgs.tileSize.y}${textureInfo}\n\nOutput: ${stdout}`,
+        );
+      },
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

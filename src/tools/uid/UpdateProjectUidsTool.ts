@@ -13,6 +13,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { executeOperation, getGodotVersion, isGodot44OrLater } from '../../core/GodotExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
@@ -81,22 +82,30 @@ export const handleUpdateProjectUids = async (args: BaseToolArgs): Promise<ToolR
       projectPath: typedArgs.projectPath,
     };
 
-    // Execute the operation
-    const { stdout, stderr } = await executeOperation(
+    // Use bridge if available, fallback to GodotExecutor
+    return await executeWithBridge(
       'resave_resources',
-      params,
-      typedArgs.projectPath,
-      godotPath,
+      {
+        project_path: typedArgs.projectPath,
+      },
+      async () => {
+        const { stdout, stderr } = await executeOperation(
+          'resave_resources',
+          params,
+          typedArgs.projectPath,
+          godotPath,
+        );
+
+        if (stderr && stderr.includes('Failed to')) {
+          return createErrorResponse(`Failed to update project UIDs: ${stderr}`, [
+            'Check if the project is valid',
+            'Ensure you have write permissions to the project directory',
+          ]);
+        }
+
+        return createSuccessResponse(`Project UIDs updated successfully.\n\nOutput: ${stdout}`);
+      },
     );
-
-    if (stderr && stderr.includes('Failed to')) {
-      return createErrorResponse(`Failed to update project UIDs: ${stderr}`, [
-        'Check if the project is valid',
-        'Ensure you have write permissions to the project directory',
-      ]);
-    }
-
-    return createSuccessResponse(`Project UIDs updated successfully.\n\nOutput: ${stdout}`);
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return createErrorResponse(`Failed to update project UIDs: ${errorMessage}`, [

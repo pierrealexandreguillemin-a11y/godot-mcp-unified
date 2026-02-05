@@ -13,6 +13,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { executeOperation } from '../../core/GodotExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
@@ -103,23 +104,34 @@ export const handleAddAudioEffect = async (args: BaseToolArgs): Promise<ToolResp
       params.effectParams = typedArgs.effectParams;
     }
 
-    const { stdout, stderr } = await executeOperation(
+    // Use bridge if available, fallback to GodotExecutor
+    return await executeWithBridge(
       'add_audio_effect',
-      params,
-      typedArgs.projectPath,
-      godotPath,
-    );
+      {
+        bus_name: typedArgs.busName,
+        effect_class: effectClass,
+        effect_params: typedArgs.effectParams,
+      },
+      async () => {
+        const { stdout, stderr } = await executeOperation(
+          'add_audio_effect',
+          params,
+          typedArgs.projectPath,
+          godotPath,
+        );
 
-    if (stderr && stderr.includes('Failed to')) {
-      return createErrorResponse(`Failed to add audio effect: ${stderr}`, [
-        'Check if the audio bus exists',
-        'Verify the effect parameters are valid',
-        'Ensure the project has write permissions',
-      ]);
-    }
+        if (stderr && stderr.includes('Failed to')) {
+          return createErrorResponse(`Failed to add audio effect: ${stderr}`, [
+            'Check if the audio bus exists',
+            'Verify the effect parameters are valid',
+            'Ensure the project has write permissions',
+          ]);
+        }
 
-    return createSuccessResponse(
-      `Audio effect added successfully: ${effectClass} to bus "${typedArgs.busName}"\n\nOutput: ${stdout}`,
+        return createSuccessResponse(
+          `Audio effect added successfully: ${effectClass} to bus "${typedArgs.busName}"\n\nOutput: ${stdout}`,
+        );
+      },
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

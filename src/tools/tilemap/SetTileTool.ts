@@ -14,6 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { executeOperation } from '../../core/GodotExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
@@ -90,23 +91,38 @@ export const handleSetTile = async (args: BaseToolArgs): Promise<ToolResponse> =
       alternativeTile: typedArgs.alternativeTile ?? 0,
     };
 
-    const { stdout, stderr } = await executeOperation(
+    // Use bridge if available, fallback to GodotExecutor
+    return await executeWithBridge(
       'set_tile',
-      params,
-      typedArgs.projectPath,
-      godotPath,
-    );
+      {
+        scene_path: typedArgs.scenePath,
+        tilemap_node_path: typedArgs.tilemapNodePath,
+        layer: typedArgs.layer ?? 0,
+        position: typedArgs.position,
+        source_id: typedArgs.sourceId,
+        atlas_coords: typedArgs.atlasCoords,
+        alternative_tile: typedArgs.alternativeTile ?? 0,
+      },
+      async () => {
+        const { stdout, stderr } = await executeOperation(
+          'set_tile',
+          params,
+          typedArgs.projectPath,
+          godotPath,
+        );
 
-    if (stderr && stderr.includes('Failed to')) {
-      return createErrorResponse(`Failed to set tile: ${stderr}`, [
-        'Check if the TileMapLayer node path is correct',
-        'Verify the source ID and atlas coordinates are valid',
-        'Ensure the TileSet is properly configured',
-      ]);
-    }
+        if (stderr && stderr.includes('Failed to')) {
+          return createErrorResponse(`Failed to set tile: ${stderr}`, [
+            'Check if the TileMapLayer node path is correct',
+            'Verify the source ID and atlas coordinates are valid',
+            'Ensure the TileSet is properly configured',
+          ]);
+        }
 
-    return createSuccessResponse(
-      `Tile set successfully at (${typedArgs.position.x}, ${typedArgs.position.y})\nSource: ${typedArgs.sourceId}, Atlas: (${typedArgs.atlasCoords.x}, ${typedArgs.atlasCoords.y})\n\nOutput: ${stdout}`,
+        return createSuccessResponse(
+          `Tile set successfully at (${typedArgs.position.x}, ${typedArgs.position.y})\nSource: ${typedArgs.sourceId}, Atlas: (${typedArgs.atlasCoords.x}, ${typedArgs.atlasCoords.y})\n\nOutput: ${stdout}`,
+        );
+      },
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

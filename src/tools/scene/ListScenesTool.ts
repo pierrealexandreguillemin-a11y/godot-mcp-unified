@@ -13,6 +13,7 @@ import {
   createJsonResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
 import { readdirSync, statSync } from 'fs';
 import { join, extname, relative } from 'path';
@@ -116,34 +117,46 @@ export const handleListScenes = async (args: BaseToolArgs): Promise<ToolResponse
     return projectValidationError;
   }
 
-  try {
-    const recursive = typedArgs.recursive !== false; // Default to true
-    const directory = typedArgs.directory || '';
-    const searchPath = directory
-      ? join(typedArgs.projectPath, directory)
-      : typedArgs.projectPath;
+  const recursive = typedArgs.recursive !== false; // Default to true
+  const directory = typedArgs.directory || '';
 
-    logDebug(`Listing scenes in: ${searchPath} (recursive: ${recursive})`);
+  logDebug(`Listing scenes in: ${directory || '(root)'} (recursive: ${recursive})`);
 
-    const scenes = scanForScenes(typedArgs.projectPath, searchPath, recursive);
+  // Try bridge first, fallback to file system scan
+  return executeWithBridge(
+    'list_scenes',
+    {
+      directory: directory,
+      recursive: recursive,
+    },
+    async () => {
+      // Fallback: scan file system directly
+      try {
+        const searchPath = directory
+          ? join(typedArgs.projectPath, directory)
+          : typedArgs.projectPath;
 
-    // Sort by path for consistent ordering
-    scenes.sort((a, b) => a.path.localeCompare(b.path));
+        const scenes = scanForScenes(typedArgs.projectPath, searchPath, recursive);
 
-    const result: ListScenesResult = {
-      projectPath: typedArgs.projectPath,
-      directory: directory || '(root)',
-      recursive,
-      count: scenes.length,
-      scenes,
-    };
+        // Sort by path for consistent ordering
+        scenes.sort((a, b) => a.path.localeCompare(b.path));
 
-    return createJsonResponse(result);
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return createErrorResponse(`Failed to list scenes: ${errorMessage}`, [
-      'Ensure the project path is correct',
-      'Check the directory exists',
-    ]);
-  }
+        const result: ListScenesResult = {
+          projectPath: typedArgs.projectPath,
+          directory: directory || '(root)',
+          recursive,
+          count: scenes.length,
+          scenes,
+        };
+
+        return createJsonResponse(result);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return createErrorResponse(`Failed to list scenes: ${errorMessage}`, [
+          'Ensure the project path is correct',
+          'Check the directory exists',
+        ]);
+      }
+    }
+  );
 };

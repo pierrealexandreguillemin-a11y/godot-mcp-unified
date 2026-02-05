@@ -30,7 +30,7 @@ Voir [ARCHITECTURE_PLUGIN.md](docs/ARCHITECTURE_PLUGIN.md) pour details.
 Communication:
   Plugin Godot:      ✅ Implemente (addons/godot_mcp/)
   Bridge TypeScript: ✅ Implemente (src/bridge/GodotPluginBridge.ts)
-  Integration Tools: 🔄 18/82 outils avec executeWithBridge()
+  Integration Tools: 🔄 32/82 outils avec executeWithBridge()
   Validation GDScript: ✅ MCPValidator + MCPNodeFactory
   Tests:             ✅ 32 tests bridge (+ 3081 tests totaux)
 ```

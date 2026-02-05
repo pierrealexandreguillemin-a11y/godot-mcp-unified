@@ -6,23 +6,24 @@
  * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
   validateProjectPath,
   validateScenePath,
   createSuccessResponse,
-} from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
-import { detectGodotPath } from '../../core/PathManager';
-import { executeOperation } from '../../core/GodotExecutor';
-import { logDebug } from '../../utils/Logger';
+} from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
+import { detectGodotPath } from '../../core/PathManager.js';
+import { executeOperation } from '../../core/GodotExecutor.js';
+import { logDebug } from '../../utils/Logger.js';
 import {
   SetKeyframeSchema,
   SetKeyframeInput,
   toMcpSchema,
   safeValidateInput,
-} from '../../core/ZodSchemas';
+} from '../../core/ZodSchemas.js';
 
 export const setKeyframeDefinition: ToolDefinition = {
   name: 'set_keyframe',
@@ -68,57 +69,73 @@ export const handleSetKeyframe = async (args: BaseToolArgs): Promise<ToolRespons
     return sceneValidationError;
   }
 
-  try {
-    const godotPath = await detectGodotPath();
-    if (!godotPath) {
-      return createErrorResponse('Could not find a valid Godot executable path', [
-        'Ensure Godot is installed correctly',
-        'Set GODOT_PATH environment variable to specify the correct path',
-      ]);
-    }
+  logDebug(`Setting keyframe at ${typedArgs.time}s in track ${typedArgs.trackIndex} of animation ${typedArgs.animationName}`);
 
-    logDebug(`Setting keyframe at ${typedArgs.time}s in track ${typedArgs.trackIndex} of animation ${typedArgs.animationName}`);
-
-    const params: BaseToolArgs = {
-      scenePath: typedArgs.scenePath,
-      playerNodePath: typedArgs.playerNodePath,
-      animationName: typedArgs.animationName,
-      trackIndex: typedArgs.trackIndex,
+  // Try bridge first, fallback to GodotExecutor
+  return executeWithBridge(
+    'set_keyframe',
+    {
+      player_node_path: typedArgs.playerNodePath,
+      animation_name: typedArgs.animationName,
+      track_index: typedArgs.trackIndex,
       time: typedArgs.time,
       value: typedArgs.value,
-    };
+      transition: typedArgs.transition,
+      easing: typedArgs.easing,
+    },
+    async () => {
+      // Fallback: traditional GodotExecutor method
+      try {
+        const godotPath = await detectGodotPath();
+        if (!godotPath) {
+          return createErrorResponse('Could not find a valid Godot executable path', [
+            'Ensure Godot is installed correctly',
+            'Set GODOT_PATH environment variable to specify the correct path',
+          ]);
+        }
 
-    if (typedArgs.transition !== undefined) {
-      params.transition = typedArgs.transition;
+        const params: BaseToolArgs = {
+          scenePath: typedArgs.scenePath,
+          playerNodePath: typedArgs.playerNodePath,
+          animationName: typedArgs.animationName,
+          trackIndex: typedArgs.trackIndex,
+          time: typedArgs.time,
+          value: typedArgs.value,
+        };
+
+        if (typedArgs.transition !== undefined) {
+          params.transition = typedArgs.transition;
+        }
+
+        if (typedArgs.easing !== undefined) {
+          params.easing = typedArgs.easing;
+        }
+
+        const { stdout, stderr } = await executeOperation(
+          'set_keyframe',
+          params,
+          typedArgs.projectPath,
+          godotPath,
+        );
+
+        if (stderr && stderr.includes('Failed to')) {
+          return createErrorResponse(`Failed to set keyframe: ${stderr}`, [
+            'Check if the animation and track exist',
+            'Verify the track index is valid',
+            'Ensure the value type matches the track type',
+          ]);
+        }
+
+        return createSuccessResponse(
+          `Keyframe set successfully at ${typedArgs.time}s in track ${typedArgs.trackIndex}\n\nOutput: ${stdout}`,
+        );
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return createErrorResponse(`Failed to set keyframe: ${errorMessage}`, [
+          'Ensure Godot is installed correctly',
+          'Verify the animation, track, and time values are valid',
+        ]);
+      }
     }
-
-    if (typedArgs.easing !== undefined) {
-      params.easing = typedArgs.easing;
-    }
-
-    const { stdout, stderr } = await executeOperation(
-      'set_keyframe',
-      params,
-      typedArgs.projectPath,
-      godotPath,
-    );
-
-    if (stderr && stderr.includes('Failed to')) {
-      return createErrorResponse(`Failed to set keyframe: ${stderr}`, [
-        'Check if the animation and track exist',
-        'Verify the track index is valid',
-        'Ensure the value type matches the track type',
-      ]);
-    }
-
-    return createSuccessResponse(
-      `Keyframe set successfully at ${typedArgs.time}s in track ${typedArgs.trackIndex}\n\nOutput: ${stdout}`,
-    );
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return createErrorResponse(`Failed to set keyframe: ${errorMessage}`, [
-      'Ensure Godot is installed correctly',
-      'Verify the animation, track, and time values are valid',
-    ]);
-  }
+  );
 };

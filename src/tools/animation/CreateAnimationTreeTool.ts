@@ -14,6 +14,7 @@ import {
   createJsonResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { executeOperation } from '../../core/GodotExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
@@ -92,16 +93,28 @@ export const handleCreateAnimationTree = async (args: BaseToolArgs): Promise<Too
     return sceneValidationError;
   }
 
-  try {
-    const godotPath = await detectGodotPath();
-    if (!godotPath) {
-      return createErrorResponse('Could not find a valid Godot executable path', [
-        'Ensure Godot is installed correctly',
-        'Set GODOT_PATH environment variable',
-      ]);
-    }
+  logDebug(`Creating AnimationTree node ${typedArgs.nodeName} in scene: ${typedArgs.scenePath}`);
 
-    logDebug(`Creating AnimationTree node ${typedArgs.nodeName} in scene: ${typedArgs.scenePath}`);
+  // Try bridge first, fallback to GodotExecutor
+  return executeWithBridge(
+    'create_animation_tree',
+    {
+      node_name: typedArgs.nodeName,
+      parent_path: typedArgs.parentNodePath || '.',
+      anim_player_path: typedArgs.animPlayerPath,
+      root_motion_track: typedArgs.rootMotionTrack,
+      process_callback: typedArgs.processCallback,
+    },
+    async () => {
+      // Fallback: traditional GodotExecutor method
+      try {
+        const godotPath = await detectGodotPath();
+        if (!godotPath) {
+          return createErrorResponse('Could not find a valid Godot executable path', [
+            'Ensure Godot is installed correctly',
+            'Set GODOT_PATH environment variable',
+          ]);
+        }
 
     const params: BaseToolArgs = {
       scenePath: typedArgs.scenePath,
@@ -135,19 +148,21 @@ export const handleCreateAnimationTree = async (args: BaseToolArgs): Promise<Too
       ]);
     }
 
-    const result: CreateAnimationTreeResult = {
-      nodeName: typedArgs.nodeName,
-      scenePath: typedArgs.scenePath,
-      animPlayerPath: typedArgs.animPlayerPath,
-      message: `AnimationTree '${typedArgs.nodeName}' created successfully`,
-    };
+        const result: CreateAnimationTreeResult = {
+          nodeName: typedArgs.nodeName,
+          scenePath: typedArgs.scenePath,
+          animPlayerPath: typedArgs.animPlayerPath,
+          message: `AnimationTree '${typedArgs.nodeName}' created successfully`,
+        };
 
-    return createJsonResponse(result);
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return createErrorResponse(`Failed to create AnimationTree: ${errorMessage}`, [
-      'Ensure Godot is installed correctly',
-      'Verify the project and scene paths',
-    ]);
-  }
+        return createJsonResponse(result);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return createErrorResponse(`Failed to create AnimationTree: ${errorMessage}`, [
+          'Ensure Godot is installed correctly',
+          'Verify the project and scene paths',
+        ]);
+      }
+    }
+  );
 };

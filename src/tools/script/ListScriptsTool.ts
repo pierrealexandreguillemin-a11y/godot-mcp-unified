@@ -6,14 +6,15 @@
  * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
   validateProjectPath,
   createJsonResponse,
-} from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
-import { logDebug } from '../../utils/Logger';
+} from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
+import { logDebug } from '../../utils/Logger.js';
 import { readdirSync, statSync } from 'fs';
 import { join, relative } from 'path';
 import {
@@ -21,7 +22,7 @@ import {
   ListScriptsInput,
   toMcpSchema,
   safeValidateInput,
-} from '../../core/ZodSchemas';
+} from '../../core/ZodSchemas.js';
 
 export interface ScriptInfo {
   path: string;
@@ -83,30 +84,40 @@ export const handleListScripts = async (args: BaseToolArgs): Promise<ToolRespons
     return projectValidationError;
   }
 
-  try {
-    const searchPath = typedArgs.directory
-      ? join(typedArgs.projectPath, typedArgs.directory)
-      : typedArgs.projectPath;
+  logDebug(`Listing scripts in: ${typedArgs.directory || '/'}`);
 
-    logDebug(`Listing scripts in: ${searchPath}`);
+  // Try bridge first, fallback to file system scan
+  return executeWithBridge(
+    'list_scripts',
+    {
+      directory: typedArgs.directory || '',
+    },
+    async () => {
+      // Fallback: scan file system directly
+      try {
+        const searchPath = typedArgs.directory
+          ? join(typedArgs.projectPath, typedArgs.directory)
+          : typedArgs.projectPath;
 
-    const scripts: ScriptInfo[] = [];
-    findScripts(typedArgs.projectPath, searchPath, scripts);
+        const scripts: ScriptInfo[] = [];
+        findScripts(typedArgs.projectPath, searchPath, scripts);
 
-    // Sort by path
-    scripts.sort((a, b) => a.path.localeCompare(b.path));
+        // Sort by path
+        scripts.sort((a, b) => a.path.localeCompare(b.path));
 
-    return createJsonResponse({
-      projectPath: typedArgs.projectPath,
-      directory: typedArgs.directory || '/',
-      count: scripts.length,
-      scripts: scripts,
-    });
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return createErrorResponse(`Failed to list scripts: ${errorMessage}`, [
-      'Verify the project path is accessible',
-      'Check if the directory exists',
-    ]);
-  }
+        return createJsonResponse({
+          projectPath: typedArgs.projectPath,
+          directory: typedArgs.directory || '/',
+          count: scripts.length,
+          scripts: scripts,
+        });
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return createErrorResponse(`Failed to list scripts: ${errorMessage}`, [
+          'Verify the project path is accessible',
+          'Check if the directory exists',
+        ]);
+      }
+    }
+  );
 };

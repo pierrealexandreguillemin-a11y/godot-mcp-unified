@@ -6,23 +6,24 @@
  * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
   validateProjectPath,
   validateScenePath,
   createSuccessResponse,
-} from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
-import { detectGodotPath } from '../../core/PathManager';
-import { executeOperation } from '../../core/GodotExecutor';
-import { logDebug } from '../../utils/Logger';
+} from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
+import { detectGodotPath } from '../../core/PathManager.js';
+import { executeOperation } from '../../core/GodotExecutor.js';
+import { logDebug } from '../../utils/Logger.js';
 import {
   ExportMeshLibrarySchema,
   ExportMeshLibraryInput,
   toMcpSchema,
   safeValidateInput,
-} from '../../core/ZodSchemas';
+} from '../../core/ZodSchemas.js';
 
 export const exportMeshLibraryDefinition: ToolDefinition = {
   name: 'export_mesh_library',
@@ -53,55 +54,67 @@ export const handleExportMeshLibrary = async (args: BaseToolArgs): Promise<ToolR
     return sceneValidationError;
   }
 
-  try {
-    // Ensure Godot path is available
-    const godotPath = await detectGodotPath();
-    if (!godotPath) {
-      return createErrorResponse('Could not find a valid Godot executable path', [
-        'Ensure Godot is installed correctly',
-        'Set GODOT_PATH environment variable to specify the correct path',
-      ]);
+  logDebug(`Exporting MeshLibrary from scene: ${typedArgs.scenePath} to ${typedArgs.outputPath}`);
+
+  // Try bridge first, fallback to GodotExecutor
+  return executeWithBridge(
+    'export_mesh_library',
+    {
+      scene_path: typedArgs.scenePath.replace(/\\/g, '/'),
+      output_path: typedArgs.outputPath.replace(/\\/g, '/'),
+      mesh_item_names: (typedArgs as BaseToolArgs).meshItemNames,
+    },
+    async () => {
+      // Fallback: traditional GodotExecutor method
+      try {
+        // Ensure Godot path is available
+        const godotPath = await detectGodotPath();
+        if (!godotPath) {
+          return createErrorResponse('Could not find a valid Godot executable path', [
+            'Ensure Godot is installed correctly',
+            'Set GODOT_PATH environment variable to specify the correct path',
+          ]);
+        }
+
+        // Prepare parameters for the operation
+        const params: BaseToolArgs = {
+          scenePath: typedArgs.scenePath,
+          outputPath: typedArgs.outputPath,
+        };
+
+        // Add optional parameters
+        const meshItemNames = (typedArgs as BaseToolArgs).meshItemNames;
+        if (meshItemNames && Array.isArray(meshItemNames)) {
+          params.meshItemNames = meshItemNames;
+        }
+
+        // Execute the operation
+        const { stdout, stderr } = await executeOperation(
+          'export_mesh_library',
+          params,
+          typedArgs.projectPath,
+          godotPath,
+        );
+
+        if (stderr && stderr.includes('Failed to')) {
+          return createErrorResponse(`Failed to export MeshLibrary: ${stderr}`, [
+            'Check if the scene contains valid 3D meshes',
+            'Ensure the output path is writable',
+            'Verify the scene file is not corrupted',
+          ]);
+        }
+
+        return createSuccessResponse(
+          `MeshLibrary exported successfully: ${typedArgs.outputPath}\n\nOutput: ${stdout}`,
+        );
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return createErrorResponse(`Failed to export MeshLibrary: ${errorMessage}`, [
+          'Ensure Godot is installed correctly',
+          'Check if the GODOT_PATH environment variable is set correctly',
+          'Verify the project path is accessible',
+        ]);
+      }
     }
-
-    logDebug(`Exporting MeshLibrary from scene: ${typedArgs.scenePath} to ${typedArgs.outputPath}`);
-
-    // Prepare parameters for the operation
-    const params: BaseToolArgs = {
-      scenePath: typedArgs.scenePath,
-      outputPath: typedArgs.outputPath,
-    };
-
-    // Add optional parameters
-    const meshItemNames = (typedArgs as BaseToolArgs).meshItemNames;
-    if (meshItemNames && Array.isArray(meshItemNames)) {
-      params.meshItemNames = meshItemNames;
-    }
-
-    // Execute the operation
-    const { stdout, stderr } = await executeOperation(
-      'export_mesh_library',
-      params,
-      typedArgs.projectPath,
-      godotPath,
-    );
-
-    if (stderr && stderr.includes('Failed to')) {
-      return createErrorResponse(`Failed to export MeshLibrary: ${stderr}`, [
-        'Check if the scene contains valid 3D meshes',
-        'Ensure the output path is writable',
-        'Verify the scene file is not corrupted',
-      ]);
-    }
-
-    return createSuccessResponse(
-      `MeshLibrary exported successfully: ${typedArgs.outputPath}\n\nOutput: ${stdout}`,
-    );
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return createErrorResponse(`Failed to export MeshLibrary: ${errorMessage}`, [
-      'Ensure Godot is installed correctly',
-      'Check if the GODOT_PATH environment variable is set correctly',
-      'Verify the project path is accessible',
-    ]);
-  }
+  );
 };

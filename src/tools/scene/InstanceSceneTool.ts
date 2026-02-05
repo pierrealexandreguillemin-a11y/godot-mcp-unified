@@ -14,6 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join, basename } from 'path';
@@ -70,10 +71,20 @@ export const handleInstanceScene = async (args: BaseToolArgs): Promise<ToolRespo
     ]);
   }
 
-  try {
-    const sceneFullPath = join(typedArgs.projectPath, typedArgs.scenePath);
+  logDebug(`Instancing ${typedArgs.instancePath} into ${typedArgs.scenePath}`);
 
-    logDebug(`Instancing ${typedArgs.instancePath} into ${typedArgs.scenePath}`);
+  // Try bridge first, fallback to TSCN manipulation
+  return executeWithBridge(
+    'instance_scene',
+    {
+      scene_path: typedArgs.instancePath.replace(/\\/g, '/'),
+      parent_path: typedArgs.parentNodePath || '.',
+      instance_name: typedArgs.instanceName,
+    },
+    async () => {
+      // Fallback: manual TSCN manipulation
+      try {
+        const sceneFullPath = join(typedArgs.projectPath, typedArgs.scenePath);
 
     // Read and parse parent scene
     const content = readFileSync(sceneFullPath, 'utf-8');
@@ -146,18 +157,20 @@ export const handleInstanceScene = async (args: BaseToolArgs): Promise<ToolRespo
     const serialized = serializeTscn(doc);
     writeFileSync(sceneFullPath, serialized, 'utf-8');
 
-    return createSuccessResponse(
-      `Scene instanced successfully!\n` +
-      `Parent scene: ${typedArgs.scenePath}\n` +
-      `Instanced scene: ${typedArgs.instancePath}\n` +
-      `Instance name: ${instanceName}\n` +
-      `Parent node: ${isRootParent ? '(root)' : parentPath}`
-    );
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return createErrorResponse(`Failed to instance scene: ${errorMessage}`, [
-      'Check the scene file format',
-      'Verify paths are correct',
-    ]);
-  }
+        return createSuccessResponse(
+          `Scene instanced successfully!\n` +
+          `Parent scene: ${typedArgs.scenePath}\n` +
+          `Instanced scene: ${typedArgs.instancePath}\n` +
+          `Instance name: ${instanceName}\n` +
+          `Parent node: ${isRootParent ? '(root)' : parentPath}`
+        );
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return createErrorResponse(`Failed to instance scene: ${errorMessage}`, [
+          'Check the scene file format',
+          'Verify paths are correct',
+        ]);
+      }
+    }
+  );
 };

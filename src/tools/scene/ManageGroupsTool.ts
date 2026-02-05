@@ -15,6 +15,7 @@ import {
   createJsonResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { logDebug } from '../../utils/Logger.js';
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
@@ -55,10 +56,20 @@ export const handleManageGroups = async (args: BaseToolArgs): Promise<ToolRespon
     return sceneValidationError;
   }
 
-  try {
-    const sceneFullPath = join(typedArgs.projectPath, typedArgs.scenePath);
+  logDebug(`Managing groups for ${typedArgs.nodePath} in scene ${typedArgs.scenePath}`);
 
-    logDebug(`Managing groups for ${typedArgs.nodePath} in scene ${typedArgs.scenePath}`);
+  // Try bridge first, fallback to TSCN manipulation
+  return executeWithBridge(
+    'manage_groups',
+    {
+      node_path: typedArgs.nodePath,
+      action: typedArgs.action,
+      groups: typedArgs.groups || [],
+    },
+    async () => {
+      // Fallback: manual TSCN manipulation
+      try {
+        const sceneFullPath = join(typedArgs.projectPath, typedArgs.scenePath);
 
     // Read and parse scene file
     const content = readFileSync(sceneFullPath, 'utf-8');
@@ -78,101 +89,103 @@ export const handleManageGroups = async (args: BaseToolArgs): Promise<ToolRespon
       node.groups = [];
     }
 
-    switch (typedArgs.action) {
-      case 'list': {
-        return createJsonResponse({
-          scenePath: typedArgs.scenePath,
-          nodePath: typedArgs.nodePath,
-          nodeName: node.name,
-          groups: node.groups,
-          groupCount: node.groups.length,
-        });
-      }
-
-      case 'add': {
-        if (!typedArgs.groups || typedArgs.groups.length === 0) {
-          return createErrorResponse('Groups are required for add action', [
-            'Provide at least one group name',
-          ]);
-        }
-
-        let addedCount = 0;
-        for (const group of typedArgs.groups) {
-          if (!node.groups.includes(group)) {
-            node.groups.push(group);
-            addedCount++;
+        switch (typedArgs.action) {
+          case 'list': {
+            return createJsonResponse({
+              scenePath: typedArgs.scenePath,
+              nodePath: typedArgs.nodePath,
+              nodeName: node.name,
+              groups: node.groups,
+              groupCount: node.groups.length,
+            });
           }
-        }
 
-        if (addedCount === 0) {
-          return createErrorResponse('Node is already in all specified groups', [
-            'Specify different groups',
-          ]);
-        }
+          case 'add': {
+            if (!typedArgs.groups || typedArgs.groups.length === 0) {
+              return createErrorResponse('Groups are required for add action', [
+                'Provide at least one group name',
+              ]);
+            }
 
-        // Serialize and write back
-        const serialized = serializeTscn(doc);
-        writeFileSync(sceneFullPath, serialized, 'utf-8');
+            let addedCount = 0;
+            for (const group of typedArgs.groups) {
+              if (!node.groups.includes(group)) {
+                node.groups.push(group);
+                addedCount++;
+              }
+            }
 
-        logDebug(`Added ${addedCount} groups to ${typedArgs.nodePath}`);
+            if (addedCount === 0) {
+              return createErrorResponse('Node is already in all specified groups', [
+                'Specify different groups',
+              ]);
+            }
 
-        return createSuccessResponse(
-          `Groups added successfully!\n` +
-          `Scene: ${typedArgs.scenePath}\n` +
-          `Node: ${typedArgs.nodePath}\n` +
-          `Added: ${addedCount} groups\n` +
-          `Current groups: ${node.groups.join(', ')}`
-        );
-      }
+            // Serialize and write back
+            const serialized = serializeTscn(doc);
+            writeFileSync(sceneFullPath, serialized, 'utf-8');
 
-      case 'remove': {
-        if (!typedArgs.groups || typedArgs.groups.length === 0) {
-          return createErrorResponse('Groups are required for remove action', [
-            'Provide at least one group name',
-          ]);
-        }
+            logDebug(`Added ${addedCount} groups to ${typedArgs.nodePath}`);
 
-        let removedCount = 0;
-        for (const group of typedArgs.groups) {
-          const index = node.groups.indexOf(group);
-          if (index !== -1) {
-            node.groups.splice(index, 1);
-            removedCount++;
+            return createSuccessResponse(
+              `Groups added successfully!\n` +
+              `Scene: ${typedArgs.scenePath}\n` +
+              `Node: ${typedArgs.nodePath}\n` +
+              `Added: ${addedCount} groups\n` +
+              `Current groups: ${node.groups.join(', ')}`
+            );
           }
+
+          case 'remove': {
+          if (!typedArgs.groups || typedArgs.groups.length === 0) {
+            return createErrorResponse('Groups are required for remove action', [
+              'Provide at least one group name',
+            ]);
+          }
+
+          let removedCount = 0;
+          for (const group of typedArgs.groups) {
+            const index = node.groups.indexOf(group);
+            if (index !== -1) {
+              node.groups.splice(index, 1);
+              removedCount++;
+            }
+          }
+
+          if (removedCount === 0) {
+            return createErrorResponse('Node is not in any of the specified groups', [
+              'Check the group names',
+              'Use action "list" to see current groups',
+            ]);
+          }
+
+          // Serialize and write back
+          const serialized = serializeTscn(doc);
+          writeFileSync(sceneFullPath, serialized, 'utf-8');
+
+          logDebug(`Removed ${removedCount} groups from ${typedArgs.nodePath}`);
+
+          return createSuccessResponse(
+            `Groups removed successfully!\n` +
+            `Scene: ${typedArgs.scenePath}\n` +
+            `Node: ${typedArgs.nodePath}\n` +
+            `Removed: ${removedCount} groups\n` +
+            `Current groups: ${node.groups.length > 0 ? node.groups.join(', ') : '(none)'}`
+          );
         }
 
-        if (removedCount === 0) {
-          return createErrorResponse('Node is not in any of the specified groups', [
-            'Check the group names',
-            'Use action "list" to see current groups',
+        default:
+          return createErrorResponse(`Unknown action: ${typedArgs.action}`, [
+            'Use "add", "remove", or "list"',
           ]);
         }
-
-        // Serialize and write back
-        const serialized = serializeTscn(doc);
-        writeFileSync(sceneFullPath, serialized, 'utf-8');
-
-        logDebug(`Removed ${removedCount} groups from ${typedArgs.nodePath}`);
-
-        return createSuccessResponse(
-          `Groups removed successfully!\n` +
-          `Scene: ${typedArgs.scenePath}\n` +
-          `Node: ${typedArgs.nodePath}\n` +
-          `Removed: ${removedCount} groups\n` +
-          `Current groups: ${node.groups.length > 0 ? node.groups.join(', ') : '(none)'}`
-        );
-      }
-
-      default:
-        return createErrorResponse(`Unknown action: ${typedArgs.action}`, [
-          'Use "add", "remove", or "list"',
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return createErrorResponse(`Failed to manage groups: ${errorMessage}`, [
+          'Check the scene file format',
+          'Verify paths are correct',
         ]);
+      }
     }
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return createErrorResponse(`Failed to manage groups: ${errorMessage}`, [
-      'Check the scene file format',
-      'Verify paths are correct',
-    ]);
-  }
+  );
 };

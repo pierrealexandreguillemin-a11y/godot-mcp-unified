@@ -6,23 +6,24 @@
  * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import {
   prepareToolArgs,
   validateProjectPath,
   validateScenePath,
   createSuccessResponse,
-} from '../BaseToolHandler';
-import { createErrorResponse } from '../../utils/ErrorHandler';
-import { detectGodotPath } from '../../core/PathManager';
-import { executeOperation } from '../../core/GodotExecutor';
-import { logDebug } from '../../utils/Logger';
+} from '../BaseToolHandler.js';
+import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
+import { detectGodotPath } from '../../core/PathManager.js';
+import { executeOperation } from '../../core/GodotExecutor.js';
+import { logDebug } from '../../utils/Logger.js';
 import {
   CreateAnimationPlayerSchema,
   CreateAnimationPlayerInput,
   toMcpSchema,
   safeValidateInput,
-} from '../../core/ZodSchemas';
+} from '../../core/ZodSchemas.js';
 
 export const createAnimationPlayerDefinition: ToolDefinition = {
   name: 'create_animation_player',
@@ -53,49 +54,61 @@ export const handleCreateAnimationPlayer = async (args: BaseToolArgs): Promise<T
     return sceneValidationError;
   }
 
-  try {
-    const godotPath = await detectGodotPath();
-    if (!godotPath) {
-      return createErrorResponse('Could not find a valid Godot executable path', [
-        'Ensure Godot is installed correctly',
-        'Set GODOT_PATH environment variable to specify the correct path',
-      ]);
+  logDebug(`Creating AnimationPlayer node ${typedArgs.nodeName} in scene: ${typedArgs.scenePath}`);
+
+  // Try bridge first, fallback to GodotExecutor
+  return executeWithBridge(
+    'add_node',
+    {
+      node_type: 'AnimationPlayer',
+      node_name: typedArgs.nodeName,
+      parent_path: typedArgs.parentNodePath || '.',
+    },
+    async () => {
+      // Fallback: traditional GodotExecutor method
+      try {
+        const godotPath = await detectGodotPath();
+        if (!godotPath) {
+          return createErrorResponse('Could not find a valid Godot executable path', [
+            'Ensure Godot is installed correctly',
+            'Set GODOT_PATH environment variable to specify the correct path',
+          ]);
+        }
+
+        const params: BaseToolArgs = {
+          scenePath: typedArgs.scenePath,
+          nodeType: 'AnimationPlayer',
+          nodeName: typedArgs.nodeName,
+        };
+
+        if (typedArgs.parentNodePath) {
+          params.parentNodePath = typedArgs.parentNodePath;
+        }
+
+        const { stdout, stderr } = await executeOperation(
+          'add_node',
+          params,
+          typedArgs.projectPath,
+          godotPath,
+        );
+
+        if (stderr && stderr.includes('Failed to')) {
+          return createErrorResponse(`Failed to create AnimationPlayer: ${stderr}`, [
+            'Check if the parent node path exists',
+            'Verify the scene file is not corrupted',
+          ]);
+        }
+
+        return createSuccessResponse(
+          `AnimationPlayer created successfully: ${typedArgs.nodeName}\n\nOutput: ${stdout}`,
+        );
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return createErrorResponse(`Failed to create AnimationPlayer: ${errorMessage}`, [
+          'Ensure Godot is installed correctly',
+          'Verify the project path and scene path are accessible',
+        ]);
+      }
     }
-
-    logDebug(`Creating AnimationPlayer node ${typedArgs.nodeName} in scene: ${typedArgs.scenePath}`);
-
-    const params: BaseToolArgs = {
-      scenePath: typedArgs.scenePath,
-      nodeType: 'AnimationPlayer',
-      nodeName: typedArgs.nodeName,
-    };
-
-    if (typedArgs.parentNodePath) {
-      params.parentNodePath = typedArgs.parentNodePath;
-    }
-
-    const { stdout, stderr } = await executeOperation(
-      'add_node',
-      params,
-      typedArgs.projectPath,
-      godotPath,
-    );
-
-    if (stderr && stderr.includes('Failed to')) {
-      return createErrorResponse(`Failed to create AnimationPlayer: ${stderr}`, [
-        'Check if the parent node path exists',
-        'Verify the scene file is not corrupted',
-      ]);
-    }
-
-    return createSuccessResponse(
-      `AnimationPlayer created successfully: ${typedArgs.nodeName}\n\nOutput: ${stdout}`,
-    );
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return createErrorResponse(`Failed to create AnimationPlayer: ${errorMessage}`, [
-      'Ensure Godot is installed correctly',
-      'Verify the project path and scene path are accessible',
-    ]);
-  }
+  );
 };

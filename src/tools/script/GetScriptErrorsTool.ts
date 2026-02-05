@@ -16,6 +16,7 @@ import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { logDebug, logInfo } from '../../utils/Logger.js';
 import { validateScript } from '../../bridge/index.js';
+import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
 import { getGodotPool } from '../../core/ProcessPool.js';
 import {
   GetScriptErrorsSchema,

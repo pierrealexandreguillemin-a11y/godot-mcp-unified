@@ -310,8 +310,4 @@ func _emit_node_event(event_type: String, node: Node) -> void:
 	})
 
 
-## Emit an event via the server (to be implemented in base_command)
-func _emit_event(event_type: String, data: Dictionary) -> void:
-	# This will be connected to the WebSocket server
-	if has_signal("event_emitted"):
-		emit_signal("event_emitted", event_type, data)
+## _emit_event is inherited from MCPBaseCommand

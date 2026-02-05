@@ -54,12 +54,18 @@ func create_scene(params: Dictionary) -> Dictionary:
 		# Refresh filesystem
 		_get_filesystem().scan()
 
-		return _success({"path": scene_path})
+		return _success({"path": scene_path, "__emit_event": "scene_created"})
 	)
 
 	if result.has("__await_frame"):
 		await _wait_frame()
 		result.erase("__await_frame")
+
+	# Emit event if operation succeeded
+	if result.success and result.data and result.data.has("__emit_event"):
+		var event_type: String = result.data["__emit_event"]
+		result.data.erase("__emit_event")
+		_emit_event(event_type, {"path": result.data.path, "root_type": root_type})
 
 	return result
 
@@ -72,7 +78,7 @@ func open_scene(params: Dictionary) -> Dictionary:
 
 	var scene_path: String = _normalize_path(params.scene_path)
 
-	return await _safe_execute(func() -> Dictionary:
+	var result := await _safe_execute(func() -> Dictionary:
 		if not ResourceLoader.exists(scene_path):
 			return _error("NOT_FOUND", "Scene not found: %s" % scene_path)
 
@@ -82,12 +88,18 @@ func open_scene(params: Dictionary) -> Dictionary:
 		return _success({"path": scene_path})
 	)
 
+	# Emit event on success
+	if result.success:
+		_emit_event("scene_opened", {"path": scene_path})
+
+	return result
+
 
 ## Save the current scene or a specific scene
 func save_scene(params: Dictionary) -> Dictionary:
 	var scene_path: String = params.get("scene_path", "")
 
-	return await _safe_execute(func() -> Dictionary:
+	var result := await _safe_execute(func() -> Dictionary:
 		if scene_path.is_empty():
 			# Save current scene
 			var root := _get_edited_scene_root()
@@ -101,17 +113,23 @@ func save_scene(params: Dictionary) -> Dictionary:
 			return _success({"path": root.scene_file_path})
 		else:
 			# Save specific scene
-			scene_path = _normalize_path(scene_path)
+			var normalized_path := _normalize_path(scene_path)
 			var root := _get_edited_scene_root()
 
-			if root and root.scene_file_path == scene_path:
+			if root and root.scene_file_path == normalized_path:
 				var err := _editor_interface.save_scene()
 				if err != OK:
 					return _error("SAVE_FAILED", "Failed to save scene: %s" % error_string(err))
-				return _success({"path": scene_path})
+				return _success({"path": normalized_path})
 			else:
-				return _error("NOT_OPEN", "Scene is not currently open: %s" % scene_path)
+				return _error("NOT_OPEN", "Scene is not currently open: %s" % normalized_path)
 	)
+
+	# Emit event on success
+	if result.success and result.data:
+		_emit_event("scene_saved", {"path": result.data.path})
+
+	return result
 
 
 ## Get information about the currently edited scene

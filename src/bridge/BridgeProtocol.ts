@@ -81,13 +81,22 @@ export type BridgeAction =
  * Event types emitted by Godot plugin
  */
 export type BridgeEventType =
-  | 'scene_modified'
+  // Scene events
+  | 'scene_created'
   | 'scene_opened'
+  | 'scene_saved'
+  | 'scene_modified'
   | 'scene_closed'
+  // Node events
   | 'node_added'
   | 'node_removed'
   | 'node_modified'
+  // Script events
+  | 'script_created'
+  | 'script_attached'
+  | 'script_detached'
   | 'script_modified'
+  // Project events
   | 'project_started'
   | 'project_stopped';
 

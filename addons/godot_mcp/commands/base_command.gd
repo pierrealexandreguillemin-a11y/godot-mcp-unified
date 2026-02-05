@@ -4,11 +4,19 @@ class_name MCPBaseCommand
 ## Base class for MCP command processors.
 ## Provides common utilities and editor interface access.
 
+## Emitted when a command wants to broadcast an event to clients
+signal event_emitted(event_type: String, data: Dictionary)
+
 var _editor_interface: EditorInterface
 
 
 func initialize(editor_interface: EditorInterface) -> void:
 	_editor_interface = editor_interface
+
+
+## Emit an event to all connected clients
+func _emit_event(event_type: String, data: Dictionary) -> void:
+	event_emitted.emit(event_type, data)
 
 
 ## Create a success response

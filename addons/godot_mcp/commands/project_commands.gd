@@ -131,7 +131,4 @@ func get_project_info() -> Dictionary:
 	return _success(project_settings)
 
 
-## Emit an event via the server
-func _emit_event(event_type: String, data: Dictionary) -> void:
-	if has_signal("event_emitted"):
-		emit_signal("event_emitted", event_type, data)
+## _emit_event is inherited from MCPBaseCommand

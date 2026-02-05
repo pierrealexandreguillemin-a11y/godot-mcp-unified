@@ -179,7 +179,4 @@ func _find_node_by_path(root: Node, path: String) -> Node:
 	return root.get_node_or_null(NodePath(path))
 
 
-## Emit an event via the server
-func _emit_event(event_type: String, data: Dictionary) -> void:
-	if has_signal("event_emitted"):
-		emit_signal("event_emitted", event_type, data)
+## _emit_event is inherited from MCPBaseCommand

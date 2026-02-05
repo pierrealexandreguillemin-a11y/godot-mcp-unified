@@ -21,24 +21,28 @@ func initialize(server: Node, editor_interface: EditorInterface) -> void:
 	_scene_commands = SceneCommands.new()
 	_scene_commands.name = "SceneCommands"
 	_scene_commands.initialize(editor_interface)
+	_scene_commands.event_emitted.connect(_on_event_emitted)
 	add_child(_scene_commands)
 
 	var NodeCommands := preload("res://addons/godot_mcp/commands/node_commands.gd")
 	_node_commands = NodeCommands.new()
 	_node_commands.name = "NodeCommands"
 	_node_commands.initialize(editor_interface)
+	_node_commands.event_emitted.connect(_on_event_emitted)
 	add_child(_node_commands)
 
 	var ScriptCommands := preload("res://addons/godot_mcp/commands/script_commands.gd")
 	_script_commands = ScriptCommands.new()
 	_script_commands.name = "ScriptCommands"
 	_script_commands.initialize(editor_interface)
+	_script_commands.event_emitted.connect(_on_event_emitted)
 	add_child(_script_commands)
 
 	var ProjectCommands := preload("res://addons/godot_mcp/commands/project_commands.gd")
 	_project_commands = ProjectCommands.new()
 	_project_commands.name = "ProjectCommands"
 	_project_commands.initialize(editor_interface)
+	_project_commands.event_emitted.connect(_on_event_emitted)
 	add_child(_project_commands)
 
 
@@ -109,3 +113,8 @@ func _success(data: Variant = null) -> Dictionary:
 
 func _error(code: String, message: String) -> Dictionary:
 	return {"success": false, "data": {"code": code, "message": message}}
+
+
+## Forward events from command processors to WebSocket clients
+func _on_event_emitted(event_type: String, data: Dictionary) -> void:
+	_server.send_event(event_type, data)

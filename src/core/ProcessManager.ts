@@ -33,7 +33,7 @@
 
 import { spawn, ChildProcess } from 'child_process';
 
-import { logDebug } from '../utils/Logger';
+import { logDebug, logError } from '../utils/Logger.js';
 
 /**
  * Represents an active Godot process with its associated I/O streams.
@@ -210,7 +210,7 @@ export const launchGodotEditor = (godotPath: string, projectPath: string): void 
   });
 
   process.on('error', (err: Error) => {
-    console.error('Failed to start Godot editor:', err);
+    logError(`Failed to start Godot editor: ${err.message}`);
   });
 };
 
@@ -305,7 +305,7 @@ export const runGodotProject = (
   });
 
   process.on('error', (err: Error) => {
-    console.error('Failed to start Godot process:', err);
+    logError(`Failed to start Godot process: ${err.message}`);
     if (activeProcess && activeProcess.process === process) {
       activeProcess = null;
     }

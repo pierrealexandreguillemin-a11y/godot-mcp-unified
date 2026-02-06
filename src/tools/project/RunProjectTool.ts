@@ -14,7 +14,7 @@ import { isGodotProject } from '../../utils/FileUtils.js';
 import { detectGodotPath } from '../../core/PathManager.js';
 import { getActiveProcess, setActiveProcess } from '../../core/ProcessManager.js';
 import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
+import { logDebug, logError } from '../../utils/Logger.js';
 import { ToolResponse, ToolDefinition, BaseToolArgs } from '../../server/types.js';
 import {
   RunProjectSchema,
@@ -115,7 +115,7 @@ export const handleRunProject = async (args: BaseToolArgs): Promise<ToolResponse
         });
 
         process.on('error', (err: Error) => {
-          console.error('Failed to start Godot process:', err);
+          logError(`Failed to start Godot process: ${err.message}`);
           if (getActiveProcess()?.process === process) {
             setActiveProcess(null);
           }

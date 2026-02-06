@@ -1,10 +1,13 @@
 /**
  * File system utilities
  * Provides file and directory operations
+ *
+ * ISO/IEC 5055 compliant - proper error logging
  */
 
 import { existsSync, readdirSync } from 'fs';
 import { join, basename } from 'path';
+import { logDebug } from './Logger.js';
 
 export interface GodotProject {
   path: string;
@@ -53,8 +56,9 @@ export const findGodotProjects = (directory: string, recursive: boolean): GodotP
         }
       }
     }
-  } catch {
-    // Silently ignore errors for now
+  } catch (error) {
+    // Log error for debugging - ISO 5055 RE-1001 compliance
+    logDebug(`Error scanning directory ${directory}: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 
   return projects;
@@ -111,8 +115,9 @@ export const getProjectStructure = (
 
     scanDirectory(projectPath);
     return structure;
-  } catch {
-    // Return empty structure on error
+  } catch (error) {
+    // Log error for debugging - ISO 5055 RE-1001 compliance
+    logDebug(`Error getting project structure for ${projectPath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     return {
       scenes: 0,
       scripts: 0,

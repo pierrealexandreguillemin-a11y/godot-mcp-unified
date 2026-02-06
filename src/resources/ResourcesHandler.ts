@@ -18,6 +18,7 @@ import {
   AssetsResourceProvider,
   DebugResourceProvider,
 } from './providers/index.js';
+import { logError } from '../utils/Logger.js';
 
 // Initialize all resource providers
 const providers: ResourceProvider[] = [
@@ -38,7 +39,7 @@ export const listGodotResources = async (projectPath: string): Promise<GodotReso
       const resources = await provider.listResources(projectPath);
       allResources.push(...resources);
     } catch (error) {
-      console.error(`[Resources] Error listing from ${provider.prefix}:`, error);
+      logError(`[Resources] Error listing from ${provider.prefix}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -58,7 +59,7 @@ export const readGodotResource = async (
       try {
         return await provider.readResource(projectPath, uri);
       } catch (error) {
-        console.error(`[Resources] Error reading ${uri}:`, error);
+        logError(`[Resources] Error reading ${uri}: ${error instanceof Error ? error.message : 'Unknown error'}`);
         return null;
       }
     }

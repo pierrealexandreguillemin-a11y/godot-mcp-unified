@@ -488,8 +488,17 @@ export class ProcessPool extends EventEmitter {
 }
 
 /**
- * Singleton pool for Godot operations
+ * Singleton pool for Godot operations.
+ *
+ * Note: Global mutable singleton is intentional here (ISO 5055 MI-1002 exception).
+ * This pattern is acceptable because:
+ * 1. ProcessPool manages system resources (child processes) that must be globally coordinated
+ * 2. Proper cleanup is ensured via shutdownGodotPool() which nullifies the reference
+ * 3. The pool is lazily initialized on first use
+ *
  * Configuration from environment variables via config.ts
+ *
+ * @internal
  */
 let godotPool: ProcessPool | null = null;
 

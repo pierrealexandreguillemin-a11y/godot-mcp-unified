@@ -6,6 +6,8 @@
  * Environment variable overrides supported
  */
 
+import { randomUUID } from 'crypto';
+
 /**
  * Safe parseInt with validation
  * Returns default value if parsing fails or result is NaN
@@ -185,6 +187,15 @@ export const NETWORK_CONFIG = {
    * @default 3000 (3 seconds)
    */
   PLUGIN_RECONNECT_INTERVAL_MS: safeParseInt(process.env.GODOT_MCP_PLUGIN_RECONNECT_INTERVAL, 3000, 500),
+
+  /**
+   * Shared-secret token for WebSocket authentication.
+   * The MCP server sends this token after connecting to the Godot plugin.
+   * The plugin must validate it before accepting commands.
+   * Auto-generated if not set via environment variable.
+   * @default auto-generated UUID
+   */
+  AUTH_TOKEN: process.env.GODOT_MCP_AUTH_TOKEN || randomUUID(),
 } as const;
 
 /**

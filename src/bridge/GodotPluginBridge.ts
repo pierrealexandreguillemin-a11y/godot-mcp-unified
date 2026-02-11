@@ -250,6 +250,15 @@ export class GodotPluginBridge extends EventEmitter {
             this.isConnected = true;
             this.reconnectAttempts = 0;
             this.lastMessageTime = Date.now();
+
+            // Send authentication token as first message
+            const authMessage = JSON.stringify({
+              action: 'authenticate',
+              token: NETWORK_CONFIG.AUTH_TOKEN,
+            });
+            this.ws!.send(authMessage);
+            logDebug('[PluginBridge] Sent authentication token');
+
             logInfo(`[PluginBridge] Connected to Godot plugin at ${url}`);
             this.emit('connected');
             resolve();

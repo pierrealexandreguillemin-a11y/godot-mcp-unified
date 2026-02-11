@@ -12,6 +12,8 @@ import {
 } from './CircuitBreaker.js';
 
 describe('CircuitBreaker', () => {
+  jest.useFakeTimers();
+
   let breaker: CircuitBreaker;
 
   beforeEach(() => {
@@ -215,8 +217,8 @@ describe('CircuitBreaker', () => {
 
       expect(breaker.getState()).toBe(CircuitState.OPEN);
 
-      // Wait for reset timeout
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      // Advance past reset timeout
+      jest.advanceTimersByTime(150);
       expect(breaker.getState()).toBe(CircuitState.HALF_OPEN);
     });
 
@@ -233,8 +235,8 @@ describe('CircuitBreaker', () => {
         }
       }
 
-      // Wait for reset timeout
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      // Advance past reset timeout
+      jest.advanceTimersByTime(150);
       expect(listener).toHaveBeenCalled();
     });
 
@@ -248,8 +250,8 @@ describe('CircuitBreaker', () => {
         }
       }
 
-      // Wait for reset timeout
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      // Advance past reset timeout
+      jest.advanceTimersByTime(150);
       expect(breaker.isAllowingRequests()).toBe(true);
     });
 
@@ -263,8 +265,8 @@ describe('CircuitBreaker', () => {
         }
       }
 
-      // Wait for reset timeout
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      // Advance past reset timeout
+      jest.advanceTimersByTime(150);
 
       // Succeed twice (success threshold)
       await breaker.execute(() => Promise.resolve('ok'));
@@ -286,8 +288,8 @@ describe('CircuitBreaker', () => {
         }
       }
 
-      // Wait for reset timeout
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      // Advance past reset timeout
+      jest.advanceTimersByTime(150);
 
       // Succeed twice
       await breaker.execute(() => Promise.resolve('ok'));
@@ -306,8 +308,8 @@ describe('CircuitBreaker', () => {
         }
       }
 
-      // Wait for reset timeout
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      // Advance past reset timeout
+      jest.advanceTimersByTime(150);
       expect(breaker.getState()).toBe(CircuitState.HALF_OPEN);
 
       // Fail again
@@ -340,8 +342,8 @@ describe('CircuitBreaker', () => {
         }
       }
 
-      // Wait for failures to expire
-      await new Promise((resolve) => setTimeout(resolve, 60));
+      // Advance past failure window to expire earlier failures
+      jest.advanceTimersByTime(60);
 
       // Fail once more (should not trigger open since earlier failures expired)
       try {
@@ -522,8 +524,8 @@ describe('CircuitBreaker', () => {
     it('should update lastStateChange when circuit opens', async () => {
       const initialTime = breaker.getStats().lastStateChange;
 
-      // Wait a bit to ensure time difference
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      // Advance time to ensure time difference
+      jest.advanceTimersByTime(10);
 
       // Open the circuit
       for (let i = 0; i < 3; i++) {
@@ -550,8 +552,8 @@ describe('CircuitBreaker', () => {
 
       const openTime = breaker.getStats().lastStateChange;
 
-      // Wait for reset timeout
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      // Advance past reset timeout
+      jest.advanceTimersByTime(150);
 
       // Succeed twice to close
       await breaker.execute(() => Promise.resolve('ok'));
@@ -564,7 +566,8 @@ describe('CircuitBreaker', () => {
     it('should update lastStateChange on reset', async () => {
       const initialTime = breaker.getStats().lastStateChange;
 
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      // Advance time to ensure time difference
+      jest.advanceTimersByTime(10);
 
       breaker.reset();
 
@@ -612,5 +615,9 @@ describe('CircuitBreaker', () => {
       expect(stats.failures).toBe(1);
       expect(stats.totalRequests).toBe(3);
     });
+  });
+
+  afterAll(() => {
+    jest.useRealTimers();
   });
 });

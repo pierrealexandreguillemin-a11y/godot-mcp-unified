@@ -3,7 +3,7 @@
  * ISO/IEC 29119 compliant test structure
  */
 
-import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
+import { jest, describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from '@jest/globals';
 import {
   TokenBucketRateLimiter,
   globalRateLimiter,
@@ -14,6 +14,12 @@ import {
 } from './RateLimiter.js';
 
 describe('TokenBucketRateLimiter', () => {
+  jest.useFakeTimers();
+
+  afterAll(() => {
+    jest.useRealTimers();
+  });
+
   let rateLimiter: TokenBucketRateLimiter;
 
   beforeEach(() => {
@@ -132,32 +138,32 @@ describe('TokenBucketRateLimiter', () => {
   });
 
   describe('token refill', () => {
-    it('should refill tokens over time', async () => {
+    it('should refill tokens over time', () => {
       rateLimiter.tryConsume(10); // Exhaust all tokens
       expect(rateLimiter.getAvailableTokens()).toBe(0);
 
-      // Wait for refill (5 tokens/second = 1 token per 200ms)
-      await new Promise(resolve => setTimeout(resolve, 250));
+      // Advance time for refill (5 tokens/second = 1 token per 200ms)
+      jest.advanceTimersByTime(250);
 
       // Should have refilled at least 1 token
       expect(rateLimiter.getAvailableTokens()).toBeGreaterThanOrEqual(1);
     });
 
-    it('should not exceed max tokens', async () => {
-      // Wait a bit to allow potential over-refill
-      await new Promise(resolve => setTimeout(resolve, 100));
+    it('should not exceed max tokens', () => {
+      // Advance time to allow potential over-refill
+      jest.advanceTimersByTime(100);
 
       expect(rateLimiter.getAvailableTokens()).toBeLessThanOrEqual(10);
     });
 
-    it('should emit refill event', async () => {
+    it('should emit refill event', () => {
       const listener = jest.fn();
       rateLimiter.on('refill', listener);
 
       rateLimiter.tryConsume(10);
 
-      // Wait for refill
-      await new Promise(resolve => setTimeout(resolve, 250));
+      // Advance time for refill
+      jest.advanceTimersByTime(250);
       rateLimiter.getAvailableTokens();
 
       expect(listener).toHaveBeenCalled();
@@ -355,7 +361,15 @@ describe('RateLimitError', () => {
 });
 
 describe('Rate limiting scenarios', () => {
-  it('should handle burst traffic followed by sustained rate', async () => {
+  beforeAll(() => {
+    jest.useFakeTimers();
+  });
+
+  afterAll(() => {
+    jest.useRealTimers();
+  });
+
+  it('should handle burst traffic followed by sustained rate', () => {
     const limiter = new TokenBucketRateLimiter({
       maxTokens: 10,
       refillRate: 2, // 2 tokens per second
@@ -371,8 +385,8 @@ describe('Rate limiting scenarios', () => {
     // Now rate limited
     expect(limiter.tryConsume(1)).toBe(false);
 
-    // Wait for refill
-    await new Promise(resolve => setTimeout(resolve, 600));
+    // Advance time for refill
+    jest.advanceTimersByTime(600);
 
     // Should have some tokens again
     expect(limiter.tryConsume(1)).toBe(true);

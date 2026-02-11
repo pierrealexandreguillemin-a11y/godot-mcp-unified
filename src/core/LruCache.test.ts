@@ -7,6 +7,12 @@ import { jest } from '@jest/globals';
 import { LruCache } from './LruCache.js';
 
 describe('LruCache', () => {
+  jest.useFakeTimers();
+
+  afterAll(() => {
+    jest.useRealTimers();
+  });
+
   describe('basic operations', () => {
     it('should store and retrieve a value', () => {
       const cache = new LruCache<string, number>();
@@ -82,44 +88,44 @@ describe('LruCache', () => {
   });
 
   describe('TTL expiration', () => {
-    it('should expire entries after TTL', async () => {
+    it('should expire entries after TTL', () => {
       const cache = new LruCache<string, number>(100, 50); // 50ms TTL
 
       cache.set('key1', 42);
 
-      // Wait for TTL to expire
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Advance past TTL expiration
+      jest.advanceTimersByTime(100);
 
       expect(cache.get('key1')).toBeUndefined();
     });
 
-    it('should not expire entries before TTL', async () => {
+    it('should not expire entries before TTL', () => {
       const cache = new LruCache<string, number>(100, 1000); // 1s TTL
 
       cache.set('key1', 42);
 
-      // Wait less than TTL
-      await new Promise(resolve => setTimeout(resolve, 50));
+      // Advance less than TTL
+      jest.advanceTimersByTime(50);
 
       expect(cache.get('key1')).toBe(42);
     });
 
-    it('should support custom TTL per entry', async () => {
+    it('should support custom TTL per entry', () => {
       const cache = new LruCache<string, number>(100, 1000);
 
       cache.set('key1', 42, 50); // Custom 50ms TTL
 
-      await new Promise(resolve => setTimeout(resolve, 100));
+      jest.advanceTimersByTime(100);
 
       expect(cache.get('key1')).toBeUndefined();
     });
 
-    it('should remove expired entries on has() check', async () => {
+    it('should remove expired entries on has() check', () => {
       const cache = new LruCache<string, number>(100, 50);
 
       cache.set('key1', 42);
 
-      await new Promise(resolve => setTimeout(resolve, 100));
+      jest.advanceTimersByTime(100);
 
       expect(cache.has('key1')).toBe(false);
     });
@@ -158,13 +164,13 @@ describe('LruCache', () => {
       expect(cache.get('key4')).toBe(4);
     });
 
-    it('should evict expired entries first', async () => {
+    it('should evict expired entries first', () => {
       const cache = new LruCache<string, number>(3, 50);
 
       cache.set('key1', 1);
 
-      // Wait for first entry to expire
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Advance past first entry's TTL
+      jest.advanceTimersByTime(100);
 
       cache.set('key2', 2, 60000); // Long TTL
       cache.set('key3', 3, 60000);
@@ -178,13 +184,13 @@ describe('LruCache', () => {
   });
 
   describe('prune()', () => {
-    it('should remove expired entries', async () => {
+    it('should remove expired entries', () => {
       const cache = new LruCache<string, number>(100, 50);
 
       cache.set('key1', 1);
       cache.set('key2', 2);
 
-      await new Promise(resolve => setTimeout(resolve, 100));
+      jest.advanceTimersByTime(100);
 
       cache.set('key3', 3, 60000); // Long TTL
 
@@ -207,13 +213,13 @@ describe('LruCache', () => {
   });
 
   describe('getStats()', () => {
-    it('should return correct statistics', async () => {
+    it('should return correct statistics', () => {
       const cache = new LruCache<string, number>(10, 50);
 
       cache.set('key1', 1);
       cache.set('key2', 2, 60000); // Long TTL
 
-      await new Promise(resolve => setTimeout(resolve, 100));
+      jest.advanceTimersByTime(100);
 
       const stats = cache.getStats();
 

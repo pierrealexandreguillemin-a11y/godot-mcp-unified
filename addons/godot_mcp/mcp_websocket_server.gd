@@ -15,6 +15,8 @@ var _tcp_server: TCPServer
 var _port: int
 var _peers: Dictionary = {}  # {id: WebSocketPeer}
 var _pending: Dictionary = {}  # {id: {stream: StreamPeerTCP, time: int}}
+var _authenticated: Dictionary = {}  # {id: bool} - tracks auth state per client
+var _auth_token: String = ""
 var _command_handler: Node
 var _editor_interface: EditorInterface
 
@@ -23,6 +25,11 @@ func start(port: int, editor_interface: EditorInterface) -> Error:
 	_port = port
 	_editor_interface = editor_interface
 	_tcp_server = TCPServer.new()
+
+	# Read auth token from environment variable (shared with MCP server)
+	_auth_token = OS.get_environment("GODOT_MCP_AUTH_TOKEN")
+	if _auth_token.is_empty():
+		push_warning("[MCP] No GODOT_MCP_AUTH_TOKEN set - authentication disabled")
 
 	var MCPCommandHandler := preload("res://addons/godot_mcp/mcp_command_handler.gd")
 	_command_handler = MCPCommandHandler.new()
@@ -119,6 +126,7 @@ func _poll_peers() -> void:
 					_handle_message(id, message)
 			WebSocketPeer.STATE_CLOSED:
 				print("[MCP] Client disconnected: %d (code: %d)" % [id, peer.get_close_code()])
+				_authenticated.erase(id)
 				client_disconnected.emit(id)
 				to_remove.append(id)
 
@@ -135,6 +143,19 @@ func _handle_message(client_id: int, json_str: String) -> void:
 	if not data is Dictionary:
 		send_error(client_id, "", "invalid_format", "Message must be a JSON object")
 		return
+
+	# Authentication gate: first message must be an auth token
+	if not _authenticated.get(client_id, false):
+		if _auth_token.is_empty():
+			# No token configured - allow all connections (backward compatible)
+			_authenticated[client_id] = true
+		elif data.get("action") == "authenticate" and data.get("token") == _auth_token:
+			_authenticated[client_id] = true
+			print("[MCP] Client %d authenticated" % client_id)
+			return
+		else:
+			send_error(client_id, data.get("id", ""), "auth_failed", "Authentication required")
+			return
 
 	_command_handler.process_command(client_id, data)
 

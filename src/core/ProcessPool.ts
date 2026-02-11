@@ -256,8 +256,11 @@ export class ProcessPool extends EventEmitter {
 
     this.emit('taskStarted', { taskId: task.id, workerId: worker.id });
 
+    const MAX_OUTPUT_BYTES = 10 * 1024 * 1024; // 10MB cap per stream
     let stdout = '';
     let stderr = '';
+    let stdoutTruncated = false;
+    let stderrTruncated = false;
     let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
     let isCompleted = false;
 
@@ -310,11 +313,23 @@ export class ProcessPool extends EventEmitter {
       auditLogger.processSpawn(task.command, proc.pid);
 
       proc.stdout?.on('data', (data: Buffer) => {
-        stdout += data.toString();
+        if (!stdoutTruncated) {
+          stdout += data.toString();
+          if (stdout.length > MAX_OUTPUT_BYTES) {
+            stdout = stdout.slice(0, MAX_OUTPUT_BYTES) + '\n[truncated: output exceeded 10MB]';
+            stdoutTruncated = true;
+          }
+        }
       });
 
       proc.stderr?.on('data', (data: Buffer) => {
-        stderr += data.toString();
+        if (!stderrTruncated) {
+          stderr += data.toString();
+          if (stderr.length > MAX_OUTPUT_BYTES) {
+            stderr = stderr.slice(0, MAX_OUTPUT_BYTES) + '\n[truncated: output exceeded 10MB]';
+            stderrTruncated = true;
+          }
+        }
       });
 
       proc.on('error', (error: Error) => {

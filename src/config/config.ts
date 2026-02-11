@@ -3,9 +3,14 @@
  * Handles environment variables and configuration validation
  */
 
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-const { version: PACKAGE_VERSION } = require('../../package.json') as { version: string };
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
+
+let PACKAGE_VERSION = '0.9.0';
+try {
+  const pkg = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf-8')) as { version: string };
+  PACKAGE_VERSION = pkg.version;
+} catch { /* use fallback */ }
 
 export interface GodotServerConfig {
   godotPath?: string;

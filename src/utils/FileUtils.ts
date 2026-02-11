@@ -8,6 +8,7 @@
 import { existsSync, readdirSync } from 'fs';
 import { join, basename } from 'path';
 import { logDebug } from './Logger.js';
+import { RESOURCE_LIMITS } from '../core/config.js';
 
 export interface GodotProject {
   path: string;
@@ -25,7 +26,12 @@ export const isGodotProject = (projectPath: string): boolean => {
 /**
  * Find Godot projects in a directory
  */
-export const findGodotProjects = (directory: string, recursive: boolean): GodotProject[] => {
+export const findGodotProjects = (directory: string, recursive: boolean, _depth: number = 0): GodotProject[] => {
+  const maxDepth = RESOURCE_LIMITS.MAX_SCAN_DEPTH;
+  if (_depth >= maxDepth) {
+    return [];
+  }
+
   const projects: GodotProject[] = [];
 
   try {
@@ -50,8 +56,7 @@ export const findGodotProjects = (directory: string, recursive: boolean): GodotP
             name: entry.name,
           });
         } else if (recursive) {
-          // Recursively search this directory
-          const subProjects = findGodotProjects(subdir, true);
+          const subProjects = findGodotProjects(subdir, true, _depth + 1);
           projects.push(...subProjects);
         }
       }
@@ -83,7 +88,12 @@ export const getProjectStructure = (
       other: 0,
     };
 
-    const scanDirectory = (currentPath: string) => {
+    const maxDepth = RESOURCE_LIMITS.MAX_SCAN_DEPTH;
+
+    const scanDirectory = (currentPath: string, depth: number = 0) => {
+      if (depth >= maxDepth) {
+        return;
+      }
       const entries = readdirSync(currentPath, { withFileTypes: true });
 
       for (const entry of entries) {
@@ -94,7 +104,7 @@ export const getProjectStructure = (
         }
 
         if (entry.isDirectory()) {
-          scanDirectory(entryPath);
+          scanDirectory(entryPath, depth + 1);
         } else if (entry.isFile()) {
           const ext = entry.name.split('.').pop()?.toLowerCase();
 

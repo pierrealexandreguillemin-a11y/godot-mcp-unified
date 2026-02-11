@@ -40,8 +40,7 @@
  * ```
  */
 
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 
 import { convertCamelToSnakeCase } from './ParameterNormalizer.js';
 import { BaseToolArgs } from '../server/types.js';
@@ -68,9 +67,8 @@ import { getGodotPool, ProcessResult } from './ProcessPool.js';
  * ```
  */
 const getOperationsScriptPath = (): string => {
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = dirname(__filename);
-  return join(__dirname, '..', 'scripts', 'godot_operations.gd');
+  // Use build/scripts relative to cwd (project root at runtime)
+  return join(process.cwd(), 'build', 'scripts', 'godot_operations.gd');
 };
 
 /**

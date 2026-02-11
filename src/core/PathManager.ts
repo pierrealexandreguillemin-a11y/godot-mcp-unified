@@ -7,7 +7,7 @@
 import { normalize } from 'path';
 import { existsSync } from 'fs';
 
-import { logDebug } from '../utils/Logger';
+import { logDebug, logWarn } from '../utils/Logger';
 import { BaseToolArgs } from '../server/types';
 import { LruCache, CacheStats } from './LruCache';
 import { getGodotPool } from './ProcessPool.js';
@@ -210,10 +210,9 @@ export const detectGodotPath = async (
   }
 
   // If we get here, we couldn't find Godot
-  logDebug(`Warning: Could not find Godot in common locations for ${osPlatform}`);
-  console.warn(`[SERVER] Could not find Godot in common locations for ${osPlatform}`);
-  console.warn(
-    `[SERVER] Set GODOT_PATH=/path/to/godot environment variable or pass { godotPath: '/path/to/godot' } in the config to specify the correct path.`,
+  logWarn(`Could not find Godot in common locations for ${osPlatform}`);
+  logWarn(
+    `Set GODOT_PATH=/path/to/godot environment variable or pass { godotPath: '/path/to/godot' } in the config to specify the correct path.`,
   );
 
   if (strictPathValidation) {
@@ -230,10 +229,9 @@ export const detectGodotPath = async (
       defaultPath = normalizePath('/usr/bin/godot');
     }
 
-    logDebug(`Using default path: ${defaultPath}, but this may not work.`);
-    console.warn(`[SERVER] Using default path: ${defaultPath}, but this may not work.`);
-    console.warn(
-      `[SERVER] This fallback behavior will be removed in a future version. Set strictPathValidation: true to opt-in to the new behavior.`,
+    logWarn(`Using default path: ${defaultPath}, but this may not work.`);
+    logWarn(
+      `This fallback behavior will be removed in a future version. Set strictPathValidation: true to opt-in to the new behavior.`,
     );
 
     return defaultPath;

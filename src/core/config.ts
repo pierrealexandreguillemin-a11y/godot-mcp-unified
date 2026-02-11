@@ -135,9 +135,9 @@ export const DEBUG_CONFIG = {
 
   /**
    * Enable audit logging
-   * @default false
+   * @default true (disabled with GODOT_MCP_AUDIT_LOG=false)
    */
-  AUDIT_LOGGING_ENABLED: process.env.GODOT_MCP_AUDIT_LOG === 'true',
+  AUDIT_LOGGING_ENABLED: process.env.GODOT_MCP_AUDIT_LOG !== 'false',
 } as const;
 
 /**

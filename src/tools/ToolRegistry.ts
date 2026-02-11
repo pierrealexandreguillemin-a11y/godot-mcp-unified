@@ -10,6 +10,7 @@ import {
   ToolHandler,
 } from '../server/types';
 import { READ_ONLY_MODE } from '../config/config';
+import { logInfo } from '../utils/Logger';
 
 // System tools
 import { getGodotVersionDefinition, handleGetGodotVersion } from './system/GetGodotVersionTool';
@@ -853,7 +854,7 @@ export const getAllToolDefinitions = (): ToolDefinition[] => {
   // In read-only mode, filter out tools that are not read-only
   const filteredTools = allTools.filter((tool) => tool.readOnly);
 
-  console.log(`[READ_ONLY_MODE] Filtered ${allTools.length - filteredTools.length} write tools`);
+  logInfo(`[READ_ONLY_MODE] Filtered ${allTools.length - filteredTools.length} write tools`);
 
   return filteredTools.map((tool) => tool.definition);
 };

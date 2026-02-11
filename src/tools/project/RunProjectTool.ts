@@ -6,15 +6,13 @@
  * ISO/IEC 25010 compliant - data integrity, bridge fallback
  */
 
-import { spawn } from 'child_process';
-
 import { prepareToolArgs } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { isGodotProject } from '../../utils/FileUtils.js';
 import { detectGodotPath } from '../../core/PathManager.js';
-import { getActiveProcess, setActiveProcess } from '../../core/ProcessManager.js';
+import { runGodotProject } from '../../core/ProcessManager.js';
 import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { logDebug, logError } from '../../utils/Logger.js';
+import { logDebug } from '../../utils/Logger.js';
 import { ToolResponse, ToolDefinition, BaseToolArgs } from '../../server/types.js';
 import {
   RunProjectSchema,
@@ -64,7 +62,7 @@ export const handleRunProject = async (args: BaseToolArgs): Promise<ToolResponse
       debug: true,
     },
     async () => {
-      // Fallback: spawn Godot process directly
+      // Fallback: spawn Godot process via ProcessManager
       try {
         const godotPath = await detectGodotPath();
         if (!godotPath) {
@@ -74,54 +72,7 @@ export const handleRunProject = async (args: BaseToolArgs): Promise<ToolResponse
           ]);
         }
 
-        // Kill any existing process
-        const activeProcess = getActiveProcess();
-        if (activeProcess) {
-          logDebug('Killing existing Godot process before starting a new one');
-          activeProcess.process.kill();
-        }
-
-        const cmdArgs: string[] = ['-d', '--path', typedArgs.projectPath];
-        if (typedArgs.scene) {
-          logDebug(`Adding scene parameter: ${typedArgs.scene}`);
-          cmdArgs.push(typedArgs.scene);
-        }
-
-        const process = spawn(godotPath, cmdArgs, { stdio: 'pipe' });
-        const output: string[] = [];
-        const errors: string[] = [];
-
-        process.stdout?.on('data', (data: Buffer) => {
-          const lines = data.toString().split('\n');
-          output.push(...lines);
-          lines.forEach((line: string) => {
-            if (line.trim()) logDebug(`[Godot stdout] ${line}`);
-          });
-        });
-
-        process.stderr?.on('data', (data: Buffer) => {
-          const lines = data.toString().split('\n');
-          errors.push(...lines);
-          lines.forEach((line: string) => {
-            if (line.trim()) logDebug(`[Godot stderr] ${line}`);
-          });
-        });
-
-        process.on('exit', (code: number | null) => {
-          logDebug(`Godot process exited with code ${code}`);
-          if (getActiveProcess()?.process === process) {
-            setActiveProcess(null);
-          }
-        });
-
-        process.on('error', (err: Error) => {
-          logError(`Failed to start Godot process: ${err.message}`);
-          if (getActiveProcess()?.process === process) {
-            setActiveProcess(null);
-          }
-        });
-
-        setActiveProcess({ process, output, errors });
+        runGodotProject(godotPath, typedArgs.projectPath, typedArgs.scene);
 
         return {
           content: [

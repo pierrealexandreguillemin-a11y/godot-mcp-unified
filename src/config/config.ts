@@ -3,6 +3,10 @@
  * Handles environment variables and configuration validation
  */
 
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const { version: PACKAGE_VERSION } = require('../../package.json') as { version: string };
+
 export interface GodotServerConfig {
   godotPath?: string;
   debugMode?: boolean;
@@ -70,7 +74,7 @@ export const mergeConfig = (userConfig?: Partial<GodotServerConfig>): GodotServe
 // Default configuration instance
 export const config = {
   SERVER_NAME: 'godot-mcp-server',
-  SERVER_VERSION: '0.3.0',
+  SERVER_VERSION: PACKAGE_VERSION,
   DEBUG_MODE,
   GODOT_DEBUG_MODE,
   READ_ONLY_MODE,

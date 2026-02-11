@@ -142,7 +142,7 @@ describe('config', () => {
     it('should have sensible defaults for DEBUG_CONFIG', () => {
       expect(DEBUG_CONFIG.MAX_BUFFER_LINES).toBe(1000);
       expect(DEBUG_CONFIG.BUFFER_TRIM_SIZE).toBe(500);
-      expect(DEBUG_CONFIG.AUDIT_LOGGING_ENABLED).toBe(false);
+      expect(DEBUG_CONFIG.AUDIT_LOGGING_ENABLED).toBe(true);
     });
 
     it('should have sensible defaults for NETWORK_CONFIG', () => {

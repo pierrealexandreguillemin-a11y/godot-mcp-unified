@@ -3,6 +3,8 @@
  * Provides standardized error response creation
  */
 
+import { logError } from './Logger.js';
+
 export interface ErrorResponseContent {
   type: 'text';
   text: string;
@@ -22,9 +24,9 @@ export const createErrorResponse = (
   message: string,
   possibleSolutions: string[] = [],
 ): ErrorResponse => {
-  console.error(`[SERVER] Error response: ${message}`);
+  logError(`[SERVER] Error response: ${message}`);
   if (possibleSolutions.length > 0) {
-    console.error(`[SERVER] Possible solutions: ${possibleSolutions.join(', ')}`);
+    logError(`[SERVER] Possible solutions: ${possibleSolutions.join(', ')}`);
   }
 
   const response: ErrorResponse = {

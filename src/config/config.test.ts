@@ -220,7 +220,7 @@ describe('config', () => {
 
     it('should have SERVER_VERSION', async () => {
       const { config } = await import('./config.js');
-      expect(config.SERVER_VERSION).toBe('0.3.0');
+      expect(config.SERVER_VERSION).toBe('0.9.0');
     });
 
     it('should include DEBUG_MODE as boolean', async () => {

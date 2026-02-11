@@ -34,6 +34,7 @@
 import { spawn, ChildProcess } from 'child_process';
 
 import { logDebug, logError } from '../utils/Logger.js';
+import { validateCommandSecurity } from './ProcessPool.js';
 
 /**
  * Represents an active Godot process with its associated I/O streams.
@@ -205,8 +206,12 @@ export const stopActiveProcess = (): { output: string[]; errors: string[] } | nu
 export const launchGodotEditor = (godotPath: string, projectPath: string): void => {
   logDebug(`Launching Godot editor for project: ${projectPath}`);
 
-  const process = spawn(godotPath, ['-e', '--path', projectPath], {
+  const args = ['-e', '--path', projectPath];
+  validateCommandSecurity(godotPath, args);
+
+  const process = spawn(godotPath, args, {
     stdio: 'pipe',
+    shell: false,
   });
 
   process.on('error', (err: Error) => {
@@ -276,25 +281,34 @@ export const runGodotProject = (
     cmdArgs.push(scene);
   }
 
+  validateCommandSecurity(godotPath, cmdArgs);
+
   logDebug(`Running Godot project: ${projectPath}`);
-  const process = spawn(godotPath, cmdArgs, { stdio: 'pipe' });
+  const MAX_OUTPUT_LINES = 10_000;
+  const process = spawn(godotPath, cmdArgs, { stdio: 'pipe', shell: false });
   const output: string[] = [];
   const errors: string[] = [];
 
   process.stdout?.on('data', (data: Buffer) => {
     const lines = data.toString().split('\n');
-    output.push(...lines);
-    lines.forEach((line: string) => {
+    for (const line of lines) {
+      if (output.length >= MAX_OUTPUT_LINES) {
+        output.shift();
+      }
+      output.push(line);
       if (line.trim()) logDebug(`[Godot stdout] ${line}`);
-    });
+    }
   });
 
   process.stderr?.on('data', (data: Buffer) => {
     const lines = data.toString().split('\n');
-    errors.push(...lines);
-    lines.forEach((line: string) => {
+    for (const line of lines) {
+      if (errors.length >= MAX_OUTPUT_LINES) {
+        errors.shift();
+      }
+      errors.push(line);
       if (line.trim()) logDebug(`[Godot stderr] ${line}`);
-    });
+    }
   });
 
   process.on('exit', (code: number | null) => {

@@ -20,20 +20,26 @@ import { getGodotPool } from './ProcessPool.js';
 const validatedPathsCache = new LruCache<string, boolean>(100, 10 * 60 * 1000);
 
 /**
- * Validate a path to prevent path traversal attacks
+ * Validate a path to prevent path traversal attacks.
+ * Decodes URL encoding BEFORE checking for traversal patterns
+ * to prevent bypass via encoded sequences (e.g., %2e%2e).
  */
 export const validatePath = (path: string): boolean => {
-  // Basic validation to prevent path traversal
-  if (!path || path.includes('..')) {
+  if (!path) {
     return false;
   }
 
-  // Decode any URL encoding that might have been applied incorrectly
+  // Decode URL encoding FIRST to prevent bypass via %2e%2e or similar
+  let decodedPath = path;
   try {
-    path = decodeURIComponent(path);
+    decodedPath = decodeURIComponent(path);
   } catch (error) {
-    // If decoding fails, continue with original path
     logDebug(`Failed to decode path: ${path}, error: ${error}`);
+  }
+
+  // Check for path traversal on the decoded path
+  if (decodedPath.includes('..')) {
+    return false;
   }
 
   return true;

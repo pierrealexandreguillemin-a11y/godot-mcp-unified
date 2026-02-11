@@ -313,10 +313,50 @@ export class GodotBridge extends EventEmitter {
     return (response.result as { nodes: SelectedNode[] }).nodes;
   }
 
+  /** Maximum allowed code length for executeCode (10 KB) */
+  private static readonly MAX_CODE_LENGTH = 10_240;
+
   /**
-   * Execute GDScript code in the editor (for advanced use cases)
+   * Dangerous GDScript patterns that could compromise system security.
+   * Blocks OS-level execution, file writes outside res://, and process manipulation.
+   */
+  private static readonly DANGEROUS_CODE_PATTERNS: ReadonlyArray<{ pattern: RegExp; reason: string }> = [
+    { pattern: /OS\.execute\s*\(/, reason: 'OS.execute() - arbitrary process execution' },
+    { pattern: /OS\.shell_open\s*\(/, reason: 'OS.shell_open() - arbitrary URL/file opening' },
+    { pattern: /OS\.kill\s*\(/, reason: 'OS.kill() - process termination' },
+    { pattern: /OS\.crash\s*\(/, reason: 'OS.crash() - intentional crash' },
+    { pattern: /OS\.get_environment\s*\(/, reason: 'OS.get_environment() - environment variable access' },
+    { pattern: /FileAccess\.open\s*\([^)]*(?:WRITE|READ_WRITE|WRITE_READ)/, reason: 'FileAccess write mode - arbitrary file write' },
+    { pattern: /DirAccess\.remove_absolute\s*\(/, reason: 'DirAccess.remove_absolute() - arbitrary file deletion' },
+    { pattern: /ProjectSettings\.save\s*\(/, reason: 'ProjectSettings.save() - project settings modification' },
+  ];
+
+  /**
+   * Validate GDScript code before execution.
+   * @throws Error if code is empty, too long, or contains dangerous patterns
+   */
+  private validateCode(code: string): void {
+    if (!code || !code.trim()) {
+      throw new Error('Code cannot be empty');
+    }
+    if (code.length > GodotBridge.MAX_CODE_LENGTH) {
+      throw new Error(`Code exceeds maximum length of ${GodotBridge.MAX_CODE_LENGTH} characters`);
+    }
+    for (const { pattern, reason } of GodotBridge.DANGEROUS_CODE_PATTERNS) {
+      if (pattern.test(code)) {
+        throw new Error(`Code contains dangerous pattern: ${reason}`);
+      }
+    }
+  }
+
+  /**
+   * Execute GDScript code in the editor (for advanced use cases).
+   * Code is validated against dangerous patterns before execution.
+   * @throws Error if code is empty, too long, or contains dangerous patterns
    */
   async executeCode(code: string): Promise<string> {
+    this.validateCode(code);
+
     const response = await this.send({
       command: 'execute_code',
       params: { code },

@@ -6,6 +6,7 @@
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { logError } from '../utils/Logger.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
   CallToolRequestSchema,
@@ -287,7 +288,7 @@ export class GodotMCPServer {
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       // Can't use MCP logging here as server might not be connected
-      console.error(`[godot-mcp] Failed to start server: ${errorMessage}`);
+      logError(`[godot-mcp] Failed to start server: ${errorMessage}`);
       throw error;
     }
   }
@@ -302,7 +303,7 @@ export class GodotMCPServer {
       this.log('info', 'Godot MCP Server stopped');
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`[godot-mcp] Error stopping server: ${errorMessage}`);
+      logError(`[godot-mcp] Error stopping server: ${errorMessage}`);
       throw error;
     }
   }

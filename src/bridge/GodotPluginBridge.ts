@@ -283,7 +283,7 @@ export class GodotPluginBridge extends EventEmitter {
 
           this.ws.on('error', (error: Error) => {
             clearTimeout(connectionTimeout);
-            logError(`[PluginBridge] WebSocket error: ${error.message}`);
+            logDebug(`[PluginBridge] WebSocket error: ${error.message}`);
             this.emit('error', error);
 
             if (!this.isConnected) {
@@ -471,20 +471,20 @@ export class GodotPluginBridge extends EventEmitter {
     }
 
     if (this.reconnectAttempts >= this.config.maxReconnectAttempts) {
-      logError(`[PluginBridge] Max reconnect attempts (${this.config.maxReconnectAttempts}) reached`);
+      logDebug(`[PluginBridge] Max reconnect attempts (${this.config.maxReconnectAttempts}) reached`);
       return;
     }
 
     this.reconnectAttempts++;
     const delay = this.config.reconnectInterval * Math.min(this.reconnectAttempts, 5);
 
-    logInfo(`[PluginBridge] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.config.maxReconnectAttempts})`);
+    logDebug(`[PluginBridge] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.config.maxReconnectAttempts})`);
     this.emit('reconnecting', this.reconnectAttempts);
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.connect().catch((error) => {
-        logError(`[PluginBridge] Reconnection failed: ${error.message}`);
+        logDebug(`[PluginBridge] Reconnection failed: ${error.message}`);
       });
     }, delay);
   }

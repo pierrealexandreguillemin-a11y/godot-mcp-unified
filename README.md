@@ -153,8 +153,8 @@ Primitives MCP:
   Prompts:   20/20   ████████████████████ 100%
 
 Qualite:
-  Tests:    3081+    ████████████████████ 100% pass
-  Coverage:  81%     ████████████████░░░░  81%
+  Tests:    3170+    ████████████████████ 100% pass (69 suites)
+  Coverage:  85%     █████████████████░░░  85%
 
 Bridge Plugin:
   Avec bridge:  47 outils (utilisent WebSocket si plugin actif)
@@ -368,6 +368,6 @@ ollama rm nom_modele
 
 ---
 
-*Derniere mise a jour: Fevrier 2026*
+*Derniere mise a jour: 11 Fevrier 2026*
 *godot-mcp-unified v0.9.3 - 82 outils + 20 resources + 20 prompts*
-*Coverage: 81% | Tests: 3081+ | ISO 25010/29119/5055 compliant*
+*Coverage: 85% | Tests: 3170+ (69 suites) | ISO 25010/29119/5055/27001 compliant*

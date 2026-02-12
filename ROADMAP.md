@@ -32,7 +32,7 @@ Communication:
   Bridge TypeScript: ✅ Implemente (src/bridge/GodotPluginBridge.ts)
   Integration Tools: ✅ 47/82 outils avec executeWithBridge()
   Validation GDScript: ✅ MCPValidator + MCPNodeFactory
-  Tests:             ✅ 32 tests bridge (+ 3081 tests totaux)
+  Tests:             ✅ 32 tests bridge (+ 3170 tests totaux)
 
 Integration executeWithBridge:
   Avec bridge:       47 outils (57%) - utilisent le plugin si connecte
@@ -64,10 +64,10 @@ Primitives MCP:
   Prompts implementes:    20/20   ██████████████████████████████ 100%
 
 Qualite:
-  Tests:                 3050+    ██████████████████████████████ 100% pass
-  Coverage:               83%     █████████████████████████████░  83%
+  Tests:                 3170+    ██████████████████████████████ 100% pass
+  Coverage:               85%     ████████████████████████████░░  85%
   ISO 5055 (Zod):        82/82   ██████████████████████████████ 100%
-  ISO 29119 (Suites):   46/46   ██████████████████████████████ 100%
+  ISO 29119 (Suites):   69/69   ██████████████████████████████ 100%
   ISO 5055 (CC<15):     100%     ██████████████████████████████ 100%
 ```
 
@@ -106,7 +106,7 @@ Qualite:
 │                         MODEL CONTEXT PROTOCOL                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│   TOOLS (81 ✅)            RESOURCES (20 ✅)         PROMPTS (20 ✅)         │
+│   TOOLS (82 ✅)            RESOURCES (20 ✅)         PROMPTS (20 ✅)         │
 │   ─────────────────        ─────────────────        ─────────────────       │
 │   Actions executables      Donnees read-only        Templates reusables     │
 │   Client → Server          Server → Client          Server → Client         │
@@ -458,7 +458,7 @@ Use proper Godot 4 syntax and best practices.`
 ### Completion par Primitive
 
 ```
-TOOLS:      ████████████████████████████████████████ 100% (81/81)
+TOOLS:      ████████████████████████████████████████ 100% (82/82)
 RESOURCES:  ████████████████████████████████████████ 100% (20/20)
 PROMPTS:    ████████████████████████████████████████ 100% (20/20)
 
@@ -484,10 +484,11 @@ PHASE COMPLETEE: Outils Specialises ✅
 └── system_health - Health check endpoint pour observabilite
 
 PHASE COMPLETEE: Qualite & Coverage ✅
-├── Coverage: 72% → 83% (objectif 70% atteint)
+├── Coverage: 72% → 85% (objectif 80% atteint)
 ├── Config Jest Zod v4 + ESM corrigee
-├── Tests Resource providers et Tools complets
+├── Tests Resource providers et Tools complets (69 suites, 3170+ tests)
 ├── Complexite cyclomatique < 15 sur tous fichiers
+├── Pattern jest.mock + static imports standardise (0 beforeAll/import)
 └── 0 lint errors, 0 npm vulnerabilites
 
 PHASE FINALE: Polish & Release
@@ -527,7 +528,7 @@ Sur 55 outils legacy prevus, **53 sont validement remplaces par des Prompts** (9
 
 | Caracteristique | Implementation | Mesure |
 |-----------------|----------------|--------|
-| **Fiabilite** | Tests Jest, error handling | 3050+ tests, 100% pass |
+| **Fiabilite** | Tests Jest, error handling | 3170+ tests, 100% pass |
 | **Securite** | Validation Zod, path traversal, rate limiting | 82/82 outils valides |
 | **Maintenabilite** | 1 fichier/outil, TypeScript strict | 100% modularite |
 | **Portabilite** | Cross-platform | Win/Mac/Linux |
@@ -537,7 +538,7 @@ Sur 55 outils legacy prevus, **53 sont validement remplaces par des Prompts** (9
 
 | Type | Implementation | Couverture |
 |------|----------------|------------|
-| Unitaire | Jest + fixtures (3050+ tests) | 46 suites |
+| Unitaire | Jest + fixtures (3170+ tests) | 69 suites |
 | Integration | createTempProject mocks | 82 outils |
 | Conformite | ISO 29119 (validation, limites, integration) | 100% |
 
@@ -730,7 +731,7 @@ Sur 55 outils legacy prevus, **53 sont validement remplaces par des Prompts** (9
 
 ---
 
-*Document mis a jour le 5 fevrier 2026*
+*Document mis a jour le 11 fevrier 2026*
 *godot-mcp-unified v0.9.3 → v1.0.0 roadmap*
 
 ---
@@ -742,8 +743,8 @@ Sur 55 outils legacy prevus, **53 sont validement remplaces par des Prompts** (9
 | Metrique | Avant | Apres | Delta |
 |----------|-------|-------|-------|
 | Tools | 81 | 82 | +1 (system_health) |
-| Tests | 2300 | 3050 | +750 |
-| Coverage | 72% | 83% | +11% |
+| Tests | 2300 | 3170 | +870 |
+| Coverage | 72% | 85% | +13% |
 | CC > 15 | 3 fichiers | 0 | -3 |
 | Lint errors | 12 | 0 | -12 |
 | npm vulns | 2 | 0 | -2 |
@@ -761,10 +762,26 @@ Sur 55 outils legacy prevus, **53 sont validement remplaces par des Prompts** (9
    - Suppression imports/variables inutilises
 
 3. **Tests (ISO 29119)**
-   - +750 nouveaux tests
-   - Coverage 72% → 83%
-   - Pattern ESM mocking standardise
+   - +870 nouveaux tests (3170+ total, 69 suites)
+   - Coverage 72% → 85% (stmts 84.6%, branches 78.3%, funcs 76%, lines 84.7%)
+   - Pattern jest.mock + static imports standardise sur toutes les suites
 
-4. **Documentation**
+4. **Securite renforcee (Session 11 fevrier)**
+   - GDScript validation: bracket notation OS["execute"], load(), call() bloques
+   - WebSocket bridge: separation logs expected (ECONNREFUSED) vs unexpected
+   - ProcessPool: renommage MAX_OUTPUT_BYTES → MAX_OUTPUT_CHARS (precision)
+   - FileUtils: API publique nettoyee, parametre _depth interne cache
+
+5. **Tests refactorises (Session 11 fevrier)**
+   - 18 suites converties: beforeAll(await import()) → static imports
+   - ProcessManager.test.ts reecrit: 42 tests (spawn args, shell:false, stdout/stderr, lifecycle)
+   - Pattern unique: jest.mock (CJS hoisted) + static imports sur 69 suites
+   - Decouverte: jest.unstable_mockModule + beforeAll ne fonctionne PAS avec ts-jest
+
+6. **Path resolution (Session 11 fevrier)**
+   - GodotExecutor.ts: process.argv[1] strategy (robuste quand cwd != project root)
+   - config.ts: findPackageJson() multi-strategie avec validation nom package
+
+7. **Documentation**
    - JSDoc complet sur modules critiques
    - Types explicites partout

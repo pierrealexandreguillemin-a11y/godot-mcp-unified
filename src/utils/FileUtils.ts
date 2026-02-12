@@ -26,9 +26,12 @@ export const isGodotProject = (projectPath: string): boolean => {
 /**
  * Find Godot projects in a directory
  */
-export const findGodotProjects = (directory: string, recursive: boolean, _depth: number = 0): GodotProject[] => {
-  const maxDepth = RESOURCE_LIMITS.MAX_SCAN_DEPTH;
-  if (_depth >= maxDepth) {
+export const findGodotProjects = (directory: string, recursive: boolean): GodotProject[] => {
+  return findGodotProjectsRecursive(directory, recursive, 0);
+};
+
+const findGodotProjectsRecursive = (directory: string, recursive: boolean, depth: number): GodotProject[] => {
+  if (depth >= RESOURCE_LIMITS.MAX_SCAN_DEPTH) {
     return [];
   }
 
@@ -56,7 +59,7 @@ export const findGodotProjects = (directory: string, recursive: boolean, _depth:
             name: entry.name,
           });
         } else if (recursive) {
-          const subProjects = findGodotProjects(subdir, true, _depth + 1);
+          const subProjects = findGodotProjectsRecursive(subdir, true, depth + 1);
           projects.push(...subProjects);
         }
       }

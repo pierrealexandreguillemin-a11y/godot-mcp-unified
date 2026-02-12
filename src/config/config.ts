@@ -3,13 +3,45 @@
  * Handles environment variables and configuration validation
  */
 
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+import { existsSync, readFileSync } from 'fs';
+import { dirname, resolve } from 'path';
+
+/**
+ * Check if a package.json file belongs to this project.
+ */
+function isOwnPackageJson(filePath: string): boolean {
+  try {
+    const pkg = JSON.parse(readFileSync(filePath, 'utf-8'));
+    return pkg.name === 'godot-mcp';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Find package.json using multiple strategies, robust against different cwd values.
+ * Strategy 1: From the entry script path (works in production when cwd != project root)
+ * Strategy 2: From process.cwd() (works in development and tests)
+ */
+function findPackageJson(): string | null {
+  const entryScript = process.argv[1];
+  if (entryScript) {
+    // Entry script is typically build/index.js - package.json is one level up
+    const fromEntry = resolve(dirname(entryScript), '..', 'package.json');
+    if (existsSync(fromEntry) && isOwnPackageJson(fromEntry)) return fromEntry;
+  }
+  const fromCwd = resolve(process.cwd(), 'package.json');
+  if (existsSync(fromCwd) && isOwnPackageJson(fromCwd)) return fromCwd;
+  return null;
+}
 
 let PACKAGE_VERSION = '0.9.0';
 try {
-  const pkg = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf-8')) as { version: string };
-  PACKAGE_VERSION = pkg.version;
+  const pkgPath = findPackageJson();
+  if (pkgPath) {
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8')) as { version: string };
+    PACKAGE_VERSION = pkg.version;
+  }
 } catch { /* use fallback */ }
 
 export interface GodotServerConfig {

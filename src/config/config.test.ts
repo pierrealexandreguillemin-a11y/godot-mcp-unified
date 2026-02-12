@@ -218,9 +218,9 @@ describe('config', () => {
       expect(config.SERVER_NAME).toBe('godot-mcp-server');
     });
 
-    it('should have SERVER_VERSION', async () => {
+    it('should have SERVER_VERSION as valid semver', async () => {
       const { config } = await import('./config.js');
-      expect(config.SERVER_VERSION).toBe('0.9.0');
+      expect(config.SERVER_VERSION).toMatch(/^\d+\.\d+\.\d+/);
     });
 
     it('should include DEBUG_MODE as boolean', async () => {

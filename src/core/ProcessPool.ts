@@ -256,7 +256,7 @@ export class ProcessPool extends EventEmitter {
 
     this.emit('taskStarted', { taskId: task.id, workerId: worker.id });
 
-    const MAX_OUTPUT_BYTES = 10 * 1024 * 1024; // 10MB cap per stream
+    const MAX_OUTPUT_CHARS = 10 * 1024 * 1024; // ~10M characters cap per stream
     let stdout = '';
     let stderr = '';
     let stdoutTruncated = false;
@@ -315,8 +315,8 @@ export class ProcessPool extends EventEmitter {
       proc.stdout?.on('data', (data: Buffer) => {
         if (!stdoutTruncated) {
           stdout += data.toString();
-          if (stdout.length > MAX_OUTPUT_BYTES) {
-            stdout = stdout.slice(0, MAX_OUTPUT_BYTES) + '\n[truncated: output exceeded 10MB]';
+          if (stdout.length > MAX_OUTPUT_CHARS) {
+            stdout = stdout.slice(0, MAX_OUTPUT_CHARS) + '\n[truncated: output exceeded 10M characters]';
             stdoutTruncated = true;
           }
         }
@@ -325,8 +325,8 @@ export class ProcessPool extends EventEmitter {
       proc.stderr?.on('data', (data: Buffer) => {
         if (!stderrTruncated) {
           stderr += data.toString();
-          if (stderr.length > MAX_OUTPUT_BYTES) {
-            stderr = stderr.slice(0, MAX_OUTPUT_BYTES) + '\n[truncated: output exceeded 10MB]';
+          if (stderr.length > MAX_OUTPUT_CHARS) {
+            stderr = stderr.slice(0, MAX_OUTPUT_CHARS) + '\n[truncated: output exceeded 10M characters]';
             stderrTruncated = true;
           }
         }

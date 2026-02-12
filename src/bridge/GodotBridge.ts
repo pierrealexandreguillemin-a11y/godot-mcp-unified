@@ -321,6 +321,7 @@ export class GodotBridge extends EventEmitter {
    * Blocks OS-level execution, file writes outside res://, and process manipulation.
    */
   private static readonly DANGEROUS_CODE_PATTERNS: ReadonlyArray<{ pattern: RegExp; reason: string }> = [
+    // Direct method calls (OS.execute(...))
     { pattern: /OS\.execute\s*\(/, reason: 'OS.execute() - arbitrary process execution' },
     { pattern: /OS\.shell_open\s*\(/, reason: 'OS.shell_open() - arbitrary URL/file opening' },
     { pattern: /OS\.kill\s*\(/, reason: 'OS.kill() - process termination' },
@@ -329,6 +330,18 @@ export class GodotBridge extends EventEmitter {
     { pattern: /FileAccess\.open\s*\([^)]*(?:WRITE|READ_WRITE|WRITE_READ)/, reason: 'FileAccess write mode - arbitrary file write' },
     { pattern: /DirAccess\.remove_absolute\s*\(/, reason: 'DirAccess.remove_absolute() - arbitrary file deletion' },
     { pattern: /ProjectSettings\.save\s*\(/, reason: 'ProjectSettings.save() - project settings modification' },
+    // Bracket notation bypass (OS["execute"], OS['shell_open'])
+    { pattern: /OS\s*\[\s*["']execute["']\s*\]/, reason: 'OS["execute"] - bracket notation bypass' },
+    { pattern: /OS\s*\[\s*["']shell_open["']\s*\]/, reason: 'OS["shell_open"] - bracket notation bypass' },
+    { pattern: /OS\s*\[\s*["']kill["']\s*\]/, reason: 'OS["kill"] - bracket notation bypass' },
+    { pattern: /OS\s*\[\s*["']crash["']\s*\]/, reason: 'OS["crash"] - bracket notation bypass' },
+    { pattern: /OS\s*\[\s*["']get_environment["']\s*\]/, reason: 'OS["get_environment"] - bracket notation bypass' },
+    // Dynamic code loading via load()/preload() of external scripts
+    { pattern: /(?:^|[^a-zA-Z_])load\s*\(/, reason: 'load() - dynamic script loading' },
+    { pattern: /preload\s*\(/, reason: 'preload() - dynamic script loading' },
+    // call_deferred/call bypass to invoke methods by string name
+    { pattern: /\.call\s*\(\s*["'](?:execute|shell_open|kill|crash)/, reason: '.call() - reflective method invocation of dangerous function' },
+    { pattern: /\.call_deferred\s*\(\s*["'](?:execute|shell_open|kill|crash)/, reason: '.call_deferred() - deferred reflective invocation of dangerous function' },
   ];
 
   /**

@@ -283,7 +283,14 @@ export class GodotPluginBridge extends EventEmitter {
 
           this.ws.on('error', (error: Error) => {
             clearTimeout(connectionTimeout);
-            logDebug(`[PluginBridge] WebSocket error: ${error.message}`);
+            // ECONNREFUSED is expected when plugin is not running - log as debug
+            // Other errors (protocol errors, unexpected closures) are real issues - log as warn
+            const isExpected = error.message.includes('ECONNREFUSED') || error.message.includes('ECONNRESET');
+            if (isExpected) {
+              logDebug(`[PluginBridge] WebSocket connection failed (expected): ${error.message}`);
+            } else {
+              logWarn(`[PluginBridge] WebSocket error: ${error.message}`);
+            }
             this.emit('error', error);
 
             if (!this.isConnected) {
@@ -471,7 +478,7 @@ export class GodotPluginBridge extends EventEmitter {
     }
 
     if (this.reconnectAttempts >= this.config.maxReconnectAttempts) {
-      logDebug(`[PluginBridge] Max reconnect attempts (${this.config.maxReconnectAttempts}) reached`);
+      logWarn(`[PluginBridge] Max reconnect attempts (${this.config.maxReconnectAttempts}) reached - giving up`);
       return;
     }
 

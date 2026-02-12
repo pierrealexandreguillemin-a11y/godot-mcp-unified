@@ -40,7 +40,7 @@
  * ```
  */
 
-import { join } from 'path';
+import { join, dirname } from 'path';
 
 import { convertCamelToSnakeCase } from './ParameterNormalizer.js';
 import { BaseToolArgs } from '../server/types.js';
@@ -67,7 +67,13 @@ import { getGodotPool, ProcessResult } from './ProcessPool.js';
  * ```
  */
 const getOperationsScriptPath = (): string => {
-  // Use build/scripts relative to cwd (project root at runtime)
+  // Strategy 1: Relative to entry script (works in production when cwd != project root)
+  // Entry script is typically build/index.js, so build/scripts/ is at the same level
+  const entryScript = process.argv[1];
+  if (entryScript) {
+    return join(dirname(entryScript), 'scripts', 'godot_operations.gd');
+  }
+  // Strategy 2: From cwd (development fallback)
   return join(process.cwd(), 'build', 'scripts', 'godot_operations.gd');
 };
 

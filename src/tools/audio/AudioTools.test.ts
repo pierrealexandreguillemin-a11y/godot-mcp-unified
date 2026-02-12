@@ -18,20 +18,20 @@ import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals
 const mockDetectGodotPath = jest.fn<(...args: unknown[]) => Promise<string | null>>();
 const mockExecuteOperation = jest.fn<(...args: unknown[]) => Promise<{ stdout: string; stderr: string }>>();
 
-// Mock the Godot-dependent modules using unstable_mockModule for ESM
-jest.unstable_mockModule('../../core/PathManager.js', () => ({
+// Mock the Godot-dependent modules
+jest.mock('../../core/PathManager.js', () => ({
   detectGodotPath: mockDetectGodotPath,
   validatePath: jest.fn(() => true),
   normalizePath: jest.fn((p: string) => p),
   normalizeHandlerPaths: jest.fn((args: Record<string, unknown>) => args),
 }));
 
-jest.unstable_mockModule('../../core/GodotExecutor.js', () => ({
+jest.mock('../../core/GodotExecutor.js', () => ({
   executeOperation: mockExecuteOperation,
 }));
 
 // Mock BridgeExecutor to always use fallback (no bridge connected)
-jest.unstable_mockModule('../../bridge/BridgeExecutor.js', () => ({
+jest.mock('../../bridge/BridgeExecutor.js', () => ({
   executeWithBridge: async (
     _action: string,
     _params: Record<string, unknown>,
@@ -39,11 +39,10 @@ jest.unstable_mockModule('../../bridge/BridgeExecutor.js', () => ({
   ) => fallback(),
 }));
 
-// Dynamic imports AFTER mocks are set up
-const { createTempProject, getResponseText, isErrorResponse } = await import('../test-utils.js');
-const { handleCreateAudioBus } = await import('./CreateAudioBusTool.js');
-const { handleSetupAudioPlayer } = await import('./SetupAudioPlayerTool.js');
-const { handleAddAudioEffect } = await import('./AddAudioEffectTool.js');
+import { createTempProject, getResponseText, isErrorResponse } from '../test-utils.js';
+import { handleCreateAudioBus } from './CreateAudioBusTool.js';
+import { handleSetupAudioPlayer } from './SetupAudioPlayerTool.js';
+import { handleAddAudioEffect } from './AddAudioEffectTool.js';
 
 describe('Audio Tools', () => {
   let projectPath: string;

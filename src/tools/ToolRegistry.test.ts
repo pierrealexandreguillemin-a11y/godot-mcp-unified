@@ -5,23 +5,15 @@
  */
 
 import { jest } from '@jest/globals';
-
-// Use dynamic imports inside tests/beforeAll to avoid top-level await TS1343 issue
-let toolRegistry: typeof import('./ToolRegistry.js').toolRegistry;
-let getAllToolDefinitions: typeof import('./ToolRegistry.js').getAllToolDefinitions;
-let getToolHandler: typeof import('./ToolRegistry.js').getToolHandler;
-let isToolRegistered: typeof import('./ToolRegistry.js').isToolRegistered;
-let getRegisteredToolNames: typeof import('./ToolRegistry.js').getRegisteredToolNames;
+import {
+  toolRegistry,
+  getAllToolDefinitions,
+  getToolHandler,
+  isToolRegistered,
+  getRegisteredToolNames,
+} from './ToolRegistry.js';
 
 describe('ToolRegistry', () => {
-  beforeAll(async () => {
-    const mod = await import('./ToolRegistry.js');
-    toolRegistry = mod.toolRegistry;
-    getAllToolDefinitions = mod.getAllToolDefinitions;
-    getToolHandler = mod.getToolHandler;
-    isToolRegistered = mod.isToolRegistered;
-    getRegisteredToolNames = mod.getRegisteredToolNames;
-  });
 
   describe('toolRegistry', () => {
     it('should be a Map instance', () => {

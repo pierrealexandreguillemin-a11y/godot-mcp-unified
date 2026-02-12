@@ -16,46 +16,46 @@ const mockReadFile = jest.fn<(path: string, encoding: string) => Promise<string>
 const mockWriteFile = jest.fn<(path: string, content: string, encoding: string) => Promise<void>>();
 const mockExecute = jest.fn<(cmd: string, args: string[], opts: unknown) => Promise<{ stdout: string; stderr: string }>>();
 
-// Mock modules using unstable_mockModule for ESM support
-jest.unstable_mockModule('../../core/PathManager.js', () => ({
+// Mock modules
+jest.mock('../../core/PathManager.js', () => ({
   detectGodotPath: mockDetectGodotPath,
   validatePath: mockValidatePath,
   normalizeHandlerPaths: jest.fn(<T>(args: T) => args),
   normalizePath: jest.fn((p: string) => p),
 }));
 
-jest.unstable_mockModule('../../core/ParameterNormalizer.js', () => ({
+jest.mock('../../core/ParameterNormalizer.js', () => ({
   normalizeParameters: jest.fn(<T>(args: T) => args),
   convertCamelToSnakeCase: jest.fn((s: string) => s),
 }));
 
-jest.unstable_mockModule('../../utils/Logger.js', () => ({
+jest.mock('../../utils/Logger.js', () => ({
   logDebug: jest.fn(),
   logError: jest.fn(),
   logInfo: jest.fn(),
 }));
 
-jest.unstable_mockModule('../../utils/FileUtils.js', () => ({
+jest.mock('../../utils/FileUtils.js', () => ({
   isGodotProject: mockIsGodotProject,
 }));
 
-jest.unstable_mockModule('fs', () => ({
+jest.mock('fs', () => ({
   existsSync: mockExistsSync,
 }));
 
-jest.unstable_mockModule('fs-extra', () => ({
+jest.mock('fs-extra', () => ({
   readFile: mockReadFile,
   writeFile: mockWriteFile,
 }));
 
-jest.unstable_mockModule('../../core/ProcessPool.js', () => ({
+jest.mock('../../core/ProcessPool.js', () => ({
   getGodotPool: jest.fn(() => ({
     execute: mockExecute,
   })),
 }));
 
-// Dynamic import after mocking
-const { handleSetupLightmapper } = await import('./SetupLightmapperTool.js');
+// Import after all mocks are set up (jest.mock is hoisted)
+import { handleSetupLightmapper } from './SetupLightmapperTool.js';
 
 // Minimal .tscn content - valid for TscnParser
 const MINIMAL_TSCN = `[gd_scene format=3]

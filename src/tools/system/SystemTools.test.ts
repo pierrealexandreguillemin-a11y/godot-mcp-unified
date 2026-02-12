@@ -30,7 +30,7 @@ const mockIsValidGodotPath = jest.fn<(path: string) => Promise<boolean>>();
 
 // Mock the dependencies using unstable_mockModule for ESM support
 // PathManager needs all exports that transitive imports might use
-jest.unstable_mockModule('../../core/PathManager.js', () => ({
+jest.mock('../../core/PathManager.js', () => ({
   detectGodotPath: mockDetectGodotPath,
   validatePath: jest.fn(() => true),
   normalizePath: jest.fn((p: string) => p),
@@ -42,15 +42,14 @@ jest.unstable_mockModule('../../core/PathManager.js', () => ({
   getPathCacheStats: jest.fn(() => ({ hits: 0, misses: 0, size: 0 })),
 }));
 
-jest.unstable_mockModule('../../core/GodotExecutor.js', () => ({
+jest.mock('../../core/GodotExecutor.js', () => ({
   getGodotVersion: mockGetGodotVersion,
   isGodot44OrLater: jest.fn(() => false),
   executeOperation: jest.fn(),
 }));
 
-// Dynamic import after mocking
-const { getGodotVersionDefinition, handleGetGodotVersion } = await import('./GetGodotVersionTool.js');
-const { systemHealthDefinition, handleSystemHealth } = await import('./SystemHealthTool.js');
+import { getGodotVersionDefinition, handleGetGodotVersion } from './GetGodotVersionTool.js';
+import { systemHealthDefinition, handleSystemHealth } from './SystemHealthTool.js';
 
 describe('GetGodotVersionTool', () => {
   /**

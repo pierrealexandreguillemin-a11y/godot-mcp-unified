@@ -20,27 +20,27 @@ const mockDetectGodotPath = jest.fn<(...args: unknown[]) => Promise<string | nul
 const mockGetGodotPool = jest.fn<(...args: unknown[]) => unknown>();
 const mockGetProjectStructure = jest.fn<(...args: unknown[]) => unknown>();
 
-// Mock the Godot-dependent modules using unstable_mockModule for ESM
-jest.unstable_mockModule('../../core/PathManager.js', () => ({
+// Mock the Godot-dependent modules
+jest.mock('../../core/PathManager.js', () => ({
   detectGodotPath: mockDetectGodotPath,
   validatePath: jest.fn(() => true),
   normalizePath: jest.fn((p: string) => p),
   normalizeHandlerPaths: jest.fn((args: Record<string, unknown>) => args),
 }));
 
-jest.unstable_mockModule('../../core/ProcessPool.js', () => ({
+jest.mock('../../core/ProcessPool.js', () => ({
   getGodotPool: mockGetGodotPool,
 }));
 
-jest.unstable_mockModule('../../utils/FileUtils.js', () => ({
+jest.mock('../../utils/FileUtils.js', () => ({
   getProjectStructure: mockGetProjectStructure,
   isGodotProject: jest.fn(() => true),
   findGodotProjects: jest.fn(() => []),
 }));
 
-// Dynamic imports AFTER mocks are set up
-const { createTempProject, getResponseText, parseJsonResponse, isErrorResponse } = await import('../test-utils.js');
-const { handleGetProjectInfo } = await import('./GetProjectInfoTool.js');
+// Import test utilities and module under test (jest.mock is hoisted)
+import { createTempProject, getResponseText, parseJsonResponse, isErrorResponse } from '../test-utils.js';
+import { handleGetProjectInfo } from './GetProjectInfoTool.js';
 
 // Helper to create a typed mock execute function
 type ExecuteResult = { stdout: string; stderr: string; exitCode: number; duration: number };
@@ -135,12 +135,12 @@ describe('GetProjectInfoTool', () => {
       const result = await handleGetProjectInfo({ projectPath });
 
       expect(isErrorResponse(result)).toBe(false);
-      const data = parseJsonResponse<{
+      const data = parseJsonResponse(result) as {
         name: string;
         path: string;
         godotVersion: string;
         structure: unknown;
-      }>(result);
+      };
 
       expect(data.name).toBe('Test Project');
       expect(data.path).toBe(projectPath);
@@ -166,7 +166,7 @@ describe('GetProjectInfoTool', () => {
       const result = await handleGetProjectInfo({ projectPath });
 
       expect(isErrorResponse(result)).toBe(false);
-      const data = parseJsonResponse<{ name: string }>(result);
+      const data = parseJsonResponse(result) as { name: string };
       expect(data.name).toBe('Test Project');
     });
 
@@ -193,7 +193,7 @@ describe('GetProjectInfoTool', () => {
       const result = await handleGetProjectInfo({ projectPath });
 
       expect(isErrorResponse(result)).toBe(false);
-      const data = parseJsonResponse<{ name: string }>(result);
+      const data = parseJsonResponse(result) as { name: string };
       // Should use the directory basename since config/name is missing
       expect(data.name).toBeDefined();
       expect(typeof data.name).toBe('string');
@@ -245,7 +245,7 @@ describe('GetProjectInfoTool', () => {
       const result = await handleGetProjectInfo({ projectPath });
 
       expect(isErrorResponse(result)).toBe(false);
-      const data = parseJsonResponse<{ structure: typeof expectedStructure }>(result);
+      const data = parseJsonResponse(result) as { structure: typeof expectedStructure };
       expect(data.structure).toEqual(expectedStructure);
     });
   });

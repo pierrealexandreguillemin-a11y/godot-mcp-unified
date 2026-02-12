@@ -19,7 +19,7 @@ import { jest } from '@jest/globals';
 const mockReadFileSync = jest.fn<(path: string, encoding?: string) => string>();
 const mockExistsSync = jest.fn<(path: string) => boolean>();
 
-jest.unstable_mockModule('fs', () => ({
+jest.mock('fs', () => ({
   readFileSync: mockReadFileSync,
   existsSync: mockExistsSync,
 }));
@@ -27,14 +27,14 @@ jest.unstable_mockModule('fs', () => ({
 const mockIsGodotProject = jest.fn<(path: string) => boolean>();
 const mockGetProjectStructure = jest.fn<(path: string) => { scenes: number; scripts: number; assets: number; other: number }>();
 
-jest.unstable_mockModule('../../utils/FileUtils.js', () => ({
+jest.mock('../../utils/FileUtils.js', () => ({
   isGodotProject: mockIsGodotProject,
   getProjectStructure: mockGetProjectStructure,
 }));
 
 const mockDetectGodotPath = jest.fn<() => Promise<string | null>>();
 
-jest.unstable_mockModule('../../core/PathManager.js', () => ({
+jest.mock('../../core/PathManager.js', () => ({
   detectGodotPath: mockDetectGodotPath,
   validatePath: jest.fn(() => true),
   normalizePath: jest.fn((p: string) => p),
@@ -48,16 +48,18 @@ jest.unstable_mockModule('../../core/PathManager.js', () => ({
 
 const mockPoolExecute = jest.fn<(cmd: string, args: string[], opts?: unknown) => Promise<{ stdout: string; stderr: string; exitCode: number | null }>>();
 
-jest.unstable_mockModule('../../core/ProcessPool.js', () => ({
+jest.mock('../../core/ProcessPool.js', () => ({
   getGodotPool: jest.fn(() => ({
     execute: mockPoolExecute,
     shutdown: jest.fn(),
   })),
 }));
 
-// Dynamic import after all mocks are set up
-const { ProjectResourceProvider } = await import('./ProjectResourceProvider.js');
-const { RESOURCE_URIS } = await import('../types.js');
+// Static import of types (not mocked)
+import { RESOURCE_URIS } from '../types.js';
+
+// Import after all mocks are set up (jest.mock is hoisted)
+import { ProjectResourceProvider } from './ProjectResourceProvider.js';
 
 // ============================================================================
 // TEST DATA
@@ -208,7 +210,7 @@ describe('ProjectResourceProvider', () => {
 
       const resources = await provider.listResources(projectPath);
 
-      const exportPreset = resources.find((r) => r.uri === RESOURCE_URIS.EXPORT_PRESETS);
+      const exportPreset = resources.find((r: any) => r.uri === RESOURCE_URIS.EXPORT_PRESETS);
       expect(exportPreset).toBeUndefined();
     });
 
@@ -248,7 +250,7 @@ describe('ProjectResourceProvider', () => {
       const resources = await provider.listResources(projectPath);
 
       const rootResource = resources.find(
-        (r) => r.uri === `${RESOURCE_URIS.PROJECT_SETTINGS}root`
+        (r: any) => r.uri === `${RESOURCE_URIS.PROJECT_SETTINGS}root`
       );
       expect(rootResource).toBeUndefined();
     });

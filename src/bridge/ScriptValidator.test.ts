@@ -7,34 +7,39 @@
 
 import { jest } from '@jest/globals';
 
-// Mock dependencies before imports
-jest.unstable_mockModule('fs', () => ({
-  readFileSync: jest.fn(),
+// Create mock functions at module scope so they can be referenced by mock factories
+const mockReadFileSync = jest.fn();
+const mockTryConnectToGodot = jest.fn();
+const mockGetGodotBridge = jest.fn();
+const mockTryConnectToLSP = jest.fn();
+const mockGetGodotLSPClient = jest.fn();
+
+// Mock dependencies before imports (jest.mock is hoisted)
+jest.mock('fs', () => ({
+  readFileSync: mockReadFileSync,
 }));
 
-jest.unstable_mockModule('../utils/Logger.js', () => ({
+jest.mock('../utils/Logger.js', () => ({
   logDebug: jest.fn(),
   logInfo: jest.fn(),
   logWarn: jest.fn(),
   logError: jest.fn(),
 }));
 
-jest.unstable_mockModule('./index.js', () => ({
-  tryConnectToGodot: jest.fn(),
-  getGodotBridge: jest.fn(),
-  tryConnectToLSP: jest.fn(),
-  getGodotLSPClient: jest.fn(),
+jest.mock('./index.js', () => ({
+  tryConnectToGodot: mockTryConnectToGodot,
+  getGodotBridge: mockGetGodotBridge,
+  tryConnectToLSP: mockTryConnectToLSP,
+  getGodotLSPClient: mockGetGodotLSPClient,
 }));
 
-const fs = await import('fs');
-const bridgeIndex = await import('./index.js');
-const { validateViaLSP, validateViaBridge, validateScript, isRealTimeValidationAvailable } = await import('./ScriptValidator.js');
-
-const mockReadFileSync = fs.readFileSync as unknown as jest.Mock;
-const mockTryConnectToLSP = bridgeIndex.tryConnectToLSP as unknown as jest.Mock;
-const mockGetGodotLSPClient = bridgeIndex.getGodotLSPClient as unknown as jest.Mock;
-const mockTryConnectToGodot = bridgeIndex.tryConnectToGodot as unknown as jest.Mock;
-const mockGetGodotBridge = bridgeIndex.getGodotBridge as unknown as jest.Mock;
+// Static import - jest.mock is hoisted above this by Jest
+import {
+  validateViaLSP,
+  validateViaBridge,
+  validateScript,
+  isRealTimeValidationAvailable,
+} from './ScriptValidator.js';
 
 // Helper to create a mock LSP client
 function createMockLspClient(diagnostics: unknown[] = []) {

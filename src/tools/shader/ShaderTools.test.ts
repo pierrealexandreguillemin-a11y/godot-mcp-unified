@@ -34,33 +34,33 @@ const mockEnsureDir = jest.fn<(...args: unknown[]) => Promise<void>>();
 const mockWriteFile = jest.fn<(...args: unknown[]) => Promise<void>>();
 
 // Mock all dependencies using unstable_mockModule for ESM
-jest.unstable_mockModule('../../core/PathManager.js', () => ({
+jest.mock('../../core/PathManager.js', () => ({
   detectGodotPath: mockDetectGodotPath,
   validatePath: mockValidatePath,
   normalizeHandlerPaths: mockNormalizeHandlerPaths,
   normalizePath: mockNormalizePath,
 }));
 
-jest.unstable_mockModule('../../core/ParameterNormalizer.js', () => ({
+jest.mock('../../core/ParameterNormalizer.js', () => ({
   normalizeParameters: mockNormalizeParameters,
   convertCamelToSnakeCase: mockConvertCamelToSnakeCase,
 }));
 
-jest.unstable_mockModule('../../utils/Logger.js', () => ({
+jest.mock('../../utils/Logger.js', () => ({
   logDebug: mockLogDebug,
   logError: mockLogError,
   logInfo: mockLogInfo,
 }));
 
-jest.unstable_mockModule('../../utils/FileUtils.js', () => ({
+jest.mock('../../utils/FileUtils.js', () => ({
   isGodotProject: mockIsGodotProject,
 }));
 
-jest.unstable_mockModule('fs', () => ({
+jest.mock('fs', () => ({
   existsSync: mockExistsSync,
 }));
 
-jest.unstable_mockModule('fs-extra', () => ({
+jest.mock('fs-extra', () => ({
   default: {
     ensureDir: mockEnsureDir,
     writeFile: mockWriteFile,
@@ -69,9 +69,8 @@ jest.unstable_mockModule('fs-extra', () => ({
   writeFile: mockWriteFile,
 }));
 
-// Dynamic imports AFTER mocks are set up
-const { handleCreateShader } = await import('./CreateShaderTool.js');
-const { handleCreateShaderMaterial } = await import('./CreateShaderMaterialTool.js');
+import { handleCreateShader } from './CreateShaderTool.js';
+import { handleCreateShaderMaterial } from './CreateShaderMaterialTool.js';
 
 describe('Shader Tools', () => {
   beforeEach(() => {

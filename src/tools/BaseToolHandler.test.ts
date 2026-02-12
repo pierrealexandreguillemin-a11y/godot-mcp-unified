@@ -8,29 +8,18 @@ import { jest } from '@jest/globals';
 import { mkdtempSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-
-// Dynamic imports to avoid top-level await issue with import.meta in transitive deps
-let validateBasicArgs: typeof import('./BaseToolHandler.js').validateBasicArgs;
-let prepareToolArgs: typeof import('./BaseToolHandler.js').prepareToolArgs;
-let validateProjectPath: typeof import('./BaseToolHandler.js').validateProjectPath;
-let validateScenePath: typeof import('./BaseToolHandler.js').validateScenePath;
-let validateFilePath: typeof import('./BaseToolHandler.js').validateFilePath;
-let createSuccessResponse: typeof import('./BaseToolHandler.js').createSuccessResponse;
-let createJsonResponse: typeof import('./BaseToolHandler.js').createJsonResponse;
+import {
+  validateBasicArgs,
+  prepareToolArgs,
+  validateProjectPath,
+  validateScenePath,
+  validateFilePath,
+  createSuccessResponse,
+  createJsonResponse,
+} from './BaseToolHandler.js';
 
 describe('BaseToolHandler', () => {
   let tmpDir: string;
-
-  beforeAll(async () => {
-    const mod = await import('./BaseToolHandler.js');
-    validateBasicArgs = mod.validateBasicArgs;
-    prepareToolArgs = mod.prepareToolArgs;
-    validateProjectPath = mod.validateProjectPath;
-    validateScenePath = mod.validateScenePath;
-    validateFilePath = mod.validateFilePath;
-    createSuccessResponse = mod.createSuccessResponse;
-    createJsonResponse = mod.createJsonResponse;
-  });
 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'base-tool-handler-test-'));

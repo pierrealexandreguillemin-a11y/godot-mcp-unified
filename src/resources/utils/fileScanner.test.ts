@@ -5,19 +5,18 @@
  */
 
 import { jest } from '@jest/globals';
+import { readdirSync, statSync } from 'fs';
+import { findFiles, findFilePaths } from './fileScanner.js';
 
-// Mock fs module before imports
-jest.unstable_mockModule('fs', () => ({
+// Mock fs module using jest.mock (hoisted, works with CJS modules like 'fs')
+jest.mock('fs', () => ({
   readdirSync: jest.fn(),
   statSync: jest.fn(),
 }));
 
-const fs = await import('fs');
-const { findFiles, findFilePaths } = await import('./fileScanner.js');
-
-// Use jest.fn<any>() to avoid complex type overload issues with fs mocks
-const mockReaddirSync = fs.readdirSync as unknown as jest.Mock<(...args: unknown[]) => string[]>;
-const mockStatSync = fs.statSync as unknown as jest.Mock<(...args: unknown[]) => { isDirectory: () => boolean; isFile: () => boolean; size: number; mtime: Date }>;
+// Extract mock functions from the mocked fs module
+const mockReaddirSync = readdirSync as jest.Mock;
+const mockStatSync = statSync as jest.Mock;
 
 // Helper to create a mock stat object
 function createMockStat(isDir: boolean, size = 1024, mtime = new Date('2024-01-01')) {
@@ -216,7 +215,7 @@ describe('fileScanner', () => {
       const result = findFilePaths('/project', ['.gd']);
 
       expect(result).toHaveLength(2);
-      result.forEach(p => {
+      result.forEach((p: string) => {
         expect(typeof p).toBe('string');
       });
     });

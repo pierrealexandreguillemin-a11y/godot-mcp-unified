@@ -19,14 +19,14 @@ import { jest } from '@jest/globals';
 const mockReadFileSync = jest.fn<(path: string, encoding?: string) => string>();
 const mockExistsSync = jest.fn<(path: string) => boolean>();
 
-jest.unstable_mockModule('fs', () => ({
+jest.mock('fs', () => ({
   readFileSync: mockReadFileSync,
   existsSync: mockExistsSync,
 }));
 
 const mockIsGodotProject = jest.fn<(path: string) => boolean>();
 
-jest.unstable_mockModule('../../utils/FileUtils.js', () => ({
+jest.mock('../../utils/FileUtils.js', () => ({
   isGodotProject: mockIsGodotProject,
 }));
 
@@ -40,14 +40,16 @@ interface MockScannedFile {
 
 const mockFindFiles = jest.fn<(dir: string, extensions: string[]) => MockScannedFile[]>();
 
-jest.unstable_mockModule('../utils/fileScanner.js', () => ({
+jest.mock('../utils/fileScanner.js', () => ({
   findFiles: mockFindFiles,
   findFilePaths: jest.fn<(dir: string, extensions: string[]) => string[]>().mockReturnValue([]),
 }));
 
-// Dynamic import after all mocks are set up
-const { AssetsResourceProvider } = await import('./AssetsResourceProvider.js');
-const { RESOURCE_URIS } = await import('../types.js');
+// Static import of types (not mocked)
+import { RESOURCE_URIS } from '../types.js';
+
+// Import after all mocks are set up (jest.mock is hoisted)
+import { AssetsResourceProvider } from './AssetsResourceProvider.js';
 
 // ============================================================================
 // TEST DATA

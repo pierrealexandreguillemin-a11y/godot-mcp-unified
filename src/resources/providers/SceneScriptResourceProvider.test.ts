@@ -20,7 +20,7 @@ const mockReadFileSync = jest.fn<(path: string, encoding?: string) => string>();
 const mockExistsSync = jest.fn<(path: string) => boolean>();
 const mockStatSync = jest.fn();
 
-jest.unstable_mockModule('fs', () => ({
+jest.mock('fs', () => ({
   readFileSync: mockReadFileSync,
   existsSync: mockExistsSync,
   statSync: mockStatSync,
@@ -28,7 +28,7 @@ jest.unstable_mockModule('fs', () => ({
 
 const mockIsGodotProject = jest.fn<(path: string) => boolean>();
 
-jest.unstable_mockModule('../../utils/FileUtils.js', () => ({
+jest.mock('../../utils/FileUtils.js', () => ({
   isGodotProject: mockIsGodotProject,
 }));
 
@@ -43,7 +43,7 @@ interface MockScannedFile {
 const mockFindFiles = jest.fn<(dir: string, extensions: string[]) => MockScannedFile[]>();
 const mockFindFilePaths = jest.fn<(dir: string, extensions: string[]) => string[]>();
 
-jest.unstable_mockModule('../utils/fileScanner.js', () => ({
+jest.mock('../utils/fileScanner.js', () => ({
   findFiles: mockFindFiles,
   findFilePaths: mockFindFilePaths,
 }));
@@ -67,13 +67,15 @@ interface MockTscnDocument {
 
 const mockParseTscn = jest.fn<(content: string) => MockTscnDocument>();
 
-jest.unstable_mockModule('../../core/TscnParser.js', () => ({
+jest.mock('../../core/TscnParser.js', () => ({
   parseTscn: mockParseTscn,
 }));
 
-// Dynamic import after all mocks are set up
-const { SceneScriptResourceProvider } = await import('./SceneScriptResourceProvider.js');
-const { RESOURCE_URIS } = await import('../types.js');
+// Static import of types (not mocked)
+import { RESOURCE_URIS } from '../types.js';
+
+// Import after all mocks are set up (jest.mock is hoisted)
+import { SceneScriptResourceProvider } from './SceneScriptResourceProvider.js';
 
 // ============================================================================
 // TEST DATA

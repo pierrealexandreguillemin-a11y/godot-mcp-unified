@@ -16,25 +16,31 @@ import {
   isErrorResponse,
 } from '../test-utils.js';
 
-// Get the real modules, then override only the functions we need to mock
-const realPathManager = await import('../../core/PathManager.js');
-const mockDetectGodotPath = jest.fn<typeof realPathManager.detectGodotPath>();
+// Define mock functions at module scope
+const mockDetectGodotPath = jest.fn<(...args: any[]) => Promise<string | null>>();
+const mockExecuteOperation = jest.fn<(...args: any[]) => Promise<{ stdout: string; stderr: string }>>();
 
-jest.unstable_mockModule('../../core/PathManager', () => ({
-  ...realPathManager,
+jest.mock('../../core/PathManager', () => ({
   detectGodotPath: mockDetectGodotPath,
+  validatePath: jest.fn(() => true),
+  normalizePath: jest.fn((p: string) => p),
+  normalizeHandlerPaths: jest.fn((args: Record<string, unknown>) => args),
 }));
 
-const realGodotExecutor = await import('../../core/GodotExecutor.js');
-const mockExecuteOperation = jest.fn<typeof realGodotExecutor.executeOperation>();
-
-jest.unstable_mockModule('../../core/GodotExecutor', () => ({
-  ...realGodotExecutor,
+jest.mock('../../core/GodotExecutor', () => ({
   executeOperation: mockExecuteOperation,
 }));
 
-// Must import after mocks are set up
-const { handleLoadSprite } = await import('./LoadSpriteTool.js');
+// Mock BridgeExecutor to always use fallback (no bridge connected)
+jest.mock('../../bridge/BridgeExecutor.js', () => ({
+  executeWithBridge: async (
+    _action: string,
+    _params: Record<string, unknown>,
+    fallback: () => Promise<unknown>,
+  ) => fallback(),
+}));
+
+import { handleLoadSprite } from './LoadSpriteTool.js';
 
 /**
  * Simple PNG header for texture tests (1x1 transparent PNG)

@@ -14,27 +14,39 @@ import {
   isErrorResponse,
 } from '../test-utils.js';
 
-// Get the real PathManager exports, then override only detectGodotPath
-const realPathManager = await import('../../core/PathManager.js');
-const mockDetectGodotPath = jest.fn<typeof realPathManager.detectGodotPath>();
+// Define mock functions at module scope BEFORE mock module declarations
+const mockDetectGodotPath = jest.fn<(...args: unknown[]) => Promise<string | null>>();
+const mockExecuteOperation = jest.fn<(...args: unknown[]) => Promise<{ stdout: string; stderr: string }>>();
 
-jest.unstable_mockModule('../../core/PathManager', () => ({
-  ...realPathManager,
+jest.mock('../../core/PathManager.js', () => ({
   detectGodotPath: mockDetectGodotPath,
+  validatePath: jest.fn(() => true),
+  normalizePath: jest.fn((p: string) => p),
+  normalizeHandlerPaths: jest.fn(<T,>(args: T) => args),
+  isValidGodotPathSync: jest.fn(() => true),
+  isValidGodotPath: jest.fn(async () => true),
+  getPlatformGodotPaths: jest.fn(() => []),
+  clearPathCache: jest.fn(),
+  getPathCacheStats: jest.fn(() => ({ hits: 0, misses: 0, size: 0 })),
 }));
 
-const realGodotExecutor = await import('../../core/GodotExecutor.js');
-const mockExecuteOperationFn = jest.fn<typeof realGodotExecutor.executeOperation>();
-
-jest.unstable_mockModule('../../core/GodotExecutor', () => ({
-  ...realGodotExecutor,
-  executeOperation: mockExecuteOperationFn,
+jest.mock('../../core/GodotExecutor.js', () => ({
+  executeOperation: mockExecuteOperation,
+  getGodotVersion: jest.fn(async () => '4.2.stable'),
+  isGodot44OrLater: jest.fn(() => false),
 }));
 
-// Must import after mocks are set up
-const { handleRemoveNode } = await import('./RemoveNodeTool.js');
+jest.mock('../../bridge/BridgeExecutor.js', () => ({
+  executeWithBridge: jest.fn(async (
+    _action: string,
+    _params: Record<string, unknown>,
+    fallback: () => Promise<unknown>,
+  ) => fallback()),
+  isBridgeAvailable: jest.fn(() => false),
+  tryInitializeBridge: jest.fn(async () => false),
+}));
 
-const mockExecuteOperation = mockExecuteOperationFn;
+import { handleRemoveNode } from './RemoveNodeTool.js';
 
 describe('RemoveNodeTool', () => {
   let projectPath: string;

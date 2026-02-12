@@ -20,35 +20,41 @@ import {
   isErrorResponse,
 } from '../test-utils.js';
 
-// Get real modules, override only what we need to mock
-const realPathManager = await import('../../core/PathManager.js');
-const mockDetectGodotPath = jest.fn<typeof realPathManager.detectGodotPath>();
+// Define mock functions at module scope BEFORE mock module declarations
+const mockDetectGodotPath = jest.fn<(...args: unknown[]) => Promise<string | null>>();
+const mockExecuteOperation = jest.fn<(...args: unknown[]) => Promise<{ stdout: string; stderr: string }>>();
 
-jest.unstable_mockModule('../../core/PathManager', () => ({
-  ...realPathManager,
+jest.mock('../../core/PathManager.js', () => ({
   detectGodotPath: mockDetectGodotPath,
+  validatePath: jest.fn(() => true),
+  normalizePath: jest.fn((p: string) => p),
+  normalizeHandlerPaths: jest.fn(<T,>(args: T) => args),
+  isValidGodotPathSync: jest.fn(() => true),
+  isValidGodotPath: jest.fn(async () => true),
+  getPlatformGodotPaths: jest.fn(() => []),
+  clearPathCache: jest.fn(),
+  getPathCacheStats: jest.fn(() => ({ hits: 0, misses: 0, size: 0 })),
 }));
 
-const realGodotExecutor = await import('../../core/GodotExecutor.js');
-const mockExecuteOperation = jest.fn<typeof realGodotExecutor.executeOperation>();
-
-jest.unstable_mockModule('../../core/GodotExecutor', () => ({
-  ...realGodotExecutor,
+jest.mock('../../core/GodotExecutor.js', () => ({
   executeOperation: mockExecuteOperation,
+  getGodotVersion: jest.fn(async () => '4.2.stable'),
+  isGodot44OrLater: jest.fn(() => false),
 }));
 
 // Mock BridgeExecutor to always use fallback (no bridge connected)
-jest.unstable_mockModule('../../bridge/BridgeExecutor', () => ({
-  executeWithBridge: async (
+jest.mock('../../bridge/BridgeExecutor.js', () => ({
+  executeWithBridge: jest.fn(async (
     _action: string,
     _params: Record<string, unknown>,
     fallback: () => Promise<unknown>,
-  ) => fallback(),
+  ) => fallback()),
+  isBridgeAvailable: jest.fn(() => false),
+  tryInitializeBridge: jest.fn(async () => false),
 }));
 
-// Must import after mocks are set up
-const { handleCreateUIContainer } = await import('./CreateUIContainerTool.js');
-const { handleCreateControl } = await import('./CreateControlTool.js');
+import { handleCreateUIContainer } from './CreateUIContainerTool.js';
+import { handleCreateControl } from './CreateControlTool.js';
 
 describe('UI Tools Enhanced Tests', () => {
   let projectPath: string;

@@ -12,14 +12,22 @@
 
 import { jest } from '@jest/globals';
 
+// Mock Logger to prevent import errors (jest.mock is hoisted)
+jest.mock('../utils/Logger.js', () => ({
+  logDebug: jest.fn(),
+  logInfo: jest.fn(),
+  logWarn: jest.fn(),
+  logError: jest.fn(),
+}));
+
 // Mock dependencies before imports
-jest.unstable_mockModule('./providers/index.js', () => ({
+jest.mock('./providers/index.js', () => ({
   ProjectResourceProvider: jest.fn().mockImplementation(() => ({
     prefix: 'project',
     listResources: jest.fn<() => Promise<unknown[]>>().mockResolvedValue([
       { uri: 'godot://project/info', name: 'Project Info', mimeType: 'application/json' },
     ]),
-    handlesUri: jest.fn<(uri: string) => boolean>().mockImplementation((uri) => uri.startsWith('godot://project/')),
+    handlesUri: jest.fn<(uri: string) => boolean>().mockImplementation((uri: string) => uri.startsWith('godot://project/')),
     readResource: jest.fn<() => Promise<unknown>>().mockResolvedValue({
       uri: 'godot://project/info',
       mimeType: 'application/json',
@@ -31,7 +39,7 @@ jest.unstable_mockModule('./providers/index.js', () => ({
     listResources: jest.fn<() => Promise<unknown[]>>().mockResolvedValue([
       { uri: 'godot://scenes', name: 'All Scenes', mimeType: 'application/json' },
     ]),
-    handlesUri: jest.fn<(uri: string) => boolean>().mockImplementation((uri) => uri.startsWith('godot://scene')),
+    handlesUri: jest.fn<(uri: string) => boolean>().mockImplementation((uri: string) => uri.startsWith('godot://scene')),
     readResource: jest.fn<() => Promise<unknown>>().mockResolvedValue({
       uri: 'godot://scenes',
       mimeType: 'application/json',
@@ -43,7 +51,7 @@ jest.unstable_mockModule('./providers/index.js', () => ({
     listResources: jest.fn<() => Promise<unknown[]>>().mockResolvedValue([
       { uri: 'godot://assets', name: 'All Assets', mimeType: 'application/json' },
     ]),
-    handlesUri: jest.fn<(uri: string) => boolean>().mockImplementation((uri) => uri.startsWith('godot://assets')),
+    handlesUri: jest.fn<(uri: string) => boolean>().mockImplementation((uri: string) => uri.startsWith('godot://assets')),
     readResource: jest.fn<() => Promise<unknown>>().mockResolvedValue({
       uri: 'godot://assets',
       mimeType: 'application/json',
@@ -55,7 +63,7 @@ jest.unstable_mockModule('./providers/index.js', () => ({
     listResources: jest.fn<() => Promise<unknown[]>>().mockResolvedValue([
       { uri: 'godot://debug/output', name: 'Debug Output', mimeType: 'application/json' },
     ]),
-    handlesUri: jest.fn<(uri: string) => boolean>().mockImplementation((uri) => uri.startsWith('godot://debug/')),
+    handlesUri: jest.fn<(uri: string) => boolean>().mockImplementation((uri: string) => uri.startsWith('godot://debug/')),
     readResource: jest.fn<() => Promise<unknown>>().mockResolvedValue({
       uri: 'godot://debug/output',
       mimeType: 'application/json',
@@ -64,12 +72,12 @@ jest.unstable_mockModule('./providers/index.js', () => ({
   })),
 }));
 
-const {
+import {
   listGodotResources,
   readGodotResource,
   getResourceTemplates,
   getTemplateContent,
-} = await import('./ResourcesHandler.js');
+} from './ResourcesHandler.js';
 
 describe('ResourcesHandler', () => {
   const projectPath = '/mock/project';

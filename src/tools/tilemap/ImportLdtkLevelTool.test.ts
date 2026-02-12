@@ -14,37 +14,36 @@ const mockWriteFile = jest.fn<(path: string, content: string, encoding: string) 
 const mockEnsureDir = jest.fn<(path: string) => Promise<void>>();
 
 // Mock modules using unstable_mockModule for ESM support
-jest.unstable_mockModule('../../core/PathManager.js', () => ({
+jest.mock('../../core/PathManager.js', () => ({
   detectGodotPath: jest.fn(),
   validatePath: mockValidatePath,
   normalizeHandlerPaths: jest.fn(<T>(args: T) => args),
   normalizePath: jest.fn((p: string) => p),
 }));
 
-jest.unstable_mockModule('../../core/ParameterNormalizer.js', () => ({
+jest.mock('../../core/ParameterNormalizer.js', () => ({
   normalizeParameters: jest.fn(<T>(args: T) => args),
   convertCamelToSnakeCase: jest.fn((s: string) => s),
 }));
 
-jest.unstable_mockModule('../../utils/Logger.js', () => ({
+jest.mock('../../utils/Logger.js', () => ({
   logDebug: jest.fn(),
   logError: jest.fn(),
   logInfo: jest.fn(),
 }));
 
-jest.unstable_mockModule('../../utils/FileUtils.js', () => ({
+jest.mock('../../utils/FileUtils.js', () => ({
   isGodotProject: mockIsGodotProject,
 }));
 
-jest.unstable_mockModule('fs-extra', () => ({
+jest.mock('fs-extra', () => ({
   existsSync: mockExistsSync,
   readFile: mockReadFile,
   writeFile: mockWriteFile,
   ensureDir: mockEnsureDir,
 }));
 
-// Dynamic import after mocking
-const { handleImportLdtkLevel } = await import('./ImportLdtkLevelTool.js');
+import { handleImportLdtkLevel } from './ImportLdtkLevelTool.js';
 
 // Minimal valid LDtk project fixture
 function createLdtkJson(overrides?: Record<string, unknown>): string {
@@ -272,7 +271,7 @@ describe('ImportLdtkLevelTool', () => {
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Level not found');
       // Available levels are listed in the possible solutions (content[1])
-      const allText = result.content.map((c) => c.text).join(' ');
+      const allText = result.content.map((c: any) => c.text).join(' ');
       expect(allText).toContain('Level_0');
     });
 

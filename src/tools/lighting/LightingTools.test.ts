@@ -35,24 +35,24 @@ const mockExistsSync = jest.fn<(p: string) => boolean>();
 const mockEnsureDir = jest.fn<() => Promise<void>>();
 const mockWriteFile = jest.fn<() => Promise<void>>();
 
-// Mock all dependencies using unstable_mockModule for ESM
-jest.unstable_mockModule('../../core/PathManager.js', () => ({
+// Mock all dependencies
+jest.mock('../../core/PathManager.js', () => ({
   detectGodotPath: mockDetectGodotPath,
   validatePath: mockValidatePath,
   normalizeHandlerPaths: mockNormalizeHandlerPaths.mockImplementation((args) => args),
   normalizePath: mockNormalizePath.mockImplementation((p) => p),
 }));
 
-jest.unstable_mockModule('../../core/GodotExecutor.js', () => ({
+jest.mock('../../core/GodotExecutor.js', () => ({
   executeOperation: mockExecuteOperation,
 }));
 
-jest.unstable_mockModule('../../core/ParameterNormalizer.js', () => ({
+jest.mock('../../core/ParameterNormalizer.js', () => ({
   normalizeParameters: mockNormalizeParameters.mockImplementation((args) => args),
   convertCamelToSnakeCase: mockConvertCamelToSnakeCase.mockImplementation((s) => s),
 }));
 
-jest.unstable_mockModule('../../utils/Logger.js', () => ({
+jest.mock('../../utils/Logger.js', () => ({
   logDebug: mockLogDebug,
   logError: mockLogError,
   logInfo: mockLogInfo,
@@ -60,7 +60,7 @@ jest.unstable_mockModule('../../utils/Logger.js', () => ({
 }));
 
 // Mock BridgeExecutor to always use fallback (no bridge connected)
-jest.unstable_mockModule('../../bridge/BridgeExecutor.js', () => ({
+jest.mock('../../bridge/BridgeExecutor.js', () => ({
   executeWithBridge: async (
     _action: string,
     _params: Record<string, unknown>,
@@ -68,15 +68,15 @@ jest.unstable_mockModule('../../bridge/BridgeExecutor.js', () => ({
   ) => fallback(),
 }));
 
-jest.unstable_mockModule('../../utils/FileUtils.js', () => ({
+jest.mock('../../utils/FileUtils.js', () => ({
   isGodotProject: mockIsGodotProject,
 }));
 
-jest.unstable_mockModule('fs', () => ({
+jest.mock('fs', () => ({
   existsSync: mockExistsSync,
 }));
 
-jest.unstable_mockModule('fs-extra', () => ({
+jest.mock('fs-extra', () => ({
   default: {
     ensureDir: mockEnsureDir,
     writeFile: mockWriteFile,
@@ -85,9 +85,8 @@ jest.unstable_mockModule('fs-extra', () => ({
   writeFile: mockWriteFile,
 }));
 
-// Dynamic imports after mocks are set up
-const { handleCreateLight } = await import('./CreateLightTool.js');
-const { handleSetupEnvironment } = await import('./SetupEnvironmentTool.js');
+import { handleCreateLight } from './CreateLightTool.js';
+import { handleSetupEnvironment } from './SetupEnvironmentTool.js';
 
 describe('Lighting Tools', () => {
   beforeEach(() => {

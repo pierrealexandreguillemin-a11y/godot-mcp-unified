@@ -13,8 +13,7 @@ import {
   validateProjectPath,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   CaptureEditorViewportSchema,
   CaptureEditorViewportInput,
@@ -32,8 +31,9 @@ export const captureEditorViewportDefinition: ToolDefinition = {
 
 export const handleCaptureEditorViewport = async (
   args: BaseToolArgs,
+  ctx: ToolContext = defaultToolContext,
 ): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   const validation = safeValidateInput(CaptureEditorViewportSchema, preparedArgs);
   if (!validation.success) {
@@ -45,7 +45,7 @@ export const handleCaptureEditorViewport = async (
 
   const typedArgs: CaptureEditorViewportInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
@@ -53,11 +53,11 @@ export const handleCaptureEditorViewport = async (
   // Zod schema provides defaults: viewport='2d', outputPath='screenshots/editor_viewport.png'
   const { viewport, outputPath } = typedArgs;
 
-  logDebug(
+  ctx.logDebug(
     `Capturing editor ${viewport} viewport for project: ${typedArgs.projectPath}`,
   );
 
-  return executeWithBridge(
+  return ctx.executeWithBridge(
     'capture_viewport',
     {
       viewport,

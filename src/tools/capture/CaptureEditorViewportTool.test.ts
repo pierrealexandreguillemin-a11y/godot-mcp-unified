@@ -3,66 +3,27 @@
  * ISO/IEC 29119 compliant - Test Case Specification
  *
  * Tests the editor viewport capture tool definition and handler.
- * Uses jest.mock + static imports pattern (standardized).
+ * Uses DI pattern with createMockContext (no jest.mock).
  */
 
 import { jest } from '@jest/globals';
 import {
-  createTempProject,
   getResponseText,
   isErrorResponse,
 } from '../test-utils.js';
-
-// Define mock at module scope for per-test override
-const mockExecuteWithBridge = jest.fn<(
-  action: string,
-  params: Record<string, unknown>,
-  fallback: () => Promise<unknown>,
-) => Promise<unknown>>();
-
-// Default: bridge calls fallback (no editor plugin)
-mockExecuteWithBridge.mockImplementation(async (
-  _action: string,
-  _params: Record<string, unknown>,
-  fallback: () => Promise<unknown>,
-) => fallback());
-
-jest.mock('../../bridge/BridgeExecutor.js', () => ({
-  executeWithBridge: mockExecuteWithBridge,
-  isBridgeAvailable: jest.fn(() => false),
-  tryInitializeBridge: jest.fn(async () => false),
-}));
-
-jest.mock('../../core/PathManager.js', () => ({
-  detectGodotPath: jest.fn(async () => null),
-  validatePath: jest.fn(() => true),
-  normalizePath: jest.fn((p: string) => p),
-  normalizeHandlerPaths: jest.fn(<T,>(args: T) => args),
-  isValidGodotPathSync: jest.fn(() => true),
-  isValidGodotPath: jest.fn(async () => true),
-  getPlatformGodotPaths: jest.fn(() => []),
-  clearPathCache: jest.fn(),
-  getPathCacheStats: jest.fn(() => ({ hits: 0, misses: 0, size: 0 })),
-}));
-
+import { createMockContext, ToolContext } from '../ToolContext.js';
 import {
   captureEditorViewportDefinition,
   handleCaptureEditorViewport,
 } from './CaptureEditorViewportTool.js';
 
 describe('CaptureEditorViewportTool', () => {
-  let projectPath: string;
-  let cleanup: () => void;
+  let ctx: ToolContext;
 
   beforeEach(() => {
-    const temp = createTempProject();
-    projectPath = temp.projectPath;
-    cleanup = temp.cleanup;
     jest.clearAllMocks();
-  });
-
-  afterEach(() => {
-    cleanup();
+    // Default context: bridge calls fallback (no bridge), valid paths, valid project
+    ctx = createMockContext();
   });
 
   describe('Tool Definition', () => {
@@ -92,7 +53,7 @@ describe('CaptureEditorViewportTool', () => {
     it('should return error when projectPath is missing', async () => {
       const result = await handleCaptureEditorViewport({
         viewport: '2d',
-      });
+      }, ctx);
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('projectPath');
     });
@@ -100,16 +61,21 @@ describe('CaptureEditorViewportTool', () => {
     it('should return error when projectPath is empty', async () => {
       const result = await handleCaptureEditorViewport({
         projectPath: '',
-      });
+      }, ctx);
       expect(isErrorResponse(result)).toBe(true);
     });
   });
 
   describe('Validation - Invalid Project Path', () => {
     it('should return error for non-existent project path', async () => {
+      ctx = createMockContext({
+        validatePath: () => true,
+        isGodotProject: () => false,
+      });
+
       const result = await handleCaptureEditorViewport({
         projectPath: '/non/existent/path',
-      });
+      }, ctx);
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Not a valid Godot project');
     });
@@ -117,7 +83,7 @@ describe('CaptureEditorViewportTool', () => {
     it('should return error for path traversal attempt', async () => {
       const result = await handleCaptureEditorViewport({
         projectPath: '../../../etc',
-      });
+      }, ctx);
       expect(isErrorResponse(result)).toBe(true);
     });
   });
@@ -125,9 +91,9 @@ describe('CaptureEditorViewportTool', () => {
   describe('Handler - No Bridge (Fallback)', () => {
     it('should return error explaining editor plugin is required', async () => {
       const result = await handleCaptureEditorViewport({
-        projectPath,
+        projectPath: '/path/to/project',
         viewport: '2d',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       const text = getResponseText(result);
@@ -137,9 +103,9 @@ describe('CaptureEditorViewportTool', () => {
 
     it('should return error for 3d viewport without bridge', async () => {
       const result = await handleCaptureEditorViewport({
-        projectPath,
+        projectPath: '/path/to/project',
         viewport: '3d',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('requires the Godot editor plugin');
@@ -147,8 +113,8 @@ describe('CaptureEditorViewportTool', () => {
 
     it('should use default viewport when not specified', async () => {
       const result = await handleCaptureEditorViewport({
-        projectPath,
-      });
+        projectPath: '/path/to/project',
+      }, ctx);
 
       // Falls through to bridge fallback regardless of viewport value
       expect(isErrorResponse(result)).toBe(true);
@@ -157,8 +123,8 @@ describe('CaptureEditorViewportTool', () => {
 
     it('should mention WebSocket bridge in error message', async () => {
       const result = await handleCaptureEditorViewport({
-        projectPath,
-      });
+        projectPath: '/path/to/project',
+      }, ctx);
 
       expect(getResponseText(result)).toContain('WebSocket bridge is not connected');
     });
@@ -167,18 +133,18 @@ describe('CaptureEditorViewportTool', () => {
   describe('Validation - Invalid Parameter Values', () => {
     it('should reject invalid viewport value', async () => {
       const result = await handleCaptureEditorViewport({
-        projectPath,
+        projectPath: '/path/to/project',
         viewport: 'invalid' as '2d' | '3d',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
     });
 
     it('should reject outputPath with path traversal', async () => {
       const result = await handleCaptureEditorViewport({
-        projectPath,
+        projectPath: '/path/to/project',
         outputPath: '../../etc/evil.png',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('traversal');
@@ -190,12 +156,17 @@ describe('CaptureEditorViewportTool', () => {
       const bridgeResult = {
         content: [{ type: 'text' as const, text: 'Screenshot saved to /tmp/viewport.png' }],
       };
-      mockExecuteWithBridge.mockResolvedValueOnce(bridgeResult);
+      const mockExecuteWithBridge = jest.fn<ToolContext['executeWithBridge']>()
+        .mockResolvedValue(bridgeResult);
+
+      ctx = createMockContext({
+        executeWithBridge: mockExecuteWithBridge,
+      });
 
       const result = await handleCaptureEditorViewport({
-        projectPath,
+        projectPath: '/path/to/project',
         viewport: '2d',
-      });
+      }, ctx);
 
       expect(result).toEqual(bridgeResult);
       expect(mockExecuteWithBridge).toHaveBeenCalledWith(
@@ -209,13 +180,18 @@ describe('CaptureEditorViewportTool', () => {
       const bridgeResult = {
         content: [{ type: 'text' as const, text: 'Screenshot saved' }],
       };
-      mockExecuteWithBridge.mockResolvedValueOnce(bridgeResult);
+      const mockExecuteWithBridge = jest.fn<ToolContext['executeWithBridge']>()
+        .mockResolvedValue(bridgeResult);
+
+      ctx = createMockContext({
+        executeWithBridge: mockExecuteWithBridge,
+      });
 
       await handleCaptureEditorViewport({
-        projectPath,
+        projectPath: '/path/to/project',
         viewport: '3d',
         outputPath: 'captures/3d.png',
-      });
+      }, ctx);
 
       expect(mockExecuteWithBridge).toHaveBeenCalledWith(
         'capture_viewport',
@@ -228,12 +204,17 @@ describe('CaptureEditorViewportTool', () => {
       const bridgeResult = {
         content: [{ type: 'text' as const, text: 'OK' }],
       };
-      mockExecuteWithBridge.mockResolvedValueOnce(bridgeResult);
+      const mockExecuteWithBridge = jest.fn<ToolContext['executeWithBridge']>()
+        .mockResolvedValue(bridgeResult);
+
+      ctx = createMockContext({
+        executeWithBridge: mockExecuteWithBridge,
+      });
 
       await handleCaptureEditorViewport({
-        projectPath,
+        projectPath: '/path/to/project',
         outputPath: 'custom/path/shot.png',
-      });
+      }, ctx);
 
       expect(mockExecuteWithBridge).toHaveBeenCalledWith(
         'capture_viewport',
@@ -246,8 +227,8 @@ describe('CaptureEditorViewportTool', () => {
   describe('Response Structure', () => {
     it('should return response with content array', async () => {
       const result = await handleCaptureEditorViewport({
-        projectPath,
-      });
+        projectPath: '/path/to/project',
+      }, ctx);
 
       expect(result.content).toBeDefined();
       expect(Array.isArray(result.content)).toBe(true);
@@ -255,8 +236,8 @@ describe('CaptureEditorViewportTool', () => {
 
     it('should return response with text in first content item', async () => {
       const result = await handleCaptureEditorViewport({
-        projectPath,
-      });
+        projectPath: '/path/to/project',
+      }, ctx);
 
       expect(result.content[0]).toBeDefined();
       expect(result.content[0].text).toBeDefined();

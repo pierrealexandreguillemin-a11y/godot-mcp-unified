@@ -27,6 +27,14 @@ export interface JsonSchemaProperty {
   properties?: Record<string, JsonSchemaProperty>;
 }
 
+export interface ToolAnnotations {
+  title?: string;
+  readOnlyHint?: boolean;
+  destructiveHint?: boolean;
+  idempotentHint?: boolean;
+  openWorldHint?: boolean;
+}
+
 export interface ToolDefinition {
   name: string;
   description: string;
@@ -35,6 +43,7 @@ export interface ToolDefinition {
     properties: Record<string, JsonSchemaProperty | unknown>;
     required: string[];
   };
+  annotations?: ToolAnnotations;
 }
 
 export type ToolHandler<T extends BaseToolArgs = BaseToolArgs> = (
@@ -172,6 +181,11 @@ export interface TakeScreenshotArgs extends ProjectToolArgs {
   scenePath?: string;
   outputPath?: string;
   delay?: number;
+}
+
+export interface CaptureEditorViewportArgs extends ProjectToolArgs {
+  viewport?: '2d' | '3d';
+  outputPath?: string;
 }
 
 // ============================================================================

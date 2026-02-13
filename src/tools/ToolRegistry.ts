@@ -6,6 +6,7 @@
 
 import {
   ToolDefinition,
+  ToolAnnotations,
   BaseToolArgs,
   ToolHandler,
 } from '../server/types';
@@ -79,6 +80,10 @@ import { listResourcesDefinition, handleListResources } from './resource/ListRes
 
 // Capture tools
 import { takeScreenshotDefinition, handleTakeScreenshot } from './capture/TakeScreenshotTool';
+import {
+  captureEditorViewportDefinition,
+  handleCaptureEditorViewport,
+} from './capture/CaptureEditorViewportTool';
 
 // Animation tools
 import { createAnimationPlayerDefinition, handleCreateAnimationPlayer } from './animation/CreateAnimationPlayerTool';
@@ -552,6 +557,14 @@ export const toolRegistry: Map<string, ToolRegistration> = new Map([
       readOnly: true,
     },
   ],
+  [
+    'capture_editor_viewport',
+    {
+      definition: captureEditorViewportDefinition,
+      handler: handleCaptureEditorViewport,
+      readOnly: true,
+    },
+  ],
 
   // Animation tools
   [
@@ -841,22 +854,156 @@ export const toolRegistry: Map<string, ToolRegistration> = new Map([
 ]);
 
 /**
+ * Centralized MCP Tool Annotations map
+ * Provides readOnlyHint, destructiveHint, idempotentHint, openWorldHint, and title
+ * for every tool. readOnlyHint is auto-derived from the readOnly registration field.
+ *
+ * Reference: MCP specification ToolAnnotations
+ */
+export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
+  // System tools
+  get_godot_version: { title: 'Get Godot Version', idempotentHint: true },
+  system_health: { title: 'System Health Check', idempotentHint: true },
+
+  // Debug tools
+  stop_project: { title: 'Stop Running Project', destructiveHint: true },
+  get_debug_output: { title: 'Get Debug Output', idempotentHint: true },
+  start_debug_stream: { title: 'Start Debug Stream', openWorldHint: true },
+  stop_debug_stream: { title: 'Stop Debug Stream', destructiveHint: true },
+  get_debug_stream_status: { title: 'Get Debug Stream Status', idempotentHint: true },
+
+  // Project tools
+  launch_editor: { title: 'Launch Godot Editor', openWorldHint: true },
+  run_project: { title: 'Run Project', openWorldHint: true },
+  list_projects: { title: 'List Projects', idempotentHint: true },
+  get_project_info: { title: 'Get Project Info', idempotentHint: true },
+  export_project: { title: 'Export Project', openWorldHint: true },
+  manage_autoloads: { title: 'Manage Autoloads', destructiveHint: false, idempotentHint: true },
+  manage_input_actions: { title: 'Manage Input Actions', destructiveHint: false, idempotentHint: true },
+  convert_3to4: { title: 'Convert Project 3 to 4', openWorldHint: true },
+  generate_docs: { title: 'Generate Documentation', destructiveHint: false },
+  validate_project: { title: 'Validate Project', idempotentHint: true },
+  get_project_settings: { title: 'Get Project Settings', idempotentHint: true },
+  set_project_setting: { title: 'Set Project Setting', destructiveHint: false, idempotentHint: true },
+  validate_conversion_3to4: { title: 'Validate 3-to-4 Conversion', idempotentHint: true },
+  export_pack: { title: 'Export Pack', openWorldHint: true },
+  list_export_presets: { title: 'List Export Presets', idempotentHint: true },
+
+  // Scene tools
+  create_scene: { title: 'Create Scene', destructiveHint: false },
+  add_node: { title: 'Add Node', destructiveHint: false },
+  edit_node: { title: 'Edit Node', destructiveHint: false, idempotentHint: true },
+  remove_node: { title: 'Remove Node', destructiveHint: true },
+  load_sprite: { title: 'Load Sprite', destructiveHint: false, idempotentHint: true },
+  export_mesh_library: { title: 'Export Mesh Library', destructiveHint: false },
+  save_scene: { title: 'Save Scene', destructiveHint: false },
+  get_node_tree: { title: 'Get Node Tree', idempotentHint: true },
+  duplicate_node: { title: 'Duplicate Node', destructiveHint: false },
+  rename_node: { title: 'Rename Node', destructiveHint: false },
+  move_node: { title: 'Move Node', destructiveHint: false },
+  instance_scene: { title: 'Instance Scene', destructiveHint: false },
+  connect_signal: { title: 'Connect Signal', destructiveHint: false },
+  manage_groups: { title: 'Manage Groups', destructiveHint: false },
+  list_scenes: { title: 'List Scenes', idempotentHint: true },
+
+  // UID tools
+  get_uid: { title: 'Get UID', idempotentHint: true },
+  update_project_uids: { title: 'Update Project UIDs', destructiveHint: false },
+
+  // Script tools
+  list_scripts: { title: 'List Scripts', idempotentHint: true },
+  read_script: { title: 'Read Script', idempotentHint: true },
+  write_script: { title: 'Write Script', destructiveHint: false },
+  delete_script: { title: 'Delete Script', destructiveHint: true },
+  attach_script: { title: 'Attach Script', destructiveHint: false },
+  detach_script: { title: 'Detach Script', destructiveHint: false },
+  get_script_errors: { title: 'Get Script Errors', idempotentHint: true },
+
+  // Resource tools
+  create_resource: { title: 'Create Resource', destructiveHint: false },
+  list_resources: { title: 'List Resources', idempotentHint: true },
+
+  // Capture tools
+  take_screenshot: { title: 'Take Screenshot', idempotentHint: true },
+  capture_editor_viewport: { title: 'Capture Editor Viewport', idempotentHint: true },
+
+  // Animation tools
+  create_animation_player: { title: 'Create Animation Player', destructiveHint: false },
+  add_animation: { title: 'Add Animation', destructiveHint: false },
+  add_animation_track: { title: 'Add Animation Track', destructiveHint: false },
+  set_keyframe: { title: 'Set Keyframe', destructiveHint: false, idempotentHint: true },
+  create_animation_tree: { title: 'Create Animation Tree', destructiveHint: false },
+  setup_state_machine: { title: 'Setup State Machine', destructiveHint: false },
+  blend_animations: { title: 'Blend Animations', destructiveHint: false },
+
+  // Physics tools
+  create_collision_shape: { title: 'Create Collision Shape', destructiveHint: false },
+  setup_rigidbody: { title: 'Setup RigidBody', destructiveHint: false, idempotentHint: true },
+  configure_physics_layers: { title: 'Configure Physics Layers', destructiveHint: false, idempotentHint: true },
+
+  // TileMap tools
+  create_tileset: { title: 'Create TileSet', destructiveHint: false },
+  create_tilemap_layer: { title: 'Create TileMap Layer', destructiveHint: false },
+  set_tile: { title: 'Set Tile', destructiveHint: false, idempotentHint: true },
+  paint_tiles: { title: 'Paint Tiles', destructiveHint: false },
+  import_ldtk_level: { title: 'Import LDtk Level', openWorldHint: true },
+
+  // Audio tools
+  create_audio_bus: { title: 'Create Audio Bus', destructiveHint: false },
+  setup_audio_player: { title: 'Setup Audio Player', destructiveHint: false, idempotentHint: true },
+  add_audio_effect: { title: 'Add Audio Effect', destructiveHint: false },
+
+  // Shader tools
+  create_shader: { title: 'Create Shader', destructiveHint: false },
+  create_shader_material: { title: 'Create Shader Material', destructiveHint: false },
+
+  // Navigation tools
+  create_navigation_region: { title: 'Create Navigation Region', destructiveHint: false },
+  bake_navigation_mesh: { title: 'Bake Navigation Mesh', openWorldHint: true },
+
+  // Particles tools
+  create_gpu_particles: { title: 'Create GPU Particles', destructiveHint: false },
+  create_particle_material: { title: 'Create Particle Material', destructiveHint: false },
+
+  // UI tools
+  create_ui_container: { title: 'Create UI Container', destructiveHint: false },
+  create_control: { title: 'Create Control', destructiveHint: false },
+
+  // Lighting tools
+  create_light: { title: 'Create Light', destructiveHint: false },
+  setup_environment: { title: 'Setup Environment', destructiveHint: false, idempotentHint: true },
+  setup_lightmapper: { title: 'Setup Lightmapper', destructiveHint: false, idempotentHint: true },
+
+  // Asset tools
+  list_assets: { title: 'List Assets', idempotentHint: true },
+  import_asset: { title: 'Import Asset', openWorldHint: true },
+  reimport_assets: { title: 'Reimport Assets', openWorldHint: true },
+
+  // Batch tools
+  batch_operations: { title: 'Batch Operations', destructiveHint: false },
+};
+
+/**
  * Get all tool definitions for MCP server registration
  * Filters tools based on READ_ONLY_MODE
+ * Merges ToolAnnotations into each definition
  */
 export const getAllToolDefinitions = (): ToolDefinition[] => {
   const allTools = Array.from(toolRegistry.values());
 
-  if (!READ_ONLY_MODE) {
-    return allTools.map((tool) => tool.definition);
+  let filtered = allTools;
+  if (READ_ONLY_MODE) {
+    filtered = allTools.filter((tool) => tool.readOnly);
+    logInfo(`[READ_ONLY_MODE] Filtered ${allTools.length - filtered.length} write tools`);
   }
 
-  // In read-only mode, filter out tools that are not read-only
-  const filteredTools = allTools.filter((tool) => tool.readOnly);
-
-  logInfo(`[READ_ONLY_MODE] Filtered ${allTools.length - filteredTools.length} write tools`);
-
-  return filteredTools.map((tool) => tool.definition);
+  return filtered.map((tool) => ({
+    ...tool.definition,
+    annotations: {
+      readOnlyHint: tool.readOnly,
+      ...TOOL_ANNOTATIONS[tool.definition.name],
+    },
+  }));
 };
 
 /**

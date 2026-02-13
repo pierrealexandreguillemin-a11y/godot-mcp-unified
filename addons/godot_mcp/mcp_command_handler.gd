@@ -10,6 +10,7 @@ var _scene_commands: Node
 var _node_commands: Node
 var _script_commands: Node
 var _project_commands: Node
+var _viewport_commands: Node
 
 
 func initialize(server: Node, editor_interface: EditorInterface) -> void:
@@ -44,6 +45,13 @@ func initialize(server: Node, editor_interface: EditorInterface) -> void:
 	_project_commands.initialize(editor_interface)
 	_project_commands.event_emitted.connect(_on_event_emitted)
 	add_child(_project_commands)
+
+	var ViewportCommands := preload("res://addons/godot_mcp/commands/viewport_commands.gd")
+	_viewport_commands = ViewportCommands.new()
+	_viewport_commands.name = "ViewportCommands"
+	_viewport_commands.initialize(editor_interface)
+	_viewport_commands.event_emitted.connect(_on_event_emitted)
+	add_child(_viewport_commands)
 
 
 func process_command(client_id: int, data: Dictionary) -> void:
@@ -102,6 +110,10 @@ func _execute_action(action: String, params: Dictionary) -> Dictionary:
 			return _project_commands.stop_project()
 		"get_project_info":
 			return _project_commands.get_project_info()
+
+		# Viewport commands
+		"capture_viewport":
+			return _viewport_commands.capture_viewport(params)
 
 		_:
 			return _error("unknown_action", "Unknown action: %s" % action)

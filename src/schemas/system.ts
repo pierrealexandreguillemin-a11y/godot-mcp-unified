@@ -54,6 +54,11 @@ export const TakeScreenshotSchema = ProjectToolSchema.extend({
   delay: z.number().optional().describe('Delay in seconds before taking screenshot'),
 });
 
+export const CaptureEditorViewportSchema = ProjectToolSchema.extend({
+  viewport: z.enum(['2d', '3d']).optional().default('2d').describe('Which editor viewport to capture (2d or 3d)'),
+  outputPath: z.string().optional().default('screenshots/editor_viewport.png').describe('Where to save the screenshot (relative to project)'),
+});
+
 // ============================================================================
 // Batch Tool Schemas
 // ============================================================================
@@ -83,4 +88,5 @@ export type GetDebugStreamStatusInput = z.infer<typeof GetDebugStreamStatusSchem
 export type GetUidInput = z.infer<typeof GetUidSchema>;
 export type UpdateProjectUidsInput = z.infer<typeof UpdateProjectUidsSchema>;
 export type TakeScreenshotInput = z.infer<typeof TakeScreenshotSchema>;
+export type CaptureEditorViewportInput = z.infer<typeof CaptureEditorViewportSchema>;
 export type BatchOperationsInput = z.infer<typeof BatchOperationsSchema>;

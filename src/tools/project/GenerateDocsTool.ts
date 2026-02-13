@@ -13,11 +13,8 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { logDebug } from '../../utils/Logger.js';
-import { getGodotPool } from '../../core/ProcessPool.js';
-import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   GenerateDocsSchema,
   GenerateDocsInput,
@@ -31,8 +28,8 @@ export const generateDocsDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(GenerateDocsSchema),
 };
 
-export const handleGenerateDocs = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleGenerateDocs = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(GenerateDocsSchema, preparedArgs);
@@ -44,13 +41,13 @@ export const handleGenerateDocs = async (args: BaseToolArgs): Promise<ToolRespon
 
   const typedArgs: GenerateDocsInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
   try {
-    const godotPath = await detectGodotPath();
+    const godotPath = await ctx.detectGodotPath();
     if (!godotPath) {
       return createErrorResponse('Could not find Godot executable', [
         'Ensure Godot is installed',
@@ -62,18 +59,18 @@ export const handleGenerateDocs = async (args: BaseToolArgs): Promise<ToolRespon
     const outputPath = typedArgs.outputPath || join(typedArgs.projectPath, 'docs');
 
     // Ensure output directory exists
-    if (!existsSync(outputPath)) {
-      mkdirSync(outputPath, { recursive: true });
+    if (!ctx.existsSync(outputPath)) {
+      ctx.mkdirSync(outputPath, { recursive: true });
     }
 
-    logDebug(`Generating documentation at: ${outputPath}`);
+    ctx.logDebug(`Generating documentation at: ${outputPath}`);
 
     // Build arguments - --doctool generates XML class documentation
     const args = ['--headless', '--path', typedArgs.projectPath, '--doctool', outputPath];
 
-    logDebug(`Executing via ProcessPool: ${godotPath} ${args.join(' ')}`);
+    ctx.logDebug(`Executing via ProcessPool: ${godotPath} ${args.join(' ')}`);
 
-    const pool = getGodotPool();
+    const pool = ctx.getGodotPool();
     const result = await pool.execute(godotPath, args, {
       cwd: typedArgs.projectPath,
       timeout: 120000, // 2 minute timeout
@@ -83,7 +80,7 @@ export const handleGenerateDocs = async (args: BaseToolArgs): Promise<ToolRespon
     const stderr = result.stderr || '';
 
     // doctool may return non-zero even on partial success
-    if (result.exitCode !== 0 && !stdout.includes('Generating') && !existsSync(join(outputPath, 'classes'))) {
+    if (result.exitCode !== 0 && !stdout.includes('Generating') && !ctx.existsSync(join(outputPath, 'classes'))) {
       return createErrorResponse(`Documentation generation failed: ${stderr || stdout}`, [
         'Check the project has documented classes',
         'Ensure scripts use ## doc comments',
@@ -94,21 +91,20 @@ export const handleGenerateDocs = async (args: BaseToolArgs): Promise<ToolRespon
     // Check what was generated
     const generatedFiles: string[] = [];
 
-    if (existsSync(join(outputPath, 'classes'))) {
+    if (ctx.existsSync(join(outputPath, 'classes'))) {
       generatedFiles.push('classes/');
     }
 
-    if (existsSync(join(outputPath, 'index.xml'))) {
+    if (ctx.existsSync(join(outputPath, 'index.xml'))) {
       generatedFiles.push('index.xml');
     }
 
     // Count XML files if classes folder exists
     let classCount = 0;
     const classesPath = join(outputPath, 'classes');
-    if (existsSync(classesPath)) {
-      const { readdirSync } = await import('fs');
-      const files = readdirSync(classesPath);
-      classCount = files.filter(f => f.endsWith('.xml')).length;
+    if (ctx.existsSync(classesPath)) {
+      const files = ctx.readdirSync(classesPath, { withFileTypes: true });
+      classCount = files.filter(f => f.name.endsWith('.xml')).length;
     }
 
     return createSuccessResponse(

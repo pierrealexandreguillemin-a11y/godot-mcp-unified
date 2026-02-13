@@ -13,11 +13,8 @@ import {
   createJsonResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { logDebug } from '../../utils/Logger.js';
-import { getGodotPool } from '../../core/ProcessPool.js';
-import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
 import { join, extname } from 'path';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   ValidateProjectSchema,
   ValidateProjectInput,
@@ -56,8 +53,8 @@ export const validateProjectDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(ValidateProjectSchema),
 };
 
-export const handleValidateProject = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleValidateProject = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(ValidateProjectSchema, preparedArgs);
@@ -69,7 +66,7 @@ export const handleValidateProject = async (args: BaseToolArgs): Promise<ToolRes
 
   const typedArgs: ValidateProjectInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
@@ -81,38 +78,38 @@ export const handleValidateProject = async (args: BaseToolArgs): Promise<ToolRes
   const issues: ValidationIssue[] = [];
 
   try {
-    logDebug(`Validating project at: ${typedArgs.projectPath}`);
+    ctx.logDebug(`Validating project at: ${typedArgs.projectPath}`);
 
     // Parse project.godot
     const projectGodotPath = join(typedArgs.projectPath, 'project.godot');
-    const projectContent = readFileSync(projectGodotPath, 'utf-8');
+    const projectContent = ctx.readFileSync(projectGodotPath, 'utf-8');
 
     const projectName = extractProjectSetting(projectContent, 'config/name') || 'Unknown';
     const godotVersion = extractProjectSetting(projectContent, 'config/features');
 
     // Scan project files
-    const files = scanProjectFiles(typedArgs.projectPath);
+    const files = scanProjectFiles(typedArgs.projectPath, ctx);
 
     // Validate scripts with Godot
     if (checkScripts && files.scripts.length > 0) {
-      const scriptIssues = await validateScripts(typedArgs.projectPath);
+      const scriptIssues = await validateScripts(typedArgs.projectPath, ctx);
       issues.push(...scriptIssues);
     }
 
     // Validate scenes
     if (checkScenes) {
-      const sceneIssues = validateScenes(typedArgs.projectPath, files.scenes);
+      const sceneIssues = validateScenes(typedArgs.projectPath, files.scenes, ctx);
       issues.push(...sceneIssues);
     }
 
     // Validate resources
     if (checkResources) {
-      const resourceIssues = validateResources(typedArgs.projectPath, files);
+      const resourceIssues = validateResources(typedArgs.projectPath, files, ctx);
       issues.push(...resourceIssues);
     }
 
     // Check for common issues
-    const commonIssues = checkCommonIssues(typedArgs.projectPath, projectContent);
+    const commonIssues = checkCommonIssues(typedArgs.projectPath, projectContent, ctx);
     issues.push(...commonIssues);
 
     const errorCount = issues.filter(i => i.type === 'error').length;
@@ -164,7 +161,7 @@ interface ProjectFiles {
 /**
  * Scan project directory for files
  */
-function scanProjectFiles(projectPath: string): ProjectFiles {
+function scanProjectFiles(projectPath: string, ctx: ToolContext): ProjectFiles {
   const files: ProjectFiles = {
     scenes: [],
     scripts: [],
@@ -173,22 +170,20 @@ function scanProjectFiles(projectPath: string): ProjectFiles {
   };
 
   function scan(dir: string) {
-    const entries = readdirSync(dir);
+    const entries = ctx.readdirSync(dir, { withFileTypes: true });
 
     for (const entry of entries) {
-      const fullPath = join(dir, entry);
+      const fullPath = join(dir, entry.name);
 
       // Skip hidden directories and .godot folder
-      if (entry.startsWith('.') || entry === 'addons') {
+      if (entry.name.startsWith('.') || entry.name === 'addons') {
         continue;
       }
 
-      const stat = statSync(fullPath);
-
-      if (stat.isDirectory()) {
+      if (entry.isDirectory()) {
         scan(fullPath);
       } else {
-        const ext = extname(entry).toLowerCase();
+        const ext = extname(entry.name).toLowerCase();
         const relativePath = fullPath.slice(projectPath.length + 1);
 
         switch (ext) {
@@ -230,11 +225,11 @@ function scanProjectFiles(projectPath: string): ProjectFiles {
 /**
  * Validate scripts using Godot's --check-only via ProcessPool
  */
-async function validateScripts(projectPath: string): Promise<ValidationIssue[]> {
+async function validateScripts(projectPath: string, ctx: ToolContext): Promise<ValidationIssue[]> {
   const issues: ValidationIssue[] = [];
 
   try {
-    const godotPath = await detectGodotPath();
+    const godotPath = await ctx.detectGodotPath();
     if (!godotPath) {
       issues.push({
         type: 'warning',
@@ -245,9 +240,9 @@ async function validateScripts(projectPath: string): Promise<ValidationIssue[]> 
     }
 
     const args = ['--headless', '--path', projectPath, '--check-only', '--quit'];
-    logDebug(`Validating scripts via ProcessPool: ${godotPath} ${args.join(' ')}`);
+    ctx.logDebug(`Validating scripts via ProcessPool: ${godotPath} ${args.join(' ')}`);
 
-    const pool = getGodotPool();
+    const pool = ctx.getGodotPool();
     const result = await pool.execute(godotPath, args, {
       cwd: projectPath,
       timeout: 60000,
@@ -294,13 +289,13 @@ async function validateScripts(projectPath: string): Promise<ValidationIssue[]> 
 /**
  * Validate scene files
  */
-function validateScenes(projectPath: string, scenes: string[]): ValidationIssue[] {
+function validateScenes(projectPath: string, scenes: string[], ctx: ToolContext): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
   for (const scenePath of scenes) {
     try {
       const fullPath = join(projectPath, scenePath);
-      const content = readFileSync(fullPath, 'utf-8');
+      const content = ctx.readFileSync(fullPath, 'utf-8');
 
       // Check for broken resource references
       const extResMatches = content.matchAll(/path="(res:\/\/[^"]+)"/g);
@@ -308,7 +303,7 @@ function validateScenes(projectPath: string, scenes: string[]): ValidationIssue[
         const resPath = match[1].replace('res://', '');
         const resFullPath = join(projectPath, resPath);
 
-        if (!existsSync(resFullPath)) {
+        if (!ctx.existsSync(resFullPath)) {
           issues.push({
             type: 'error',
             category: 'scenes',
@@ -343,13 +338,13 @@ function validateScenes(projectPath: string, scenes: string[]): ValidationIssue[
 /**
  * Validate resource references
  */
-function validateResources(projectPath: string, files: ProjectFiles): ValidationIssue[] {
+function validateResources(projectPath: string, files: ProjectFiles, ctx: ToolContext): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
   for (const resPath of files.resources) {
     try {
       const fullPath = join(projectPath, resPath);
-      const content = readFileSync(fullPath, 'utf-8');
+      const content = ctx.readFileSync(fullPath, 'utf-8');
 
       // Check for external resource references
       const extResMatches = content.matchAll(/path="(res:\/\/[^"]+)"/g);
@@ -357,7 +352,7 @@ function validateResources(projectPath: string, files: ProjectFiles): Validation
         const refPath = match[1].replace('res://', '');
         const refFullPath = join(projectPath, refPath);
 
-        if (!existsSync(refFullPath)) {
+        if (!ctx.existsSync(refFullPath)) {
           issues.push({
             type: 'error',
             category: 'resources',
@@ -382,7 +377,7 @@ function validateResources(projectPath: string, files: ProjectFiles): Validation
 /**
  * Check for common project issues
  */
-function checkCommonIssues(projectPath: string, projectContent: string): ValidationIssue[] {
+function checkCommonIssues(projectPath: string, projectContent: string, ctx: ToolContext): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
   // Check for main scene
@@ -395,7 +390,7 @@ function checkCommonIssues(projectPath: string, projectContent: string): Validat
     });
   } else {
     const mainScenePath = join(projectPath, mainScene.replace('res://', ''));
-    if (!existsSync(mainScenePath)) {
+    if (!ctx.existsSync(mainScenePath)) {
       issues.push({
         type: 'error',
         category: 'project',
@@ -406,7 +401,7 @@ function checkCommonIssues(projectPath: string, projectContent: string): Validat
 
   // Check for export presets
   const exportPresetsPath = join(projectPath, 'export_presets.cfg');
-  if (!existsSync(exportPresetsPath)) {
+  if (!ctx.existsSync(exportPresetsPath)) {
     issues.push({
       type: 'info',
       category: 'project',
@@ -416,7 +411,7 @@ function checkCommonIssues(projectPath: string, projectContent: string): Validat
 
   // Check for .gitignore
   const gitignorePath = join(projectPath, '.gitignore');
-  if (!existsSync(gitignorePath)) {
+  if (!ctx.existsSync(gitignorePath)) {
     issues.push({
       type: 'info',
       category: 'project',

@@ -13,9 +13,8 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { logDebug } from '../../utils/Logger.js';
-import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   SetProjectSettingSchema,
   SetProjectSettingInput,
@@ -118,8 +117,8 @@ function serializeLines(lines: ParsedLine[]): string {
   }).join('\n');
 }
 
-export const handleSetProjectSetting = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleSetProjectSetting = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(SetProjectSettingSchema, preparedArgs);
@@ -131,16 +130,16 @@ export const handleSetProjectSetting = async (args: BaseToolArgs): Promise<ToolR
 
   const typedArgs: SetProjectSettingInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
   try {
     const projectGodotPath = join(typedArgs.projectPath, 'project.godot');
-    logDebug(`Modifying project setting: ${typedArgs.key} in ${projectGodotPath}`);
+    ctx.logDebug(`Modifying project setting: ${typedArgs.key} in ${projectGodotPath}`);
 
-    const content = readFileSync(projectGodotPath, 'utf-8');
+    const content = ctx.readFileSync(projectGodotPath, 'utf-8');
     const lines = parseLines(content);
 
     // Determine target section
@@ -226,7 +225,7 @@ export const handleSetProjectSetting = async (args: BaseToolArgs): Promise<ToolR
     }
 
     const newContent = serializeLines(lines);
-    writeFileSync(projectGodotPath, newContent, 'utf-8');
+    ctx.writeFileSync(projectGodotPath, newContent, 'utf-8');
 
     return createSuccessResponse(
       `Project setting ${found ? 'updated' : 'added'} successfully!\n` +

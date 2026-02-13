@@ -12,11 +12,8 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { logDebug } from '../../utils/Logger.js';
-import { getGodotPool } from '../../core/ProcessPool.js';
-import { existsSync } from 'fs';
 import { join } from 'path';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   ConvertProjectSchema,
   ConvertProjectInput,
@@ -30,8 +27,8 @@ export const convertProjectDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(ConvertProjectSchema),
 };
 
-export const handleConvertProject = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleConvertProject = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(ConvertProjectSchema, preparedArgs);
@@ -45,7 +42,7 @@ export const handleConvertProject = async (args: BaseToolArgs): Promise<ToolResp
 
   // Verify source project exists
   const projectGodotPath = join(typedArgs.sourcePath, 'project.godot');
-  if (!existsSync(projectGodotPath)) {
+  if (!ctx.existsSync(projectGodotPath)) {
     return createErrorResponse('Not a valid Godot project (project.godot not found)', [
       'Check the source path is correct',
       'Ensure it points to a Godot project directory',
@@ -53,7 +50,7 @@ export const handleConvertProject = async (args: BaseToolArgs): Promise<ToolResp
   }
 
   try {
-    const godotPath = await detectGodotPath();
+    const godotPath = await ctx.detectGodotPath();
     if (!godotPath) {
       return createErrorResponse('Could not find Godot 4.x executable', [
         'Ensure Godot 4.x is installed',
@@ -62,7 +59,7 @@ export const handleConvertProject = async (args: BaseToolArgs): Promise<ToolResp
       ]);
     }
 
-    logDebug(`Converting project at: ${typedArgs.sourcePath}`);
+    ctx.logDebug(`Converting project at: ${typedArgs.sourcePath}`);
 
     // Build conversion arguments
     // Note: --convert-3to4 requires Godot 4.x and converts in place
@@ -77,9 +74,9 @@ export const handleConvertProject = async (args: BaseToolArgs): Promise<ToolResp
       args.push('--no-convert-sign');
     }
 
-    logDebug(`Executing via ProcessPool: ${godotPath} ${args.join(' ')}`);
+    ctx.logDebug(`Executing via ProcessPool: ${godotPath} ${args.join(' ')}`);
 
-    const pool = getGodotPool();
+    const pool = ctx.getGodotPool();
     const result = await pool.execute(godotPath, args, {
       cwd: typedArgs.sourcePath,
       timeout: 600000, // 10 minute timeout for conversion

@@ -8,12 +8,8 @@
 
 import { prepareToolArgs } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { isGodotProject } from '../../utils/FileUtils.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { runGodotProject } from '../../core/ProcessManager.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
 import { ToolResponse, ToolDefinition, BaseToolArgs } from '../../server/types.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   RunProjectSchema,
   RunProjectInput,
@@ -30,9 +26,9 @@ export const runProjectDefinition: ToolDefinition = {
 /**
  * Handle the run_project tool
  */
-export const handleRunProject = async (args: BaseToolArgs): Promise<ToolResponse> => {
+export const handleRunProject = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
   // Validate and normalize arguments
-  const preparedArgs = prepareToolArgs(args);
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(RunProjectSchema, preparedArgs);
@@ -45,17 +41,17 @@ export const handleRunProject = async (args: BaseToolArgs): Promise<ToolResponse
   const typedArgs: RunProjectInput = validation.data;
 
   // Validate project
-  if (!isGodotProject(typedArgs.projectPath)) {
+  if (!ctx.isGodotProject(typedArgs.projectPath)) {
     return createErrorResponse(`Not a valid Godot project: ${typedArgs.projectPath}`, [
       'Ensure the path points to a directory containing a project.godot file',
       'Use list_projects to find valid Godot projects',
     ]);
   }
 
-  logDebug(`Running Godot project: ${typedArgs.projectPath}`);
+  ctx.logDebug(`Running Godot project: ${typedArgs.projectPath}`);
 
   // Try bridge first, fallback to spawning process
-  return executeWithBridge(
+  return ctx.executeWithBridge(
     'run_project',
     {
       scene: typedArgs.scene || '',
@@ -64,7 +60,7 @@ export const handleRunProject = async (args: BaseToolArgs): Promise<ToolResponse
     async () => {
       // Fallback: spawn Godot process via ProcessManager
       try {
-        const godotPath = await detectGodotPath();
+        const godotPath = await ctx.detectGodotPath();
         if (!godotPath) {
           return createErrorResponse('Could not find a valid Godot executable path', [
             'Ensure Godot is installed correctly',
@@ -72,7 +68,7 @@ export const handleRunProject = async (args: BaseToolArgs): Promise<ToolResponse
           ]);
         }
 
-        runGodotProject(godotPath, typedArgs.projectPath, typedArgs.scene);
+        ctx.runGodotProject(godotPath, typedArgs.projectPath, typedArgs.scene);
 
         return {
           content: [

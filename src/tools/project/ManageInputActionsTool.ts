@@ -14,9 +14,8 @@ import {
   createJsonResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { logDebug } from '../../utils/Logger.js';
-import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   ManageInputActionsSchema,
   ManageInputActionsInput,
@@ -175,8 +174,8 @@ function serializeInputAction(action: InputAction): string {
   return `{"deadzone": ${action.deadzone}, "events": [${events}]}`;
 }
 
-export const handleManageInputActions = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleManageInputActions = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(ManageInputActionsSchema, preparedArgs);
@@ -188,7 +187,7 @@ export const handleManageInputActions = async (args: BaseToolArgs): Promise<Tool
 
   const typedArgs: ManageInputActionsInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
@@ -196,7 +195,7 @@ export const handleManageInputActions = async (args: BaseToolArgs): Promise<Tool
   const projectGodotPath = join(typedArgs.projectPath, 'project.godot');
 
   try {
-    let content = readFileSync(projectGodotPath, 'utf-8');
+    let content = ctx.readFileSync(projectGodotPath, 'utf-8');
     const inputs = parseInputSection(content);
 
     switch (typedArgs.action) {
@@ -246,9 +245,9 @@ export const handleManageInputActions = async (args: BaseToolArgs): Promise<Tool
             content.slice(insertPos);
         }
 
-        writeFileSync(projectGodotPath, content, 'utf-8');
+        ctx.writeFileSync(projectGodotPath, content, 'utf-8');
 
-        logDebug(`Added input action: ${typedArgs.name}`);
+        ctx.logDebug(`Added input action: ${typedArgs.name}`);
 
         return createSuccessResponse(
           `Input action added successfully!\n` +
@@ -276,9 +275,9 @@ export const handleManageInputActions = async (args: BaseToolArgs): Promise<Tool
         const regex = new RegExp(`^${typedArgs.name}=.*$\\n?`, 'm');
         content = content.replace(regex, '');
 
-        writeFileSync(projectGodotPath, content, 'utf-8');
+        ctx.writeFileSync(projectGodotPath, content, 'utf-8');
 
-        logDebug(`Removed input action: ${typedArgs.name}`);
+        ctx.logDebug(`Removed input action: ${typedArgs.name}`);
 
         return createSuccessResponse(
           `Input action removed successfully!\n` +

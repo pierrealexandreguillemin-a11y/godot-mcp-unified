@@ -13,9 +13,8 @@ import {
   createJsonResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { logDebug } from '../../utils/Logger.js';
-import { readFileSync } from 'fs';
 import { join } from 'path';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   GetProjectSettingsSchema,
   GetProjectSettingsInput,
@@ -96,8 +95,8 @@ function parseProjectGodot(content: string): { settings: ProjectSetting[]; confi
   return { settings, configVersion };
 }
 
-export const handleGetProjectSettings = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleGetProjectSettings = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(GetProjectSettingsSchema, preparedArgs);
@@ -109,16 +108,16 @@ export const handleGetProjectSettings = async (args: BaseToolArgs): Promise<Tool
 
   const typedArgs: GetProjectSettingsInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
   try {
     const projectGodotPath = join(typedArgs.projectPath, 'project.godot');
-    logDebug(`Reading project settings from: ${projectGodotPath}`);
+    ctx.logDebug(`Reading project settings from: ${projectGodotPath}`);
 
-    const content = readFileSync(projectGodotPath, 'utf-8');
+    const content = ctx.readFileSync(projectGodotPath, 'utf-8');
     const { settings, configVersion } = parseProjectGodot(content);
 
     // Filter by section if provided

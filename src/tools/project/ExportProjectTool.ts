@@ -13,11 +13,8 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { logDebug } from '../../utils/Logger.js';
-import { getGodotPool } from '../../core/ProcessPool.js';
-import { existsSync, mkdirSync } from 'fs';
 import { dirname, join } from 'path';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   ExportProjectSchema,
   ExportProjectInput,
@@ -31,8 +28,8 @@ export const exportProjectDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(ExportProjectSchema),
 };
 
-export const handleExportProject = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleExportProject = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(ExportProjectSchema, preparedArgs);
@@ -45,14 +42,14 @@ export const handleExportProject = async (args: BaseToolArgs): Promise<ToolRespo
 
   const typedArgs: ExportProjectInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
   // Check if export_presets.cfg exists
   const presetsPath = join(typedArgs.projectPath, 'export_presets.cfg');
-  if (!existsSync(presetsPath)) {
+  if (!ctx.existsSync(presetsPath)) {
     return createErrorResponse('No export_presets.cfg found in project', [
       'Open the project in Godot editor',
       'Go to Project > Export and configure at least one preset',
@@ -61,7 +58,7 @@ export const handleExportProject = async (args: BaseToolArgs): Promise<ToolRespo
   }
 
   try {
-    const godotPath = await detectGodotPath();
+    const godotPath = await ctx.detectGodotPath();
     if (!godotPath) {
       return createErrorResponse('Could not find Godot executable', [
         'Ensure Godot is installed correctly',
@@ -81,13 +78,13 @@ export const handleExportProject = async (args: BaseToolArgs): Promise<ToolRespo
 
     // Ensure output directory exists
     const outputDir = dirname(outputPath);
-    if (!existsSync(outputDir)) {
-      mkdirSync(outputDir, { recursive: true });
+    if (!ctx.existsSync(outputDir)) {
+      ctx.mkdirSync(outputDir, { recursive: true });
     }
 
-    logDebug(`Exporting project to: ${outputPath}`);
-    logDebug(`Using preset: ${typedArgs.preset}`);
-    logDebug(`Mode: ${mode}`);
+    ctx.logDebug(`Exporting project to: ${outputPath}`);
+    ctx.logDebug(`Using preset: ${typedArgs.preset}`);
+    ctx.logDebug(`Mode: ${mode}`);
 
     // Build export arguments
     const args = [
@@ -99,9 +96,9 @@ export const handleExportProject = async (args: BaseToolArgs): Promise<ToolRespo
       outputPath,
     ];
 
-    logDebug(`Executing via ProcessPool: ${godotPath} ${args.join(' ')}`);
+    ctx.logDebug(`Executing via ProcessPool: ${godotPath} ${args.join(' ')}`);
 
-    const pool = getGodotPool();
+    const pool = ctx.getGodotPool();
     const result = await pool.execute(godotPath, args, {
       cwd: typedArgs.projectPath,
       timeout: 300000, // 5 minute timeout for exports
@@ -137,7 +134,7 @@ export const handleExportProject = async (args: BaseToolArgs): Promise<ToolRespo
     }
 
     // Verify export was created
-    if (!existsSync(outputPath)) {
+    if (!ctx.existsSync(outputPath)) {
       return createErrorResponse('Export completed but output file not found', [
         'Check the output path is writable',
         'Verify the export preset is configured correctly',

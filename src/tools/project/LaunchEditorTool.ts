@@ -12,9 +12,8 @@ import {
   validateProjectPath,
   createSuccessResponse,
 } from '../BaseToolHandler.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { launchGodotEditor } from '../../core/ProcessManager.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   LaunchEditorSchema,
   LaunchEditorInput,
@@ -28,8 +27,8 @@ export const launchEditorDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(LaunchEditorSchema),
 };
 
-export const handleLaunchEditor = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleLaunchEditor = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(LaunchEditorSchema, preparedArgs);
@@ -41,13 +40,13 @@ export const handleLaunchEditor = async (args: BaseToolArgs): Promise<ToolRespon
 
   const typedArgs: LaunchEditorInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
   try {
-    const godotPath = await detectGodotPath();
+    const godotPath = await ctx.detectGodotPath();
     if (!godotPath) {
       return createErrorResponse('Could not find a valid Godot executable path', [
         'Ensure Godot is installed correctly',
@@ -55,7 +54,7 @@ export const handleLaunchEditor = async (args: BaseToolArgs): Promise<ToolRespon
       ]);
     }
 
-    launchGodotEditor(godotPath, typedArgs.projectPath);
+    ctx.launchGodotEditor(godotPath, typedArgs.projectPath);
 
     return createSuccessResponse(
       `Godot editor launched successfully for project at ${typedArgs.projectPath}.`,

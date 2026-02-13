@@ -13,9 +13,8 @@ import {
   createJsonResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { logDebug } from '../../utils/Logger.js';
-import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   ListExportPresetsSchema,
   ListExportPresetsInput,
@@ -130,8 +129,8 @@ function parseExportPresets(content: string): ExportPresetInfo[] {
   return presets;
 }
 
-export const handleListExportPresets = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleListExportPresets = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(ListExportPresetsSchema, preparedArgs);
@@ -143,7 +142,7 @@ export const handleListExportPresets = async (args: BaseToolArgs): Promise<ToolR
 
   const typedArgs: ListExportPresetsInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
@@ -152,7 +151,7 @@ export const handleListExportPresets = async (args: BaseToolArgs): Promise<ToolR
     const presetsPath = join(typedArgs.projectPath, 'export_presets.cfg');
 
     // Check if export_presets.cfg exists
-    if (!existsSync(presetsPath)) {
+    if (!ctx.existsSync(presetsPath)) {
       return createJsonResponse({
         projectPath: typedArgs.projectPath,
         presetsFile: 'export_presets.cfg',
@@ -162,9 +161,9 @@ export const handleListExportPresets = async (args: BaseToolArgs): Promise<ToolR
       });
     }
 
-    logDebug(`Reading export presets from: ${presetsPath}`);
+    ctx.logDebug(`Reading export presets from: ${presetsPath}`);
 
-    const content = readFileSync(presetsPath, 'utf-8');
+    const content = ctx.readFileSync(presetsPath, 'utf-8');
     const presets = parseExportPresets(content);
 
     // Sort by index for consistent ordering

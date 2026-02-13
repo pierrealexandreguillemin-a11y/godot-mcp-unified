@@ -14,9 +14,8 @@ import {
   createJsonResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { logDebug } from '../../utils/Logger.js';
-import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   ManageAutoloadsSchema,
   ManageAutoloadsInput,
@@ -112,8 +111,8 @@ function parseAutoloads(autoloadSection: Map<string, string> | undefined): Autol
   return autoloads;
 }
 
-export const handleManageAutoloads = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleManageAutoloads = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(ManageAutoloadsSchema, preparedArgs);
@@ -125,7 +124,7 @@ export const handleManageAutoloads = async (args: BaseToolArgs): Promise<ToolRes
 
   const typedArgs: ManageAutoloadsInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
@@ -133,7 +132,7 @@ export const handleManageAutoloads = async (args: BaseToolArgs): Promise<ToolRes
   const projectGodotPath = join(typedArgs.projectPath, 'project.godot');
 
   try {
-    const content = readFileSync(projectGodotPath, 'utf-8');
+    const content = ctx.readFileSync(projectGodotPath, 'utf-8');
     const sections = parseProjectGodot(content);
 
     // Ensure autoload section exists
@@ -175,7 +174,7 @@ export const handleManageAutoloads = async (args: BaseToolArgs): Promise<ToolRes
 
         // Verify file exists
         const autoloadFullPath = join(typedArgs.projectPath, typedArgs.path);
-        if (!existsSync(autoloadFullPath)) {
+        if (!ctx.existsSync(autoloadFullPath)) {
           return createErrorResponse(`File not found: ${typedArgs.path}`, [
             'Check the path is correct',
             'Create the script or scene first',
@@ -190,9 +189,9 @@ export const handleManageAutoloads = async (args: BaseToolArgs): Promise<ToolRes
 
         // Write back
         const serialized = serializeProjectGodot(sections);
-        writeFileSync(projectGodotPath, serialized, 'utf-8');
+        ctx.writeFileSync(projectGodotPath, serialized, 'utf-8');
 
-        logDebug(`Added autoload: ${typedArgs.name} -> ${resPath}`);
+        ctx.logDebug(`Added autoload: ${typedArgs.name} -> ${resPath}`);
 
         return createSuccessResponse(
           `Autoload added successfully!\n` +
@@ -221,9 +220,9 @@ export const handleManageAutoloads = async (args: BaseToolArgs): Promise<ToolRes
 
         // Write back
         const serialized = serializeProjectGodot(sections);
-        writeFileSync(projectGodotPath, serialized, 'utf-8');
+        ctx.writeFileSync(projectGodotPath, serialized, 'utf-8');
 
-        logDebug(`Removed autoload: ${typedArgs.name}`);
+        ctx.logDebug(`Removed autoload: ${typedArgs.name}`);
 
         return createSuccessResponse(
           `Autoload removed successfully!\n` +

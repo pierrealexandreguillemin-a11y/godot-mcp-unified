@@ -13,11 +13,8 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { logDebug } from '../../utils/Logger.js';
-import { getGodotPool } from '../../core/ProcessPool.js';
-import { existsSync, mkdirSync, statSync } from 'fs';
 import { dirname, join, extname } from 'path';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   ExportPackSchema,
   ExportPackInput,
@@ -31,8 +28,8 @@ export const exportPackDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(ExportPackSchema),
 };
 
-export const handleExportPack = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleExportPack = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(ExportPackSchema, preparedArgs);
@@ -45,7 +42,7 @@ export const handleExportPack = async (args: BaseToolArgs): Promise<ToolResponse
 
   const typedArgs: ExportPackInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
@@ -61,7 +58,7 @@ export const handleExportPack = async (args: BaseToolArgs): Promise<ToolResponse
 
   // Check if export_presets.cfg exists
   const presetsPath = join(typedArgs.projectPath, 'export_presets.cfg');
-  if (!existsSync(presetsPath)) {
+  if (!ctx.existsSync(presetsPath)) {
     return createErrorResponse('No export_presets.cfg found in project', [
       'Open the project in Godot editor',
       'Go to Project > Export and configure at least one preset',
@@ -70,7 +67,7 @@ export const handleExportPack = async (args: BaseToolArgs): Promise<ToolResponse
   }
 
   try {
-    const godotPath = await detectGodotPath();
+    const godotPath = await ctx.detectGodotPath();
     if (!godotPath) {
       return createErrorResponse('Could not find Godot executable', [
         'Ensure Godot is installed correctly',
@@ -87,12 +84,12 @@ export const handleExportPack = async (args: BaseToolArgs): Promise<ToolResponse
 
     // Ensure output directory exists
     const outputDir = dirname(outputPath);
-    if (!existsSync(outputDir)) {
-      mkdirSync(outputDir, { recursive: true });
+    if (!ctx.existsSync(outputDir)) {
+      ctx.mkdirSync(outputDir, { recursive: true });
     }
 
-    logDebug(`Exporting pack to: ${outputPath}`);
-    logDebug(`Using preset: ${typedArgs.preset}`);
+    ctx.logDebug(`Exporting pack to: ${outputPath}`);
+    ctx.logDebug(`Using preset: ${typedArgs.preset}`);
 
     // Build export arguments
     const cmdArgs = [
@@ -104,9 +101,9 @@ export const handleExportPack = async (args: BaseToolArgs): Promise<ToolResponse
       outputPath,
     ];
 
-    logDebug(`Executing via ProcessPool: ${godotPath} ${cmdArgs.join(' ')}`);
+    ctx.logDebug(`Executing via ProcessPool: ${godotPath} ${cmdArgs.join(' ')}`);
 
-    const pool = getGodotPool();
+    const pool = ctx.getGodotPool();
     const result = await pool.execute(godotPath, cmdArgs, {
       cwd: typedArgs.projectPath,
       timeout: 180000, // 3 minute timeout (faster than full export)
@@ -132,7 +129,7 @@ export const handleExportPack = async (args: BaseToolArgs): Promise<ToolResponse
     }
 
     // Verify export was created
-    if (!existsSync(outputPath)) {
+    if (!ctx.existsSync(outputPath)) {
       return createErrorResponse('Export completed but output file not found', [
         'Check the output path is writable',
         'Verify the export preset is configured correctly',
@@ -141,7 +138,7 @@ export const handleExportPack = async (args: BaseToolArgs): Promise<ToolResponse
     }
 
     // Get file size
-    const stats = statSync(outputPath);
+    const stats = ctx.statSync(outputPath);
     const sizeKB = Math.round(stats.size / 1024);
     const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
 

@@ -11,14 +11,14 @@
  * - TC-SEC: Security (validateCommandSecurity, shell:false)
  * - TC-EDGE: Edge cases
  *
- * Uses jest.mock (hoisted) for CJS-compatible mocking via ts-jest.
+ * Uses jest.unstable_mockModule for ESM-compatible mocking.
  */
 
-import { jest } from '@jest/globals';
+import { jest, describe, it, expect, beforeAll, beforeEach } from '@jest/globals';
 import { EventEmitter } from 'events';
 import type { ChildProcess } from 'child_process';
 
-// Track the mock spawn calls and mock processes
+// Track mock process state
 let currentMockProcess: EventEmitter & {
   kill: jest.Mock;
   pid: number;
@@ -41,8 +41,10 @@ function createMockProcess() {
   return proc;
 }
 
-// Use jest.mock (hoisted by Jest) instead of jest.unstable_mockModule
-jest.mock('child_process', () => ({
+const mockValidateCommandSecurity = jest.fn();
+
+// TOP-LEVEL mock registrations (synchronous, before any dynamic imports)
+jest.unstable_mockModule('child_process', () => ({
   spawn: (...args: unknown[]) => {
     currentMockProcess = createMockProcess();
     spawnCallArgs.push(args);
@@ -50,30 +52,38 @@ jest.mock('child_process', () => ({
   },
 }));
 
-const mockValidateCommandSecurity = jest.fn();
-jest.mock('./ProcessPool.js', () => ({
+jest.unstable_mockModule('./ProcessPool.js', () => ({
   validateCommandSecurity: (...args: unknown[]) => mockValidateCommandSecurity(...args),
   getGodotPool: jest.fn(),
 }));
 
-jest.mock('../utils/Logger.js', () => ({
+jest.unstable_mockModule('../utils/Logger.js', () => ({
   logDebug: jest.fn(),
   logError: jest.fn(),
   logInfo: jest.fn(),
   logWarn: jest.fn(),
 }));
 
-// Now import the module under test (mocks are hoisted above this)
-import {
-  getActiveProcess,
-  setActiveProcess,
-  hasActiveProcess,
-  stopActiveProcess,
-  cleanup,
-  runGodotProject,
-  launchGodotEditor,
-  type GodotProcess,
-} from './ProcessManager.js';
+// Type declarations for dynamically imported functions
+let getActiveProcess: typeof import('./ProcessManager.js')['getActiveProcess'];
+let setActiveProcess: typeof import('./ProcessManager.js')['setActiveProcess'];
+let hasActiveProcess: typeof import('./ProcessManager.js')['hasActiveProcess'];
+let stopActiveProcess: typeof import('./ProcessManager.js')['stopActiveProcess'];
+let cleanup: typeof import('./ProcessManager.js')['cleanup'];
+let runGodotProject: typeof import('./ProcessManager.js')['runGodotProject'];
+let launchGodotEditor: typeof import('./ProcessManager.js')['launchGodotEditor'];
+type GodotProcess = import('./ProcessManager.js').GodotProcess;
+
+beforeAll(async () => {
+  const mod = await import('./ProcessManager.js');
+  getActiveProcess = mod.getActiveProcess;
+  setActiveProcess = mod.setActiveProcess;
+  hasActiveProcess = mod.hasActiveProcess;
+  stopActiveProcess = mod.stopActiveProcess;
+  cleanup = mod.cleanup;
+  runGodotProject = mod.runGodotProject;
+  launchGodotEditor = mod.launchGodotEditor;
+});
 
 describe('ProcessManager', () => {
   beforeEach(() => {

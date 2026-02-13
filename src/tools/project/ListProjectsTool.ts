@@ -24,7 +24,7 @@ export const listProjectsDefinition: ToolDefinition = {
 };
 
 export const handleListProjects = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(ListProjectsSchema, preparedArgs);

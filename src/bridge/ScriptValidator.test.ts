@@ -3,61 +3,93 @@
  * ISO/IEC 29119 compliant test structure
  * Tests for validateViaLSP, validateViaBridge, validateScript, isRealTimeValidationAvailable
  * and convertLSPDiagnostics (internal function tested indirectly)
+ *
+ * Uses jest.unstable_mockModule + dynamic import for ESM compatibility
  */
 
-import { jest } from '@jest/globals';
+import { jest, describe, it, expect, beforeAll, beforeEach } from '@jest/globals';
 
-// Create mock functions at module scope so they can be referenced by mock factories
-const mockReadFileSync = jest.fn();
-const mockTryConnectToGodot = jest.fn();
-const mockGetGodotBridge = jest.fn();
-const mockTryConnectToLSP = jest.fn();
-const mockGetGodotLSPClient = jest.fn();
+// Create typed mock functions at module scope
+const mockReadFileSync = jest.fn<(...args: unknown[]) => string>();
+const mockTryConnectToGodot = jest.fn<() => Promise<boolean>>();
+const mockGetGodotBridge = jest.fn<() => unknown>();
+const mockTryConnectToLSP = jest.fn<() => Promise<boolean>>();
+const mockGetGodotLSPClient = jest.fn<() => unknown>();
 
-// Mock dependencies before imports (jest.mock is hoisted)
-jest.mock('fs', () => ({
+// Register mocks at top level BEFORE any import of ScriptValidator
+jest.unstable_mockModule('fs', () => ({
   readFileSync: mockReadFileSync,
 }));
 
-jest.mock('../utils/Logger.js', () => ({
+jest.unstable_mockModule('../utils/Logger.js', () => ({
   logDebug: jest.fn(),
   logInfo: jest.fn(),
   logWarn: jest.fn(),
   logError: jest.fn(),
 }));
 
-jest.mock('./index.js', () => ({
-  tryConnectToGodot: mockTryConnectToGodot,
+// Mock ALL modules that ./index.js re-exports from to prevent real code loading
+// via the barrel import. ScriptValidator.ts imports from ./index.js which loads all of these.
+jest.unstable_mockModule('./GodotBridge.js', () => ({
+  GodotBridge: jest.fn(),
   getGodotBridge: mockGetGodotBridge,
-  tryConnectToLSP: mockTryConnectToLSP,
-  getGodotLSPClient: mockGetGodotLSPClient,
+  tryConnectToGodot: mockTryConnectToGodot,
 }));
 
-// Static import - jest.mock is hoisted above this by Jest
-import {
-  validateViaLSP,
-  validateViaBridge,
-  validateScript,
-  isRealTimeValidationAvailable,
-} from './ScriptValidator.js';
+jest.unstable_mockModule('./GodotLSPClient.js', () => ({
+  GodotLSPClient: jest.fn(),
+  getGodotLSPClient: mockGetGodotLSPClient,
+  tryConnectToLSP: mockTryConnectToLSP,
+  DiagnosticSeverity: { Error: 1, Warning: 2, Information: 3, Hint: 4 },
+}));
+
+jest.unstable_mockModule('./GodotPluginBridge.js', () => ({
+  GodotPluginBridge: jest.fn(),
+  getGodotPluginBridge: jest.fn(),
+  resetGodotPluginBridge: jest.fn(),
+  tryConnectToPlugin: jest.fn(),
+}));
+
+jest.unstable_mockModule('./BridgeExecutor.js', () => ({
+  executeWithBridge: jest.fn(),
+  isBridgeAvailable: jest.fn(),
+  tryInitializeBridge: jest.fn(),
+}));
+
+jest.unstable_mockModule('./BridgeProtocol.js', () => ({}));
 
 // Helper to create a mock LSP client
 function createMockLspClient(diagnostics: unknown[] = []) {
   return {
-    pathToUri: jest.fn().mockReturnValue('file:///project/test.gd') as jest.Mock,
-    openDocument: jest.fn().mockResolvedValue(undefined as never) as jest.Mock,
-    getDiagnostics: jest.fn().mockReturnValue([]) as jest.Mock,
-    convertDiagnostics: jest.fn().mockReturnValue(diagnostics) as jest.Mock,
-    closeDocument: jest.fn().mockResolvedValue(undefined as never) as jest.Mock,
+    pathToUri: jest.fn<() => string>().mockReturnValue('file:///project/test.gd'),
+    openDocument: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
+    getDiagnostics: jest.fn<() => unknown[]>().mockReturnValue([]),
+    convertDiagnostics: jest.fn<() => unknown[]>().mockReturnValue(diagnostics),
+    closeDocument: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
   };
 }
 
 // Helper to create a mock Bridge
 function createMockBridge(errors: unknown[] = []) {
   return {
-    validateScript: jest.fn().mockResolvedValue({ errors } as never) as jest.Mock,
+    validateScript: jest.fn<(path: string) => Promise<{ errors: unknown[] }>>().mockResolvedValue({ errors }),
   };
 }
+
+// Type declarations for dynamically imported module exports
+let validateViaLSP: typeof import('./ScriptValidator.js')['validateViaLSP'];
+let validateViaBridge: typeof import('./ScriptValidator.js')['validateViaBridge'];
+let validateScript: typeof import('./ScriptValidator.js')['validateScript'];
+let isRealTimeValidationAvailable: typeof import('./ScriptValidator.js')['isRealTimeValidationAvailable'];
+
+// Dynamic import in beforeAll (AFTER mocks are registered)
+beforeAll(async () => {
+  const mod = await import('./ScriptValidator.js');
+  validateViaLSP = mod.validateViaLSP;
+  validateViaBridge = mod.validateViaBridge;
+  validateScript = mod.validateScript;
+  isRealTimeValidationAvailable = mod.isRealTimeValidationAvailable;
+});
 
 describe('ScriptValidator', () => {
   beforeEach(() => {
@@ -94,7 +126,7 @@ describe('ScriptValidator', () => {
 
   describe('validateViaLSP', () => {
     it('should return null when LSP connection fails', async () => {
-      mockTryConnectToLSP.mockResolvedValue(false as never);
+      mockTryConnectToLSP.mockResolvedValue(false);
 
       const result = await validateViaLSP('/project', 'scripts/player.gd');
 
@@ -103,8 +135,8 @@ describe('ScriptValidator', () => {
     });
 
     it('should validate script via LSP when connected', async () => {
-      mockTryConnectToLSP.mockResolvedValue(true as never);
-      mockReadFileSync.mockReturnValue('extends Node\n' as never);
+      mockTryConnectToLSP.mockResolvedValue(true);
+      mockReadFileSync.mockReturnValue('extends Node\n');
       mockGetGodotLSPClient.mockReturnValue(createMockLspClient());
 
       const result = await validateViaLSP('/project', 'scripts/player.gd');
@@ -115,8 +147,8 @@ describe('ScriptValidator', () => {
     }, 15000);
 
     it('should convert LSP diagnostics to ValidationError format', async () => {
-      mockTryConnectToLSP.mockResolvedValue(true as never);
-      mockReadFileSync.mockReturnValue('extends Node\n' as never);
+      mockTryConnectToLSP.mockResolvedValue(true);
+      mockReadFileSync.mockReturnValue('extends Node\n');
 
       const diagnostics = [
         { file: 'player.gd', line: 10, column: 5, message: 'Undefined var', severity: 'error' },
@@ -134,7 +166,7 @@ describe('ScriptValidator', () => {
     }, 15000);
 
     it('should return null when LSP throws an error', async () => {
-      mockTryConnectToLSP.mockResolvedValue(true as never);
+      mockTryConnectToLSP.mockResolvedValue(true);
       mockReadFileSync.mockImplementation(() => { throw new Error('File not found'); });
 
       const result = await validateViaLSP('/project', 'nonexistent.gd');
@@ -143,8 +175,8 @@ describe('ScriptValidator', () => {
     });
 
     it('should map severity correctly for non-error diagnostics', async () => {
-      mockTryConnectToLSP.mockResolvedValue(true as never);
-      mockReadFileSync.mockReturnValue('extends Node\n' as never);
+      mockTryConnectToLSP.mockResolvedValue(true);
+      mockReadFileSync.mockReturnValue('extends Node\n');
 
       const diagnostics = [
         { file: 'test.gd', line: 5, column: 1, message: 'Info msg', severity: 'info' },
@@ -162,7 +194,7 @@ describe('ScriptValidator', () => {
 
   describe('validateViaBridge', () => {
     it('should return null when Bridge connection fails', async () => {
-      mockTryConnectToGodot.mockResolvedValue(false as never);
+      mockTryConnectToGodot.mockResolvedValue(false);
 
       const result = await validateViaBridge('/project', 'scripts/player.gd');
 
@@ -171,7 +203,7 @@ describe('ScriptValidator', () => {
     });
 
     it('should validate script via Bridge when connected', async () => {
-      mockTryConnectToGodot.mockResolvedValue(true as never);
+      mockTryConnectToGodot.mockResolvedValue(true);
       mockGetGodotBridge.mockReturnValue(createMockBridge());
 
       const result = await validateViaBridge('/project', 'scripts/player.gd');
@@ -182,7 +214,7 @@ describe('ScriptValidator', () => {
     });
 
     it('should convert Bridge errors to ValidationError format', async () => {
-      mockTryConnectToGodot.mockResolvedValue(true as never);
+      mockTryConnectToGodot.mockResolvedValue(true);
 
       const bridgeErrors = [
         { line: 10, column: 5, message: 'Parse error' },
@@ -200,7 +232,7 @@ describe('ScriptValidator', () => {
     });
 
     it('should handle bridge error with missing line field', async () => {
-      mockTryConnectToGodot.mockResolvedValue(true as never);
+      mockTryConnectToGodot.mockResolvedValue(true);
 
       const bridgeErrors = [
         { message: 'Some error' }, // no line field
@@ -213,10 +245,10 @@ describe('ScriptValidator', () => {
     });
 
     it('should return null when Bridge throws an error', async () => {
-      mockTryConnectToGodot.mockResolvedValue(true as never);
+      mockTryConnectToGodot.mockResolvedValue(true);
 
       const mockBridge = {
-        validateScript: jest.fn().mockRejectedValue(new Error('Bridge disconnected') as never) as jest.Mock,
+        validateScript: jest.fn<() => Promise<never>>().mockRejectedValue(new Error('Bridge disconnected')),
       };
       mockGetGodotBridge.mockReturnValue(mockBridge);
 
@@ -226,7 +258,7 @@ describe('ScriptValidator', () => {
     });
 
     it('should construct correct res:// path from project and script paths', async () => {
-      mockTryConnectToGodot.mockResolvedValue(true as never);
+      mockTryConnectToGodot.mockResolvedValue(true);
 
       const mockBridge = createMockBridge();
       mockGetGodotBridge.mockReturnValue(mockBridge);
@@ -241,8 +273,8 @@ describe('ScriptValidator', () => {
 
   describe('validateScript', () => {
     it('should try LSP first by default', async () => {
-      mockTryConnectToLSP.mockResolvedValue(true as never);
-      mockReadFileSync.mockReturnValue('extends Node\n' as never);
+      mockTryConnectToLSP.mockResolvedValue(true);
+      mockReadFileSync.mockReturnValue('extends Node\n');
       mockGetGodotLSPClient.mockReturnValue(createMockLspClient());
 
       const result = await validateScript('/project', 'test.gd');
@@ -253,8 +285,8 @@ describe('ScriptValidator', () => {
     }, 15000);
 
     it('should fall back to Bridge when LSP fails', async () => {
-      mockTryConnectToLSP.mockResolvedValue(false as never);
-      mockTryConnectToGodot.mockResolvedValue(true as never);
+      mockTryConnectToLSP.mockResolvedValue(false);
+      mockTryConnectToGodot.mockResolvedValue(true);
       mockGetGodotBridge.mockReturnValue(createMockBridge());
 
       const result = await validateScript('/project', 'test.gd');
@@ -263,8 +295,8 @@ describe('ScriptValidator', () => {
     });
 
     it('should return null when both LSP and Bridge fail', async () => {
-      mockTryConnectToLSP.mockResolvedValue(false as never);
-      mockTryConnectToGodot.mockResolvedValue(false as never);
+      mockTryConnectToLSP.mockResolvedValue(false);
+      mockTryConnectToGodot.mockResolvedValue(false);
 
       const result = await validateScript('/project', 'test.gd');
 
@@ -272,7 +304,7 @@ describe('ScriptValidator', () => {
     });
 
     it('should skip LSP when useLSP is false', async () => {
-      mockTryConnectToGodot.mockResolvedValue(true as never);
+      mockTryConnectToGodot.mockResolvedValue(true);
       mockGetGodotBridge.mockReturnValue(createMockBridge());
 
       const result = await validateScript('/project', 'test.gd', { useLSP: false });
@@ -282,7 +314,7 @@ describe('ScriptValidator', () => {
     });
 
     it('should skip Bridge when useBridge is false', async () => {
-      mockTryConnectToLSP.mockResolvedValue(false as never);
+      mockTryConnectToLSP.mockResolvedValue(false);
 
       const result = await validateScript('/project', 'test.gd', { useBridge: false });
 
@@ -299,8 +331,8 @@ describe('ScriptValidator', () => {
     });
 
     it('should use default options when not provided', async () => {
-      mockTryConnectToLSP.mockResolvedValue(false as never);
-      mockTryConnectToGodot.mockResolvedValue(false as never);
+      mockTryConnectToLSP.mockResolvedValue(false);
+      mockTryConnectToGodot.mockResolvedValue(false);
 
       const result = await validateScript('/project', 'test.gd');
 
@@ -313,8 +345,8 @@ describe('ScriptValidator', () => {
 
   describe('isRealTimeValidationAvailable', () => {
     it('should return both true when LSP and Bridge are available', async () => {
-      mockTryConnectToLSP.mockResolvedValue(true as never);
-      mockTryConnectToGodot.mockResolvedValue(true as never);
+      mockTryConnectToLSP.mockResolvedValue(true);
+      mockTryConnectToGodot.mockResolvedValue(true);
 
       const result = await isRealTimeValidationAvailable();
 
@@ -322,8 +354,8 @@ describe('ScriptValidator', () => {
     });
 
     it('should return both false when neither is available', async () => {
-      mockTryConnectToLSP.mockResolvedValue(false as never);
-      mockTryConnectToGodot.mockResolvedValue(false as never);
+      mockTryConnectToLSP.mockResolvedValue(false);
+      mockTryConnectToGodot.mockResolvedValue(false);
 
       const result = await isRealTimeValidationAvailable();
 
@@ -331,8 +363,8 @@ describe('ScriptValidator', () => {
     });
 
     it('should return mixed results', async () => {
-      mockTryConnectToLSP.mockResolvedValue(true as never);
-      mockTryConnectToGodot.mockResolvedValue(false as never);
+      mockTryConnectToLSP.mockResolvedValue(true);
+      mockTryConnectToGodot.mockResolvedValue(false);
 
       const result = await isRealTimeValidationAvailable();
 
@@ -340,8 +372,8 @@ describe('ScriptValidator', () => {
     });
 
     it('should check both connections concurrently', async () => {
-      mockTryConnectToLSP.mockResolvedValue(false as never);
-      mockTryConnectToGodot.mockResolvedValue(true as never);
+      mockTryConnectToLSP.mockResolvedValue(false);
+      mockTryConnectToGodot.mockResolvedValue(true);
 
       const result = await isRealTimeValidationAvailable();
 

@@ -48,7 +48,7 @@ Le serveur detecte automatiquement si le plugin est connecte et utilise le mode 
 
 ## Ce que ce serveur permet de faire
 
-**TOUT faire dans Godot en langage naturel (82 outils + 20 resources + 20 prompts) :**
+**TOUT faire dans Godot en langage naturel (83 outils + 20 resources + 20 prompts) :**
 
 | Fonctionnalite | Description | Exemple |
 |----------------|-------------|---------|
@@ -142,13 +142,13 @@ ollmcp --model qwen2.5-coder:7b C:\Dev\godot-mcp-unified\build\index.js
 
 **Note:** Les modeles `-chess` ne sont PAS pour jouer aux echecs mais des assistants personnalises pour le developpement de chess-app avec system prompts FFE.
 
-## API Reference (82 outils + 20 resources + 20 prompts)
+## API Reference (83 outils + 20 resources + 20 prompts)
 
 ### Statistiques
 
 ```
 Primitives MCP:
-  Tools:     82/82   ████████████████████ 100%
+  Tools:     83/83   ████████████████████ 100%
   Resources: 20/20   ████████████████████ 100%
   Prompts:   20/20   ████████████████████ 100%
 
@@ -369,5 +369,5 @@ ollama rm nom_modele
 ---
 
 *Derniere mise a jour: 11 Fevrier 2026*
-*godot-mcp-unified v0.9.3 - 82 outils + 20 resources + 20 prompts*
+*godot-mcp-unified v0.9.3 - 83 outils + 20 resources + 20 prompts*
 *Coverage: 85% | Tests: 3170+ (69 suites) | ISO 25010/29119/5055/27001 compliant*

@@ -2,13 +2,13 @@
 
 > Plan d'implementation MCP complet - Conforme ISO 25010/29119/5055/12207
 
-**Version cible**: 1.0.0 | **Outils actuels**: 82 | **Resources**: 20 | **Prompts**: 20
+**Version cible**: 1.0.0 | **Outils actuels**: 83 | **Resources**: 20 | **Prompts**: 20
 
 ---
 
 ## Table des matieres
 
-1. [Etat actuel](#etat-actuel--82-outils-v093)
+1. [Etat actuel](#etat-actuel--83-outils-v093)
 2. [Plugin WebSocket](#plugin-websocket-v093)
 3. [Architecture MCP Complete](#architecture-mcp-complete)
 4. [Phase A: MCP Resources](#phase-a-mcp-resources-priorite-haute)
@@ -19,7 +19,7 @@
 
 ---
 
-## Etat actuel : 82 outils (v0.9.3)
+## Etat actuel : 83 outils (v0.9.3)
 
 ### Nouveaute v0.9.3: Plugin WebSocket
 
@@ -30,7 +30,7 @@ Voir [ARCHITECTURE_PLUGIN.md](docs/ARCHITECTURE_PLUGIN.md) pour details.
 Communication:
   Plugin Godot:      ✅ Implemente (addons/godot_mcp/)
   Bridge TypeScript: ✅ Implemente (src/bridge/GodotPluginBridge.ts)
-  Integration Tools: ✅ 47/82 outils avec executeWithBridge()
+  Integration Tools: ✅ 48/83 outils avec executeWithBridge()
   Validation GDScript: ✅ MCPValidator + MCPNodeFactory
   Tests:             ✅ 32 tests bridge (+ 3170 tests totaux)
 
@@ -53,20 +53,20 @@ Integration executeWithBridge:
 
 ---
 
-## Etat actuel : 82 outils
+## Etat actuel : 83 outils
 
 ### Progression globale
 
 ```
 Primitives MCP:
-  Tools implementes:      82/82   ██████████████████████████████ 100%
+  Tools implementes:      83/83   ██████████████████████████████ 100%
   Resources implementees: 20/20   ██████████████████████████████ 100%
   Prompts implementes:    20/20   ██████████████████████████████ 100%
 
 Qualite:
   Tests:                 3170+    ██████████████████████████████ 100% pass
   Coverage:               85%     ████████████████████████████░░  85%
-  ISO 5055 (Zod):        82/82   ██████████████████████████████ 100%
+  ISO 5055 (Zod):        83/83   ██████████████████████████████ 100%
   ISO 29119 (Suites):   69/69   ██████████████████████████████ 100%
   ISO 5055 (CC<15):     100%     ██████████████████████████████ 100%
 ```
@@ -106,7 +106,7 @@ Qualite:
 │                         MODEL CONTEXT PROTOCOL                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│   TOOLS (82 ✅)            RESOURCES (20 ✅)         PROMPTS (20 ✅)         │
+│   TOOLS (83 ✅)            RESOURCES (20 ✅)         PROMPTS (20 ✅)         │
 │   ─────────────────        ─────────────────        ─────────────────       │
 │   Actions executables      Donnees read-only        Templates reusables     │
 │   Client → Server          Server → Client          Server → Client         │
@@ -458,7 +458,7 @@ Use proper Godot 4 syntax and best practices.`
 ### Completion par Primitive
 
 ```
-TOOLS:      ████████████████████████████████████████ 100% (82/82)
+TOOLS:      ████████████████████████████████████████ 100% (83/83)
 RESOURCES:  ████████████████████████████████████████ 100% (20/20)
 PROMPTS:    ████████████████████████████████████████ 100% (20/20)
 
@@ -529,7 +529,7 @@ Sur 55 outils legacy prevus, **53 sont validement remplaces par des Prompts** (9
 | Caracteristique | Implementation | Mesure |
 |-----------------|----------------|--------|
 | **Fiabilite** | Tests Jest, error handling | 3170+ tests, 100% pass |
-| **Securite** | Validation Zod, path traversal, rate limiting | 82/82 outils valides |
+| **Securite** | Validation Zod, path traversal, rate limiting | 83/83 outils valides |
 | **Maintenabilite** | 1 fichier/outil, TypeScript strict | 100% modularite |
 | **Portabilite** | Cross-platform | Win/Mac/Linux |
 | **Performance** | ProcessPool, CircuitBreaker, LRU Cache | Token bucket rate limiting |
@@ -539,7 +539,7 @@ Sur 55 outils legacy prevus, **53 sont validement remplaces par des Prompts** (9
 | Type | Implementation | Couverture |
 |------|----------------|------------|
 | Unitaire | Jest + fixtures (3170+ tests) | 69 suites |
-| Integration | createTempProject mocks | 82 outils |
+| Integration | createTempProject mocks | 83 outils |
 | Conformite | ISO 29119 (validation, limites, integration) | 100% |
 
 ### ISO/IEC 5055 - Qualite code (CISQ)

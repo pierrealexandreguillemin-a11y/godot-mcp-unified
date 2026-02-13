@@ -303,7 +303,7 @@ module.exports = {
 | Nécessite Godot | Pour certaines ops | Non | Oui (éditeur) |
 | Validation types | Oui (via Godot) | Non | Oui |
 | Temps réel | Non | Non | Oui |
-| Nombre d'outils | 82 | ~20 | ~15 |
+| Nombre d'outils | 83 | ~20 | ~15 |
 | Resources MCP | 20 | Non | Non |
 | Prompts MCP | 20 | Non | Non |
 
@@ -311,7 +311,7 @@ module.exports = {
 
 1. **Flexibilité**: TscnParser pour ops rapides, GDScript pour ops complexes
 2. **Validation**: Godot valide les types de noeuds
-3. **Complétude**: 82 tools vs ~20 pour les autres
+3. **Complétude**: 83 tools vs ~20 pour les autres
 4. **Standards MCP**: Resources et Prompts implémentés
 
 ---

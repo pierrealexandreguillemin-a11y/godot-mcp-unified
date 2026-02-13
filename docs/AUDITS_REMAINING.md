@@ -370,7 +370,7 @@ export default function () {
 #### Checklist
 
 ```markdown
-- [ ] Documenter tous les 82 tools
+- [ ] Documenter tous les 83 tools
 - [ ] Documenter tous les 20 resources
 - [ ] Documenter tous les 20 prompts
 - [ ] Exemples pour chaque endpoint

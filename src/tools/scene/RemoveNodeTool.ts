@@ -14,10 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { executeOperation } from '../../core/GodotExecutor.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   RemoveNodeSchema,
   RemoveNodeInput,
@@ -31,8 +28,8 @@ export const removeNodeDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(RemoveNodeSchema),
 };
 
-export const handleRemoveNode = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleRemoveNode = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(RemoveNodeSchema, preparedArgs);
@@ -44,20 +41,20 @@ export const handleRemoveNode = async (args: BaseToolArgs): Promise<ToolResponse
 
   const typedArgs: RemoveNodeInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath, ctx);
   if (sceneValidationError) {
     return sceneValidationError;
   }
 
-  logDebug(`Removing node ${typedArgs.nodePath} from scene: ${typedArgs.scenePath}`);
+  ctx.logDebug(`Removing node ${typedArgs.nodePath} from scene: ${typedArgs.scenePath}`);
 
   // Try bridge first, fallback to GodotExecutor
-  return executeWithBridge(
+  return ctx.executeWithBridge(
     'remove_node',
     {
       node_path: typedArgs.nodePath,
@@ -65,7 +62,7 @@ export const handleRemoveNode = async (args: BaseToolArgs): Promise<ToolResponse
     async () => {
       // Fallback: traditional GodotExecutor method
       try {
-        const godotPath = await detectGodotPath();
+        const godotPath = await ctx.detectGodotPath();
         if (!godotPath) {
           return createErrorResponse('Could not find a valid Godot executable path', [
             'Ensure Godot is installed correctly',
@@ -78,7 +75,7 @@ export const handleRemoveNode = async (args: BaseToolArgs): Promise<ToolResponse
           nodePath: typedArgs.nodePath,
         };
 
-        const { stdout, stderr } = await executeOperation(
+        const { stdout, stderr } = await ctx.executeOperation(
           'remove_node',
           params,
           typedArgs.projectPath,

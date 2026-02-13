@@ -2,50 +2,17 @@
  * RemoveNodeTool Unit Tests
  * ISO/IEC 29119 compliant - covers uncovered lines 56-95
  *
- * These tests mock the Godot executor and path detection to exercise
- * the happy path (lines 56-92) and error handling (lines 93-95)
- * that require a running Godot instance in integration tests.
+ * Uses dependency injection via createMockContext instead of jest.mock().
+ * The handler accepts (args, ctx) where ctx is a ToolContext.
  */
 
-import { jest } from '@jest/globals';
+import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 import {
   createTempProject,
   getResponseText,
   isErrorResponse,
 } from '../test-utils.js';
-
-// Define mock functions at module scope BEFORE mock module declarations
-const mockDetectGodotPath = jest.fn<(...args: unknown[]) => Promise<string | null>>();
-const mockExecuteOperation = jest.fn<(...args: unknown[]) => Promise<{ stdout: string; stderr: string }>>();
-
-jest.mock('../../core/PathManager.js', () => ({
-  detectGodotPath: mockDetectGodotPath,
-  validatePath: jest.fn(() => true),
-  normalizePath: jest.fn((p: string) => p),
-  normalizeHandlerPaths: jest.fn(<T,>(args: T) => args),
-  isValidGodotPathSync: jest.fn(() => true),
-  isValidGodotPath: jest.fn(async () => true),
-  getPlatformGodotPaths: jest.fn(() => []),
-  clearPathCache: jest.fn(),
-  getPathCacheStats: jest.fn(() => ({ hits: 0, misses: 0, size: 0 })),
-}));
-
-jest.mock('../../core/GodotExecutor.js', () => ({
-  executeOperation: mockExecuteOperation,
-  getGodotVersion: jest.fn(async () => '4.2.stable'),
-  isGodot44OrLater: jest.fn(() => false),
-}));
-
-jest.mock('../../bridge/BridgeExecutor.js', () => ({
-  executeWithBridge: jest.fn(async (
-    _action: string,
-    _params: Record<string, unknown>,
-    fallback: () => Promise<unknown>,
-  ) => fallback()),
-  isBridgeAvailable: jest.fn(() => false),
-  tryInitializeBridge: jest.fn(async () => false),
-}));
-
+import { createMockContext } from '../ToolContext.js';
 import { handleRemoveNode } from './RemoveNodeTool.js';
 
 describe('RemoveNodeTool', () => {
@@ -56,7 +23,6 @@ describe('RemoveNodeTool', () => {
     const temp = createTempProject();
     projectPath = temp.projectPath;
     cleanup = temp.cleanup;
-    jest.clearAllMocks();
   });
 
   afterEach(() => {
@@ -65,58 +31,64 @@ describe('RemoveNodeTool', () => {
 
   describe('Validation', () => {
     it('should reject missing projectPath', async () => {
+      const ctx = createMockContext();
       const result = await handleRemoveNode({
         scenePath: 'scenes/main.tscn',
         nodePath: 'Player',
-      });
+      }, ctx);
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Validation failed');
     });
 
     it('should reject missing scenePath', async () => {
+      const ctx = createMockContext();
       const result = await handleRemoveNode({
         projectPath,
         nodePath: 'Player',
-      });
+      }, ctx);
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Validation failed');
     });
 
     it('should reject missing nodePath', async () => {
+      const ctx = createMockContext();
       const result = await handleRemoveNode({
         projectPath,
         scenePath: 'scenes/main.tscn',
-      });
+      }, ctx);
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Validation failed');
     });
 
     it('should reject empty nodePath', async () => {
+      const ctx = createMockContext();
       const result = await handleRemoveNode({
         projectPath,
         scenePath: 'scenes/main.tscn',
         nodePath: '',
-      });
+      }, ctx);
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Validation failed');
     });
 
     it('should reject empty scenePath', async () => {
+      const ctx = createMockContext();
       const result = await handleRemoveNode({
         projectPath,
         scenePath: '',
         nodePath: 'Player',
-      });
+      }, ctx);
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Validation failed');
     });
 
     it('should reject empty projectPath', async () => {
+      const ctx = createMockContext();
       const result = await handleRemoveNode({
         projectPath: '',
         scenePath: 'scenes/main.tscn',
         nodePath: 'Player',
-      });
+      }, ctx);
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Validation failed');
     });
@@ -124,21 +96,27 @@ describe('RemoveNodeTool', () => {
 
   describe('Security', () => {
     it('should reject path traversal in projectPath', async () => {
+      const ctx = createMockContext({
+        validatePath: () => false,
+      });
       const result = await handleRemoveNode({
         projectPath: '../../../etc',
         scenePath: 'scenes/main.tscn',
         nodePath: 'Player',
-      });
+      }, ctx);
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toMatch(/path traversal|Validation failed/i);
     });
 
     it('should reject path traversal in scenePath', async () => {
+      const ctx = createMockContext({
+        validatePath: (p: string) => !p.includes('..'),
+      });
       const result = await handleRemoveNode({
         projectPath,
         scenePath: '../../etc/passwd',
         nodePath: 'Player',
-      });
+      }, ctx);
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toMatch(/path traversal|Validation failed/i);
     });
@@ -146,30 +124,41 @@ describe('RemoveNodeTool', () => {
 
   describe('Happy Path', () => {
     it('should return error when Godot path is not found (line 59-64)', async () => {
-      mockDetectGodotPath.mockResolvedValue(null);
+      const ctx = createMockContext({
+        detectGodotPath: async () => null,
+      });
 
       const result = await handleRemoveNode({
         projectPath,
         scenePath: 'scenes/main.tscn',
         nodePath: 'Player',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Could not find a valid Godot executable path');
     });
 
     it('should successfully remove a node (lines 66-92)', async () => {
+      const mockDetectGodotPath = jest.fn<() => Promise<string | null>>();
+      const mockExecuteOperation = jest.fn<(...args: unknown[]) => Promise<{ stdout: string; stderr: string }>>();
+
       mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
       mockExecuteOperation.mockResolvedValue({
         stdout: 'Node removed successfully',
         stderr: '',
       });
 
+      const ctx = createMockContext({
+        detectGodotPath: mockDetectGodotPath,
+        executeOperation: mockExecuteOperation,
+        executeWithBridge: async (_action, _params, fallback) => fallback(),
+      });
+
       const result = await handleRemoveNode({
         projectPath,
         scenePath: 'scenes/main.tscn',
         nodePath: 'Player',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(false);
       expect(getResponseText(result)).toContain('Node removed successfully');
@@ -189,17 +178,26 @@ describe('RemoveNodeTool', () => {
     });
 
     it('should handle stderr with "Failed to" message (lines 82-88)', async () => {
+      const mockDetectGodotPath = jest.fn<() => Promise<string | null>>();
+      const mockExecuteOperation = jest.fn<(...args: unknown[]) => Promise<{ stdout: string; stderr: string }>>();
+
       mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
       mockExecuteOperation.mockResolvedValue({
         stdout: '',
         stderr: 'Failed to remove node: node not found in scene tree',
       });
 
+      const ctx = createMockContext({
+        detectGodotPath: mockDetectGodotPath,
+        executeOperation: mockExecuteOperation,
+        executeWithBridge: async (_action, _params, fallback) => fallback(),
+      });
+
       const result = await handleRemoveNode({
         projectPath,
         scenePath: 'scenes/main.tscn',
         nodePath: 'NonExistent',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Failed to remove node');
@@ -207,17 +205,26 @@ describe('RemoveNodeTool', () => {
     });
 
     it('should handle stderr without "Failed to" (success with warnings)', async () => {
+      const mockDetectGodotPath = jest.fn<() => Promise<string | null>>();
+      const mockExecuteOperation = jest.fn<(...args: unknown[]) => Promise<{ stdout: string; stderr: string }>>();
+
       mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
       mockExecuteOperation.mockResolvedValue({
         stdout: 'Done',
         stderr: 'WARNING: Some deprecation warning',
       });
 
+      const ctx = createMockContext({
+        detectGodotPath: mockDetectGodotPath,
+        executeOperation: mockExecuteOperation,
+        executeWithBridge: async (_action, _params, fallback) => fallback(),
+      });
+
       const result = await handleRemoveNode({
         projectPath,
         scenePath: 'scenes/main.tscn',
         nodePath: 'Player',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(false);
       expect(getResponseText(result)).toContain('Node removed successfully');
@@ -226,14 +233,23 @@ describe('RemoveNodeTool', () => {
 
   describe('Error Handling', () => {
     it('should handle Error thrown by executeOperation (lines 93-100)', async () => {
+      const mockDetectGodotPath = jest.fn<() => Promise<string | null>>();
+      const mockExecuteOperation = jest.fn<(...args: unknown[]) => Promise<{ stdout: string; stderr: string }>>();
+
       mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
       mockExecuteOperation.mockRejectedValue(new Error('Godot process crashed'));
+
+      const ctx = createMockContext({
+        detectGodotPath: mockDetectGodotPath,
+        executeOperation: mockExecuteOperation,
+        executeWithBridge: async (_action, _params, fallback) => fallback(),
+      });
 
       const result = await handleRemoveNode({
         projectPath,
         scenePath: 'scenes/main.tscn',
         nodePath: 'Player',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Failed to remove node');
@@ -241,14 +257,23 @@ describe('RemoveNodeTool', () => {
     });
 
     it('should handle non-Error thrown by executeOperation (line 94)', async () => {
+      const mockDetectGodotPath = jest.fn<() => Promise<string | null>>();
+      const mockExecuteOperation = jest.fn<(...args: unknown[]) => Promise<{ stdout: string; stderr: string }>>();
+
       mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
       mockExecuteOperation.mockRejectedValue('string error');
+
+      const ctx = createMockContext({
+        detectGodotPath: mockDetectGodotPath,
+        executeOperation: mockExecuteOperation,
+        executeWithBridge: async (_action, _params, fallback) => fallback(),
+      });
 
       const result = await handleRemoveNode({
         projectPath,
         scenePath: 'scenes/main.tscn',
         nodePath: 'Player',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Failed to remove node');
@@ -256,13 +281,19 @@ describe('RemoveNodeTool', () => {
     });
 
     it('should handle Error thrown by detectGodotPath', async () => {
+      const mockDetectGodotPath = jest.fn<() => Promise<string | null>>();
       mockDetectGodotPath.mockRejectedValue(new Error('Path detection failed'));
+
+      const ctx = createMockContext({
+        detectGodotPath: mockDetectGodotPath,
+        executeWithBridge: async (_action, _params, fallback) => fallback(),
+      });
 
       const result = await handleRemoveNode({
         projectPath,
         scenePath: 'scenes/main.tscn',
         nodePath: 'Player',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Failed to remove node');

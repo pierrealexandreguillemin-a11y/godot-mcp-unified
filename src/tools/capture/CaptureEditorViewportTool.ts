@@ -11,7 +11,6 @@ import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.j
 import {
   prepareToolArgs,
   validateProjectPath,
-  createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
@@ -51,8 +50,8 @@ export const handleCaptureEditorViewport = async (
     return projectValidationError;
   }
 
-  const viewport = typedArgs.viewport || '2d';
-  const outputPath = typedArgs.outputPath || 'screenshots/editor_viewport.png';
+  // Zod schema provides defaults: viewport='2d', outputPath='screenshots/editor_viewport.png'
+  const { viewport, outputPath } = typedArgs;
 
   logDebug(
     `Capturing editor ${viewport} viewport for project: ${typedArgs.projectPath}`,

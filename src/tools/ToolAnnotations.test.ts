@@ -56,16 +56,33 @@ describe('Tool Annotations', () => {
   });
 
   describe('readOnlyHint consistency', () => {
-    it('should have readOnlyHint matching readOnly field for every tool', () => {
+    // These tools are readOnly=true in the registry (available in READ_ONLY_MODE)
+    // but have real side effects (spawning/killing processes), so their MCP
+    // readOnlyHint is overridden to false for semantic correctness.
+    const sideEffectOverrides = new Set(['stop_project', 'launch_editor', 'run_project']);
+
+    it('should default readOnlyHint from readOnly field for standard tools', () => {
       for (const [name, registration] of registeredTools) {
+        if (sideEffectOverrides.has(name)) continue;
         const def = toolDefinitions.find((d) => d.name === name);
         expect(def).toBeDefined();
         expect(def!.annotations?.readOnlyHint).toBe(registration.readOnly);
       }
     });
 
-    it('should mark read-only tools with readOnlyHint: true', () => {
-      const readOnlyTools = registeredTools.filter(([, r]) => r.readOnly);
+    it('should override readOnlyHint to false for side-effect tools', () => {
+      for (const name of sideEffectOverrides) {
+        const registration = toolRegistry.get(name);
+        expect(registration?.readOnly).toBe(true); // registry says readOnly
+        const def = toolDefinitions.find((d) => d.name === name);
+        expect(def!.annotations?.readOnlyHint).toBe(false); // annotation overrides
+      }
+    });
+
+    it('should mark pure read-only tools with readOnlyHint: true', () => {
+      const readOnlyTools = registeredTools.filter(
+        ([name, r]) => r.readOnly && !sideEffectOverrides.has(name),
+      );
       for (const [name] of readOnlyTools) {
         const def = toolDefinitions.find((d) => d.name === name);
         expect(def!.annotations?.readOnlyHint).toBe(true);

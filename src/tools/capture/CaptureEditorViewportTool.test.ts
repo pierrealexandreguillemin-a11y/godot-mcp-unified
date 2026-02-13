@@ -13,13 +13,22 @@ import {
   isErrorResponse,
 } from '../test-utils.js';
 
-// Mock bridge to use fallback (no editor plugin in tests)
+// Define mock at module scope for per-test override
+const mockExecuteWithBridge = jest.fn<(
+  action: string,
+  params: Record<string, unknown>,
+  fallback: () => Promise<unknown>,
+) => Promise<unknown>>();
+
+// Default: bridge calls fallback (no editor plugin)
+mockExecuteWithBridge.mockImplementation(async (
+  _action: string,
+  _params: Record<string, unknown>,
+  fallback: () => Promise<unknown>,
+) => fallback());
+
 jest.mock('../../bridge/BridgeExecutor.js', () => ({
-  executeWithBridge: jest.fn(async (
-    _action: string,
-    _params: Record<string, unknown>,
-    fallback: () => Promise<unknown>,
-  ) => fallback()),
+  executeWithBridge: mockExecuteWithBridge,
   isBridgeAvailable: jest.fn(() => false),
   tryInitializeBridge: jest.fn(async () => false),
 }));
@@ -163,6 +172,74 @@ describe('CaptureEditorViewportTool', () => {
       });
 
       expect(isErrorResponse(result)).toBe(true);
+    });
+
+    it('should reject outputPath with path traversal', async () => {
+      const result = await handleCaptureEditorViewport({
+        projectPath,
+        outputPath: '../../etc/evil.png',
+      });
+
+      expect(isErrorResponse(result)).toBe(true);
+      expect(getResponseText(result)).toContain('traversal');
+    });
+  });
+
+  describe('Handler - Bridge Connected (Success)', () => {
+    it('should return bridge result when connected', async () => {
+      const bridgeResult = {
+        content: [{ type: 'text' as const, text: 'Screenshot saved to /tmp/viewport.png' }],
+      };
+      mockExecuteWithBridge.mockResolvedValueOnce(bridgeResult);
+
+      const result = await handleCaptureEditorViewport({
+        projectPath,
+        viewport: '2d',
+      });
+
+      expect(result).toEqual(bridgeResult);
+      expect(mockExecuteWithBridge).toHaveBeenCalledWith(
+        'capture_viewport',
+        { viewport: '2d', output_path: 'screenshots/editor_viewport.png' },
+        expect.any(Function),
+      );
+    });
+
+    it('should pass 3d viewport to bridge', async () => {
+      const bridgeResult = {
+        content: [{ type: 'text' as const, text: 'Screenshot saved' }],
+      };
+      mockExecuteWithBridge.mockResolvedValueOnce(bridgeResult);
+
+      await handleCaptureEditorViewport({
+        projectPath,
+        viewport: '3d',
+        outputPath: 'captures/3d.png',
+      });
+
+      expect(mockExecuteWithBridge).toHaveBeenCalledWith(
+        'capture_viewport',
+        { viewport: '3d', output_path: 'captures/3d.png' },
+        expect.any(Function),
+      );
+    });
+
+    it('should pass custom outputPath to bridge', async () => {
+      const bridgeResult = {
+        content: [{ type: 'text' as const, text: 'OK' }],
+      };
+      mockExecuteWithBridge.mockResolvedValueOnce(bridgeResult);
+
+      await handleCaptureEditorViewport({
+        projectPath,
+        outputPath: 'custom/path/shot.png',
+      });
+
+      expect(mockExecuteWithBridge).toHaveBeenCalledWith(
+        'capture_viewport',
+        { viewport: '2d', output_path: 'custom/path/shot.png' },
+        expect.any(Function),
+      );
     });
   });
 

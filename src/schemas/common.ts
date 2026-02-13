@@ -31,6 +31,14 @@ export const NodePathSchema = z.string()
   .min(1, 'Node path cannot be empty')
   .describe('Path to the node within the scene tree');
 
+/** Output file path - relative, no traversal allowed */
+export const OutputPathSchema = z.string()
+  .min(1, 'Output path cannot be empty')
+  .refine(
+    (path) => !path.includes('..'),
+    { message: 'Output path cannot contain ".." (path traversal)' }
+  );
+
 // ============================================================================
 // Vector Schemas
 // ============================================================================

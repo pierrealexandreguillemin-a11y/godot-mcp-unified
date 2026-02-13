@@ -50,46 +50,67 @@ func capture_viewport(params: Dictionary) -> Dictionary:
 	})
 
 
+## Maximum recursion depth for editor UI tree traversal.
+## The editor tree is typically 10-20 levels deep; 30 is a safe upper bound.
+const MAX_TREE_DEPTH := 30
+## Maximum recursion depth when searching for SubViewport under a matched node.
+const MAX_SUBVIEWPORT_DEPTH := 10
+
+## Known editor viewport class names per Godot version.
+## Add entries here if Godot renames internal classes in future versions.
+const VIEWPORT_2D_CLASSES: Array[String] = ["CanvasItemEditor", "CanvasItemEditorViewport"]
+const VIEWPORT_3D_CLASSES: Array[String] = ["Node3DEditor", "Node3DEditorViewport"]
+
+
 ## Get the 2D editor viewport
 func _get_editor_viewport_2d() -> SubViewport:
-	# Navigate the editor UI tree to find the 2D viewport
 	var base_control := _editor_interface.get_base_control()
-	return _find_viewport_in_tree(base_control, "CanvasItemEditor")
+	for class_hint in VIEWPORT_2D_CLASSES:
+		var vp := _find_viewport_in_tree(base_control, class_hint, 0)
+		if vp != null:
+			return vp
+	return null
 
 
 ## Get the 3D editor viewport
 func _get_editor_viewport_3d() -> SubViewport:
-	# Navigate the editor UI tree to find the 3D viewport
 	var base_control := _editor_interface.get_base_control()
-	return _find_viewport_in_tree(base_control, "Node3DEditor")
+	for class_hint in VIEWPORT_3D_CLASSES:
+		var vp := _find_viewport_in_tree(base_control, class_hint, 0)
+		if vp != null:
+			return vp
+	return null
 
 
-## Recursively search for a SubViewport under a node whose ancestor matches the hint
-func _find_viewport_in_tree(node: Node, class_hint: String) -> SubViewport:
-	if node == null:
+## Recursively search for a SubViewport under a node whose ancestor matches the hint.
+## Bounded to MAX_TREE_DEPTH to prevent runaway recursion.
+func _find_viewport_in_tree(node: Node, class_hint: String, depth: int) -> SubViewport:
+	if node == null or depth > MAX_TREE_DEPTH:
 		return null
 
-	# If this node matches the class hint, look for SubViewport children
-	if node.get_class() == class_hint or node.name.contains(class_hint):
-		var vp := _find_first_subviewport(node)
+	# Match by exact class name only (not substring) to avoid false positives
+	if node.get_class() == class_hint:
+		var vp := _find_first_subviewport(node, 0)
 		if vp != null:
 			return vp
 
 	# Recurse into children
 	for child in node.get_children():
-		var result := _find_viewport_in_tree(child, class_hint)
+		var result := _find_viewport_in_tree(child, class_hint, depth + 1)
 		if result != null:
 			return result
 
 	return null
 
 
-## Find the first SubViewport descendant
-func _find_first_subviewport(node: Node) -> SubViewport:
+## Find the first SubViewport descendant, bounded to MAX_SUBVIEWPORT_DEPTH.
+func _find_first_subviewport(node: Node, depth: int) -> SubViewport:
+	if depth > MAX_SUBVIEWPORT_DEPTH:
+		return null
 	if node is SubViewport:
 		return node as SubViewport
 	for child in node.get_children():
-		var result := _find_first_subviewport(child)
+		var result := _find_first_subviewport(child, depth + 1)
 		if result != null:
 			return result
 	return null

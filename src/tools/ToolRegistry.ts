@@ -866,15 +866,19 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
   system_health: { title: 'System Health Check', idempotentHint: true },
 
   // Debug tools
-  stop_project: { title: 'Stop Running Project', destructiveHint: true },
+  // stop_project: readOnly=true in registry (available in READ_ONLY_MODE) but
+  // MCP readOnlyHint=false because it kills a running process (side effect).
+  stop_project: { title: 'Stop Running Project', readOnlyHint: false, destructiveHint: true },
   get_debug_output: { title: 'Get Debug Output', idempotentHint: true },
   start_debug_stream: { title: 'Start Debug Stream', openWorldHint: true },
   stop_debug_stream: { title: 'Stop Debug Stream', destructiveHint: true },
   get_debug_stream_status: { title: 'Get Debug Stream Status', idempotentHint: true },
 
   // Project tools
-  launch_editor: { title: 'Launch Godot Editor', openWorldHint: true },
-  run_project: { title: 'Run Project', openWorldHint: true },
+  // launch_editor/run_project: readOnly=true in registry (no file modification)
+  // but MCP readOnlyHint=false because they spawn external processes (side effects).
+  launch_editor: { title: 'Launch Godot Editor', readOnlyHint: false, openWorldHint: true },
+  run_project: { title: 'Run Project', readOnlyHint: false, openWorldHint: true },
   list_projects: { title: 'List Projects', idempotentHint: true },
   get_project_info: { title: 'Get Project Info', idempotentHint: true },
   export_project: { title: 'Export Project', openWorldHint: true },
@@ -991,11 +995,13 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
 export const getAllToolDefinitions = (): ToolDefinition[] => {
   const allTools = Array.from(toolRegistry.values());
 
-  let filtered = allTools;
-  if (READ_ONLY_MODE) {
-    filtered = allTools.filter((tool) => tool.readOnly);
-    logInfo(`[READ_ONLY_MODE] Filtered ${allTools.length - filtered.length} write tools`);
-  }
+  const filtered = READ_ONLY_MODE
+    ? (() => {
+        const readOnlyTools = allTools.filter((tool) => tool.readOnly);
+        logInfo(`[READ_ONLY_MODE] Filtered ${allTools.length - readOnlyTools.length} write tools`);
+        return readOnlyTools;
+      })()
+    : allTools;
 
   return filtered.map((tool) => ({
     ...tool.definition,

@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { ProjectToolSchema, PathSchema } from './common.js';
+import { ProjectToolSchema, PathSchema, OutputPathSchema } from './common.js';
 
 // ============================================================================
 // System Tool Schemas
@@ -50,13 +50,13 @@ export const UpdateProjectUidsSchema = ProjectToolSchema.extend({});
 
 export const TakeScreenshotSchema = ProjectToolSchema.extend({
   scenePath: z.string().optional().describe('Specific scene to screenshot'),
-  outputPath: z.string().optional().describe('Where to save the screenshot (relative to project)'),
+  outputPath: OutputPathSchema.optional().describe('Where to save the screenshot (relative to project)'),
   delay: z.number().optional().describe('Delay in seconds before taking screenshot'),
 });
 
 export const CaptureEditorViewportSchema = ProjectToolSchema.extend({
   viewport: z.enum(['2d', '3d']).optional().default('2d').describe('Which editor viewport to capture (2d or 3d)'),
-  outputPath: z.string().optional().default('screenshots/editor_viewport.png').describe('Where to save the screenshot (relative to project)'),
+  outputPath: OutputPathSchema.optional().default('screenshots/editor_viewport.png').describe('Where to save the screenshot (relative to project)'),
 });
 
 // ============================================================================

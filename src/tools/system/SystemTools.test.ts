@@ -669,6 +669,14 @@ describe('SystemHealthTool', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // Mock process.memoryUsage to return controlled values (50% heap usage)
+    jest.spyOn(process, 'memoryUsage').mockReturnValue({
+      rss: 100 * 1024 * 1024,
+      heapTotal: 100 * 1024 * 1024,
+      heapUsed: 50 * 1024 * 1024,
+      external: 10 * 1024 * 1024,
+      arrayBuffers: 5 * 1024 * 1024,
+    });
     mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
     mockIsValidGodotPath.mockResolvedValue(true);
     mockGetGodotVersion.mockResolvedValue('4.2.stable');
@@ -680,7 +688,7 @@ describe('SystemHealthTool', () => {
   });
 
   afterEach(() => {
-    jest.resetAllMocks();
+    jest.restoreAllMocks();
   });
 
   describe('Tool Definition', () => {

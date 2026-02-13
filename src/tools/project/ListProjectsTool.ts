@@ -24,6 +24,14 @@ export const listProjectsDefinition: ToolDefinition = {
 };
 
 export const handleListProjects = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  // Check for path traversal on raw input before normalization resolves ".."
+  const rawDirectory = typeof args.directory === 'string' ? args.directory : '';
+  if (rawDirectory.includes('..')) {
+    return createErrorResponse('Path traversal not allowed in directory', [
+      'Provide a valid directory path without ".." references',
+    ]);
+  }
+
   const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation

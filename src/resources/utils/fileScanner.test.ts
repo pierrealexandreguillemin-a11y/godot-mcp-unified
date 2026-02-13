@@ -2,21 +2,31 @@
  * File Scanner Unit Tests
  * ISO/IEC 29119 compliant test structure
  * Tests for findFiles and findFilePaths with mocked filesystem
+ *
+ * Uses jest.unstable_mockModule + dynamic import for ESM compatibility.
  */
 
-import { jest } from '@jest/globals';
-import { readdirSync, statSync } from 'fs';
-import { findFiles, findFilePaths } from './fileScanner.js';
+import { jest, describe, it, expect, beforeAll, beforeEach } from '@jest/globals';
 
-// Mock fs module using jest.mock (hoisted, works with CJS modules like 'fs')
-jest.mock('fs', () => ({
-  readdirSync: jest.fn(),
-  statSync: jest.fn(),
+// Mock functions at module scope
+const mockReaddirSync = jest.fn<(...args: unknown[]) => string[]>();
+const mockStatSync = jest.fn<(...args: unknown[]) => unknown>();
+
+// Register mocks at TOP LEVEL (synchronous, ESM-compatible)
+jest.unstable_mockModule('fs', () => ({
+  readdirSync: mockReaddirSync,
+  statSync: mockStatSync,
 }));
 
-// Extract mock functions from the mocked fs module
-const mockReaddirSync = readdirSync as jest.Mock;
-const mockStatSync = statSync as jest.Mock;
+// Type declarations for dynamically imported functions
+let findFiles: typeof import('./fileScanner.js')['findFiles'];
+let findFilePaths: typeof import('./fileScanner.js')['findFilePaths'];
+
+beforeAll(async () => {
+  const mod = await import('./fileScanner.js');
+  findFiles = mod.findFiles;
+  findFilePaths = mod.findFilePaths;
+});
 
 // Helper to create a mock stat object
 function createMockStat(isDir: boolean, size = 1024, mtime = new Date('2024-01-01')) {
@@ -30,7 +40,8 @@ function createMockStat(isDir: boolean, size = 1024, mtime = new Date('2024-01-0
 
 describe('fileScanner', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    mockReaddirSync.mockReset();
+    mockStatSync.mockReset();
   });
 
   describe('findFiles', () => {

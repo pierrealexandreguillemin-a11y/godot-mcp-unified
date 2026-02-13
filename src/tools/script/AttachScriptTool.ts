@@ -14,9 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import { join } from 'path';
 import {
   AttachScriptSchema,
@@ -31,8 +29,8 @@ export const attachScriptDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(AttachScriptSchema),
 };
 
-export const handleAttachScript = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleAttachScript = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(AttachScriptSchema, preparedArgs);
@@ -44,20 +42,20 @@ export const handleAttachScript = async (args: BaseToolArgs): Promise<ToolRespon
 
   const typedArgs: AttachScriptInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath, ctx);
   if (sceneValidationError) {
     return sceneValidationError;
   }
 
-  logDebug(`Attaching script ${typedArgs.scriptPath} to node ${typedArgs.nodePath} in scene ${typedArgs.scenePath}`);
+  ctx.logDebug(`Attaching script ${typedArgs.scriptPath} to node ${typedArgs.nodePath} in scene ${typedArgs.scenePath}`);
 
   // Try bridge first, fallback to file manipulation
-  return executeWithBridge(
+  return ctx.executeWithBridge(
     'attach_script',
     {
       node_path: typedArgs.nodePath || '.',
@@ -69,7 +67,7 @@ export const handleAttachScript = async (args: BaseToolArgs): Promise<ToolRespon
         const scriptFullPath = join(typedArgs.projectPath, typedArgs.scriptPath);
 
         // Verify script exists
-        if (!existsSync(scriptFullPath)) {
+        if (!ctx.existsSync(scriptFullPath)) {
           return createErrorResponse(`Script file not found: ${typedArgs.scriptPath}`, [
             'Use write_script to create the script first',
             'Check the script path is correct',
@@ -79,7 +77,7 @@ export const handleAttachScript = async (args: BaseToolArgs): Promise<ToolRespon
         const sceneFullPath = join(typedArgs.projectPath, typedArgs.scenePath);
 
         // Read the scene file
-        let sceneContent = readFileSync(sceneFullPath, 'utf-8');
+        let sceneContent = ctx.readFileSync(sceneFullPath, 'utf-8');
 
         // Convert script path to res:// format
         const resScriptPath = `res://${typedArgs.scriptPath.replace(/\\/g, '/')}`;
@@ -176,7 +174,7 @@ export const handleAttachScript = async (args: BaseToolArgs): Promise<ToolRespon
         }
 
         // Write the modified scene
-        writeFileSync(sceneFullPath, sceneContent, 'utf-8');
+        ctx.writeFileSync(sceneFullPath, sceneContent, 'utf-8');
 
         return createSuccessResponse(
           `Script attached successfully!\n` +

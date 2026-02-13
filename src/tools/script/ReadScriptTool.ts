@@ -12,9 +12,7 @@ import {
   validateProjectPath,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
-import { readFileSync, existsSync } from 'fs';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import { join } from 'path';
 import {
   ReadScriptSchema,
@@ -29,8 +27,8 @@ export const readScriptDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(ReadScriptSchema),
 };
 
-export const handleReadScript = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleReadScript = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(ReadScriptSchema, preparedArgs);
@@ -42,15 +40,15 @@ export const handleReadScript = async (args: BaseToolArgs): Promise<ToolResponse
 
   const typedArgs: ReadScriptInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  logDebug(`Reading script: ${typedArgs.scriptPath}`);
+  ctx.logDebug(`Reading script: ${typedArgs.scriptPath}`);
 
   // Try bridge first, fallback to file read
-  return executeWithBridge(
+  return ctx.executeWithBridge(
     'get_script_content',
     {
       script_path: `res://${typedArgs.scriptPath.replace(/\\/g, '/')}`,
@@ -60,7 +58,7 @@ export const handleReadScript = async (args: BaseToolArgs): Promise<ToolResponse
       try {
         const fullPath = join(typedArgs.projectPath, typedArgs.scriptPath);
 
-        if (!existsSync(fullPath)) {
+        if (!ctx.existsSync(fullPath)) {
           return createErrorResponse(`Script file not found: ${typedArgs.scriptPath}`, [
             'Use list_scripts to find available scripts',
             'Check the script path is correct',
@@ -73,7 +71,7 @@ export const handleReadScript = async (args: BaseToolArgs): Promise<ToolResponse
           ]);
         }
 
-        const content = readFileSync(fullPath, 'utf-8');
+        const content = ctx.readFileSync(fullPath, 'utf-8');
         const lines = content.split('\n').length;
 
         return {

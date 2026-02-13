@@ -13,9 +13,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
-import { writeFileSync, existsSync, mkdirSync } from 'fs';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import { join, dirname } from 'path';
 import {
   WriteScriptSchema,
@@ -30,8 +28,8 @@ export const writeScriptDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(WriteScriptSchema),
 };
 
-export const handleWriteScript = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleWriteScript = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(WriteScriptSchema, preparedArgs);
@@ -43,7 +41,7 @@ export const handleWriteScript = async (args: BaseToolArgs): Promise<ToolRespons
 
   const typedArgs: WriteScriptInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
@@ -54,10 +52,10 @@ export const handleWriteScript = async (args: BaseToolArgs): Promise<ToolRespons
     scriptPath += '.gd';
   }
 
-  logDebug(`Writing script: ${scriptPath}`);
+  ctx.logDebug(`Writing script: ${scriptPath}`);
 
   // Try bridge first, fallback to file system
-  return executeWithBridge(
+  return ctx.executeWithBridge(
     'write_script',
     {
       script_path: `res://${scriptPath.replace(/\\/g, '/')}`,
@@ -68,7 +66,7 @@ export const handleWriteScript = async (args: BaseToolArgs): Promise<ToolRespons
       // Fallback: write directly to file system
       try {
         const fullPath = join(typedArgs.projectPath, scriptPath);
-        const fileExists = existsSync(fullPath);
+        const fileExists = ctx.existsSync(fullPath);
 
         // Check overwrite permission
         if (fileExists && typedArgs.overwrite === false) {
@@ -80,12 +78,12 @@ export const handleWriteScript = async (args: BaseToolArgs): Promise<ToolRespons
 
         // Create directory if needed
         const dir = dirname(fullPath);
-        if (!existsSync(dir)) {
-          mkdirSync(dir, { recursive: true });
+        if (!ctx.existsSync(dir)) {
+          ctx.mkdirSync(dir, { recursive: true });
         }
 
         // Write the script
-        writeFileSync(fullPath, typedArgs.content, 'utf-8');
+        ctx.writeFileSync(fullPath, typedArgs.content, 'utf-8');
 
         const action = fileExists ? 'updated' : 'created';
         const lines = typedArgs.content.split('\n').length;

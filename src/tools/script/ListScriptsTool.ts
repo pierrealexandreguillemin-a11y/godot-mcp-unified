@@ -13,9 +13,7 @@ import {
   createJsonResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
-import { readdirSync, statSync } from 'fs';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import { join, relative } from 'path';
 import {
   ListScriptsSchema,
@@ -37,9 +35,9 @@ export const listScriptsDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(ListScriptsSchema),
 };
 
-const findScripts = (basePath: string, currentPath: string, scripts: ScriptInfo[]): void => {
+const findScripts = (basePath: string, currentPath: string, scripts: ScriptInfo[], ctx: ToolContext): void => {
   try {
-    const entries = readdirSync(currentPath, { withFileTypes: true });
+    const entries = ctx.readdirSync(currentPath, { withFileTypes: true });
 
     for (const entry of entries) {
       // Skip hidden directories and .godot folder
@@ -50,9 +48,9 @@ const findScripts = (basePath: string, currentPath: string, scripts: ScriptInfo[
       const fullPath = join(currentPath, entry.name);
 
       if (entry.isDirectory()) {
-        findScripts(basePath, fullPath, scripts);
+        findScripts(basePath, fullPath, scripts, ctx);
       } else if (entry.isFile() && entry.name.endsWith('.gd')) {
-        const stats = statSync(fullPath);
+        const stats = ctx.statSync(fullPath);
         scripts.push({
           path: relative(basePath, fullPath).replace(/\\/g, '/'),
           name: entry.name,
@@ -66,8 +64,8 @@ const findScripts = (basePath: string, currentPath: string, scripts: ScriptInfo[
   }
 };
 
-export const handleListScripts = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleListScripts = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(ListScriptsSchema, preparedArgs);
@@ -79,15 +77,15 @@ export const handleListScripts = async (args: BaseToolArgs): Promise<ToolRespons
 
   const typedArgs: ListScriptsInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  logDebug(`Listing scripts in: ${typedArgs.directory || '/'}`);
+  ctx.logDebug(`Listing scripts in: ${typedArgs.directory || '/'}`);
 
   // Try bridge first, fallback to file system scan
-  return executeWithBridge(
+  return ctx.executeWithBridge(
     'list_scripts',
     {
       directory: typedArgs.directory || '',
@@ -100,7 +98,7 @@ export const handleListScripts = async (args: BaseToolArgs): Promise<ToolRespons
           : typedArgs.projectPath;
 
         const scripts: ScriptInfo[] = [];
-        findScripts(typedArgs.projectPath, searchPath, scripts);
+        findScripts(typedArgs.projectPath, searchPath, scripts, ctx);
 
         // Sort by path
         scripts.sort((a, b) => a.path.localeCompare(b.path));

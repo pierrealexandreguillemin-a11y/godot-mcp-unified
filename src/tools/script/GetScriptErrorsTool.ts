@@ -13,10 +13,7 @@ import {
   createJsonResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { logDebug, logInfo } from '../../utils/Logger.js';
-import { validateScript } from '../../bridge/index.js';
-import { getGodotPool } from '../../core/ProcessPool.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   GetScriptErrorsSchema,
   GetScriptErrorsInput,
@@ -85,8 +82,8 @@ const parseGodotOutput = (output: string): ScriptError[] => {
   return errors;
 };
 
-export const handleGetScriptErrors = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleGetScriptErrors = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(GetScriptErrorsSchema, preparedArgs);
@@ -98,7 +95,7 @@ export const handleGetScriptErrors = async (args: BaseToolArgs): Promise<ToolRes
 
   const typedArgs: GetScriptErrorsInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
@@ -106,10 +103,10 @@ export const handleGetScriptErrors = async (args: BaseToolArgs): Promise<ToolRes
   try {
     // Try real-time validation via LSP/Bridge first (if a specific script is provided)
     if (typedArgs.scriptPath) {
-      logDebug('Attempting real-time validation via LSP/Bridge...');
-      const bridgeResult = await validateScript(typedArgs.projectPath, typedArgs.scriptPath);
+      ctx.logDebug('Attempting real-time validation via LSP/Bridge...');
+      const bridgeResult = await ctx.validateScript(typedArgs.projectPath, typedArgs.scriptPath);
       if (bridgeResult) {
-        logInfo(`Script validated via ${bridgeResult.source}`);
+        ctx.logInfo(`Script validated via ${bridgeResult.source}`);
         const errorCount = bridgeResult.errors.filter(e => e.type === 'error').length;
         const warningCount = bridgeResult.errors.filter(e => e.type === 'warning').length;
         return createJsonResponse({
@@ -122,10 +119,10 @@ export const handleGetScriptErrors = async (args: BaseToolArgs): Promise<ToolRes
           errors: bridgeResult.errors,
         });
       }
-      logDebug('Real-time validation unavailable, falling back to CLI...');
+      ctx.logDebug('Real-time validation unavailable, falling back to CLI...');
     }
 
-    const godotPath = await detectGodotPath();
+    const godotPath = await ctx.detectGodotPath();
     if (!godotPath) {
       return createErrorResponse('Could not find a valid Godot executable path', [
         'Ensure Godot is installed correctly',
@@ -134,7 +131,7 @@ export const handleGetScriptErrors = async (args: BaseToolArgs): Promise<ToolRes
       ]);
     }
 
-    logDebug(`Checking script errors in: ${typedArgs.projectPath}`);
+    ctx.logDebug(`Checking script errors in: ${typedArgs.projectPath}`);
 
     // Run Godot in headless mode to check for script errors
     // The --check-only flag validates scripts without running
@@ -144,12 +141,12 @@ export const handleGetScriptErrors = async (args: BaseToolArgs): Promise<ToolRes
     //   - May not discover autoloads correctly
     //   - Can produce false positives for autoload-dependent scripts
     //   - Each script requires a new Godot instance
-    const args = ['--path', typedArgs.projectPath, '--headless', '--check-only', '--quit'];
+    const execArgs = ['--path', typedArgs.projectPath, '--headless', '--check-only', '--quit'];
 
-    logDebug(`Executing via ProcessPool: ${godotPath} ${args.join(' ')}`);
+    ctx.logDebug(`Executing via ProcessPool: ${godotPath} ${execArgs.join(' ')}`);
 
-    const pool = getGodotPool();
-    const result = await pool.execute(godotPath, args, {
+    const pool = ctx.getGodotPool();
+    const result = await pool.execute(godotPath, execArgs, {
       cwd: typedArgs.projectPath,
       timeout: 30000,
     });

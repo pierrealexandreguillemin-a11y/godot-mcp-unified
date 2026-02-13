@@ -14,9 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
-import { readFileSync, writeFileSync } from 'fs';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import { join } from 'path';
 import {
   DetachScriptSchema,
@@ -31,8 +29,8 @@ export const detachScriptDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(DetachScriptSchema),
 };
 
-export const handleDetachScript = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleDetachScript = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(DetachScriptSchema, preparedArgs);
@@ -44,20 +42,20 @@ export const handleDetachScript = async (args: BaseToolArgs): Promise<ToolRespon
 
   const typedArgs: DetachScriptInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath, ctx);
   if (sceneValidationError) {
     return sceneValidationError;
   }
 
-  logDebug(`Detaching script from node ${typedArgs.nodePath} in scene ${typedArgs.scenePath}`);
+  ctx.logDebug(`Detaching script from node ${typedArgs.nodePath} in scene ${typedArgs.scenePath}`);
 
   // Try bridge first, fallback to file manipulation
-  return executeWithBridge(
+  return ctx.executeWithBridge(
     'detach_script',
     {
       node_path: typedArgs.nodePath || '.',
@@ -68,7 +66,7 @@ export const handleDetachScript = async (args: BaseToolArgs): Promise<ToolRespon
         const sceneFullPath = join(typedArgs.projectPath, typedArgs.scenePath);
 
         // Read the scene file
-        let sceneContent = readFileSync(sceneFullPath, 'utf-8');
+        let sceneContent = ctx.readFileSync(sceneFullPath, 'utf-8');
 
         // For root node (nodePath is "." or empty)
         const isRootNode = typedArgs.nodePath === '.' || typedArgs.nodePath === '';
@@ -105,7 +103,7 @@ export const handleDetachScript = async (args: BaseToolArgs): Promise<ToolRespon
         }
 
         // Write the modified scene
-        writeFileSync(sceneFullPath, sceneContent, 'utf-8');
+        ctx.writeFileSync(sceneFullPath, sceneContent, 'utf-8');
 
         return createSuccessResponse(
           `Script detached successfully!\n` +

@@ -13,9 +13,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
-import { unlinkSync, existsSync } from 'fs';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import { join } from 'path';
 import {
   DeleteScriptSchema,
@@ -30,8 +28,8 @@ export const deleteScriptDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(DeleteScriptSchema),
 };
 
-export const handleDeleteScript = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleDeleteScript = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(DeleteScriptSchema, preparedArgs);
@@ -43,15 +41,15 @@ export const handleDeleteScript = async (args: BaseToolArgs): Promise<ToolRespon
 
   const typedArgs: DeleteScriptInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  logDebug(`Deleting script: ${typedArgs.scriptPath}`);
+  ctx.logDebug(`Deleting script: ${typedArgs.scriptPath}`);
 
   // Try bridge first, fallback to file deletion
-  return executeWithBridge(
+  return ctx.executeWithBridge(
     'delete_script',
     {
       script_path: typedArgs.scriptPath.replace(/\\/g, '/'),
@@ -61,7 +59,7 @@ export const handleDeleteScript = async (args: BaseToolArgs): Promise<ToolRespon
       try {
         const fullPath = join(typedArgs.projectPath, typedArgs.scriptPath);
 
-        if (!existsSync(fullPath)) {
+        if (!ctx.existsSync(fullPath)) {
           return createErrorResponse(`Script file not found: ${typedArgs.scriptPath}`, [
             'Use list_scripts to find available scripts',
             'Check the script path is correct',
@@ -75,7 +73,7 @@ export const handleDeleteScript = async (args: BaseToolArgs): Promise<ToolRespon
         }
 
         // Delete the file
-        unlinkSync(fullPath);
+        ctx.unlinkSync(fullPath);
 
         return createSuccessResponse(
           `Script deleted successfully: ${typedArgs.scriptPath}\n` +

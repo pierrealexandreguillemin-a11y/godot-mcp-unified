@@ -271,7 +271,7 @@ describe('ImportLdtkLevelTool', () => {
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Level not found');
       // Available levels are listed in the possible solutions (content[1])
-      const allText = result.content.map((c: any) => c.text).join(' ');
+      const allText = result.content.map((c: { text: string }) => c.text).join(' ');
       expect(allText).toContain('Level_0');
     });
 

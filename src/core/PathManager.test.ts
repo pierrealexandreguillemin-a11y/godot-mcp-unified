@@ -246,7 +246,7 @@ describe('PathManager', () => {
     it('should skip existence check for "godot" command', async () => {
       mockCache.get.mockReturnValue(undefined);
       const mockPool = { execute: jest.fn().mockResolvedValue({ stdout: '4.2.0' } as never) };
-      mockGetGodotPool.mockReturnValue(mockPool as any);
+      mockGetGodotPool.mockReturnValue(mockPool as unknown);
 
       const result = await isValidGodotPath('godot');
 
@@ -259,7 +259,7 @@ describe('PathManager', () => {
       mockCache.get.mockReturnValue(undefined);
       mockExistsSync.mockReturnValue(true);
       const mockPool = { execute: jest.fn().mockResolvedValue({ stdout: '4.2.0' } as never) };
-      mockGetGodotPool.mockReturnValue(mockPool as any);
+      mockGetGodotPool.mockReturnValue(mockPool as unknown);
 
       const result = await isValidGodotPath('/usr/bin/godot');
 
@@ -272,7 +272,7 @@ describe('PathManager', () => {
       mockCache.get.mockReturnValue(undefined);
       mockExistsSync.mockReturnValue(true);
       const mockPool = { execute: jest.fn().mockRejectedValue(new Error('Command failed') as never) };
-      mockGetGodotPool.mockReturnValue(mockPool as any);
+      mockGetGodotPool.mockReturnValue(mockPool as unknown);
 
       const result = await isValidGodotPath('/invalid/binary');
 
@@ -348,7 +348,7 @@ describe('PathManager', () => {
       mockCache.get.mockReturnValue(undefined);
       mockExistsSync.mockReturnValue(true);
       const mockPool = { execute: jest.fn().mockResolvedValue({ stdout: '4.2.0' } as never) };
-      mockGetGodotPool.mockReturnValue(mockPool as any);
+      mockGetGodotPool.mockReturnValue(mockPool as unknown);
 
       const result = await detectGodotPath('/custom/godot');
 
@@ -365,7 +365,7 @@ describe('PathManager', () => {
         return callCount > 1;
       });
       const mockPool = { execute: jest.fn().mockResolvedValue({ stdout: '4.2.0' } as never) };
-      mockGetGodotPool.mockReturnValue(mockPool as any);
+      mockGetGodotPool.mockReturnValue(mockPool as unknown);
       process.env.GODOT_PATH = '/env/godot';
 
       const result = await detectGodotPath('/invalid/godot');
@@ -378,7 +378,7 @@ describe('PathManager', () => {
       process.env.GODOT_PATH = '/env/godot';
       mockExistsSync.mockReturnValue(true);
       const mockPool = { execute: jest.fn().mockResolvedValue({ stdout: '4.2.0' } as never) };
-      mockGetGodotPool.mockReturnValue(mockPool as any);
+      mockGetGodotPool.mockReturnValue(mockPool as unknown);
 
       const result = await detectGodotPath();
 
@@ -390,7 +390,7 @@ describe('PathManager', () => {
       mockExistsSync.mockReturnValue(false);
       delete process.env.GODOT_PATH;
       const mockPool = { execute: jest.fn().mockRejectedValue(new Error('not found') as never) };
-      mockGetGodotPool.mockReturnValue(mockPool as any);
+      mockGetGodotPool.mockReturnValue(mockPool as unknown);
 
       // Suppress console.warn
       const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
@@ -406,7 +406,7 @@ describe('PathManager', () => {
       mockExistsSync.mockReturnValue(false);
       delete process.env.GODOT_PATH;
       const mockPool = { execute: jest.fn().mockRejectedValue(new Error('not found') as never) };
-      mockGetGodotPool.mockReturnValue(mockPool as any);
+      mockGetGodotPool.mockReturnValue(mockPool as unknown);
 
       const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
 
@@ -423,7 +423,7 @@ describe('PathManager', () => {
       mockExistsSync.mockReturnValue(false);
       delete process.env.GODOT_PATH;
       const mockPool = { execute: jest.fn().mockRejectedValue(new Error('not found') as never) };
-      mockGetGodotPool.mockReturnValue(mockPool as any);
+      mockGetGodotPool.mockReturnValue(mockPool as unknown);
 
       const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
 
@@ -439,7 +439,7 @@ describe('PathManager', () => {
       mockExistsSync.mockReturnValue(false);
       delete process.env.GODOT_PATH;
       const mockPool = { execute: jest.fn().mockRejectedValue(new Error('not found') as never) };
-      mockGetGodotPool.mockReturnValue(mockPool as any);
+      mockGetGodotPool.mockReturnValue(mockPool as unknown);
 
       const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
 
@@ -455,7 +455,7 @@ describe('PathManager', () => {
       mockExistsSync.mockReturnValue(false);
       delete process.env.GODOT_PATH;
       const mockPool = { execute: jest.fn().mockRejectedValue(new Error('not found') as never) };
-      mockGetGodotPool.mockReturnValue(mockPool as any);
+      mockGetGodotPool.mockReturnValue(mockPool as unknown);
 
       const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
 

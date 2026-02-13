@@ -42,7 +42,7 @@ describe('ToolRegistry', () => {
     });
 
     it('should have definition, handler, and readOnly in each entry', () => {
-      for (const [name, registration] of toolRegistry) {
+      for (const [_name, registration] of toolRegistry) {
         expect(registration).toHaveProperty('definition');
         expect(registration).toHaveProperty('handler');
         expect(registration).toHaveProperty('readOnly');

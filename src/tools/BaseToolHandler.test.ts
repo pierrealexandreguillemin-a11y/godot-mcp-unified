@@ -4,7 +4,6 @@
  * Tests for base tool handler utility functions
  */
 
-import { jest } from '@jest/globals';
 import { mkdtempSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';

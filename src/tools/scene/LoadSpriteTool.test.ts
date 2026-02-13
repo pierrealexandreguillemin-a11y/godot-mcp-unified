@@ -17,8 +17,8 @@ import {
 } from '../test-utils.js';
 
 // Define mock functions at module scope
-const mockDetectGodotPath = jest.fn<(...args: any[]) => Promise<string | null>>();
-const mockExecuteOperation = jest.fn<(...args: any[]) => Promise<{ stdout: string; stderr: string }>>();
+const mockDetectGodotPath = jest.fn<(...args: unknown[]) => Promise<string | null>>();
+const mockExecuteOperation = jest.fn<(...args: unknown[]) => Promise<{ stdout: string; stderr: string }>>();
 
 jest.mock('../../core/PathManager', () => ({
   detectGodotPath: mockDetectGodotPath,

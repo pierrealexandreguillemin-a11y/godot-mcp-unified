@@ -210,7 +210,7 @@ describe('ProjectResourceProvider', () => {
 
       const resources = await provider.listResources(projectPath);
 
-      const exportPreset = resources.find((r: any) => r.uri === RESOURCE_URIS.EXPORT_PRESETS);
+      const exportPreset = resources.find((r: { uri: string }) => r.uri === RESOURCE_URIS.EXPORT_PRESETS);
       expect(exportPreset).toBeUndefined();
     });
 
@@ -250,7 +250,7 @@ describe('ProjectResourceProvider', () => {
       const resources = await provider.listResources(projectPath);
 
       const rootResource = resources.find(
-        (r: any) => r.uri === `${RESOURCE_URIS.PROJECT_SETTINGS}root`
+        (r: { uri: string }) => r.uri === `${RESOURCE_URIS.PROJECT_SETTINGS}root`
       );
       expect(rootResource).toBeUndefined();
     });

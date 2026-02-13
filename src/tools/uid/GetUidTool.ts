@@ -14,11 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { executeOperation } from '../../core/GodotExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
-import { getGodotPool } from '../../core/ProcessPool.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   GetUidSchema,
   GetUidInput,
@@ -26,27 +22,14 @@ import {
   safeValidateInput,
 } from '../../core/ZodSchemas.js';
 
-/**
- * Check if Godot version is 4.4 or later
- */
-const isGodot44OrLater = (version: string): boolean => {
-  const versionMatch = version.match(/(\d+)\.(\d+)/);
-  if (!versionMatch) return false;
-
-  const major = parseInt(versionMatch[1]);
-  const minor = parseInt(versionMatch[2]);
-
-  return major > 4 || (major === 4 && minor >= 4);
-};
-
 export const getUidDefinition: ToolDefinition = {
   name: 'get_uid',
   description: 'Get the UID for a specific file in a Godot project (for Godot 4.4+)',
   inputSchema: toMcpSchema(GetUidSchema),
 };
 
-export const handleGetUid = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleGetUid = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(GetUidSchema, preparedArgs);
@@ -58,19 +41,19 @@ export const handleGetUid = async (args: BaseToolArgs): Promise<ToolResponse> =>
 
   const typedArgs: GetUidInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const fileValidationError = validateFilePath(typedArgs.projectPath, typedArgs.filePath);
+  const fileValidationError = validateFilePath(typedArgs.projectPath, typedArgs.filePath, ctx);
   if (fileValidationError) {
     return fileValidationError;
   }
 
   try {
     // Ensure Godot path is available
-    const godotPath = await detectGodotPath();
+    const godotPath = await ctx.detectGodotPath();
     if (!godotPath) {
       return createErrorResponse('Could not find a valid Godot executable path', [
         'Ensure Godot is installed correctly',
@@ -79,11 +62,11 @@ export const handleGetUid = async (args: BaseToolArgs): Promise<ToolResponse> =>
     }
 
     // Get Godot version to check if UIDs are supported
-    const pool = getGodotPool();
+    const pool = ctx.getGodotPool();
     const versionResult = await pool.execute(godotPath, ['--version'], { timeout: 10000 });
     const version = versionResult.stdout.trim();
 
-    if (!isGodot44OrLater(version)) {
+    if (!ctx.isGodot44OrLater(version)) {
       return createErrorResponse(
         `UIDs are only supported in Godot 4.4 or later. Current version: ${version}`,
         [
@@ -93,7 +76,7 @@ export const handleGetUid = async (args: BaseToolArgs): Promise<ToolResponse> =>
       );
     }
 
-    logDebug(`Getting UID for file: ${typedArgs.filePath} in project: ${typedArgs.projectPath}`);
+    ctx.logDebug(`Getting UID for file: ${typedArgs.filePath} in project: ${typedArgs.projectPath}`);
 
     // Prepare parameters for the operation
     const params = {
@@ -101,13 +84,13 @@ export const handleGetUid = async (args: BaseToolArgs): Promise<ToolResponse> =>
     };
 
     // Use bridge if available, fallback to GodotExecutor
-    return await executeWithBridge(
+    return await ctx.executeWithBridge(
       'get_uid',
       {
         file_path: typedArgs.filePath,
       },
       async () => {
-        const { stdout, stderr } = await executeOperation(
+        const { stdout, stderr } = await ctx.executeOperation(
           'get_uid',
           params,
           typedArgs.projectPath,

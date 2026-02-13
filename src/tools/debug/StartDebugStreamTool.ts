@@ -10,6 +10,7 @@ import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.j
 import { prepareToolArgs, createJsonResponse } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { debugStreamServer, DEFAULT_DEBUG_STREAM_PORT } from '../../debug/DebugStreamServer.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   StartDebugStreamSchema,
   StartDebugStreamInput,
@@ -30,8 +31,8 @@ export const startDebugStreamDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(StartDebugStreamSchema),
 };
 
-export const handleStartDebugStream = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleStartDebugStream = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(StartDebugStreamSchema, preparedArgs);

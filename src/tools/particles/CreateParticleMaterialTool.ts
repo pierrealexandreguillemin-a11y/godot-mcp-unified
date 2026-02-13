@@ -13,9 +13,8 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import * as fs from 'fs-extra';
 import * as path from 'path';
-import { logDebug } from '../../utils/Logger.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   CreateParticleMaterialSchema,
   CreateParticleMaterialInput,
@@ -29,8 +28,8 @@ export const createParticleMaterialDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(CreateParticleMaterialSchema),
 };
 
-export const handleCreateParticleMaterial = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleCreateParticleMaterial = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(CreateParticleMaterialSchema, preparedArgs);
@@ -49,7 +48,7 @@ export const handleCreateParticleMaterial = async (args: BaseToolArgs): Promise<
     ]);
   }
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
@@ -119,10 +118,10 @@ export const handleCreateParticleMaterial = async (args: BaseToolArgs): Promise<
     const materialFullPath = path.join(typedArgs.projectPath, typedArgs.materialPath);
     const materialDir = path.dirname(materialFullPath);
 
-    await fs.ensureDir(materialDir);
-    await fs.writeFile(materialFullPath, materialContent, 'utf-8');
+    await ctx.ensureDir(materialDir);
+    await ctx.writeFile(materialFullPath, materialContent, 'utf-8');
 
-    logDebug(`Created particle material at ${typedArgs.materialPath}`);
+    ctx.logDebug(`Created particle material at ${typedArgs.materialPath}`);
 
     return createSuccessResponse(
       `ParticleProcessMaterial created successfully at ${typedArgs.materialPath}\nEmission shape: ${typedArgs.emissionShape ?? 'point'}\nSpread: ${typedArgs.spread ?? 45}°`,

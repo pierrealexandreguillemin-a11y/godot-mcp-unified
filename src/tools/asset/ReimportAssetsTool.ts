@@ -13,9 +13,8 @@ import {
   createJsonResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { logDebug } from '../../utils/Logger.js';
-import { existsSync, unlinkSync, utimesSync, statSync } from 'fs';
 import { join } from 'path';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   ReimportAssetsSchema,
   ReimportAssetsInput,
@@ -50,25 +49,25 @@ export const reimportAssetsDefinition: ToolDefinition = {
 /**
  * Touch a file (update its modification time)
  */
-function touchFile(filePath: string): void {
+function touchFile(filePath: string, ctx: ToolContext): void {
   const now = new Date();
-  utimesSync(filePath, now, now);
+  ctx.utimesSync(filePath, now, now);
 }
 
 /**
  * Delete the .import file for an asset
  */
-function deleteImportFile(assetPath: string): boolean {
+function deleteImportFile(assetPath: string, ctx: ToolContext): boolean {
   const importPath = assetPath + '.import';
-  if (existsSync(importPath)) {
-    unlinkSync(importPath);
+  if (ctx.existsSync(importPath)) {
+    ctx.unlinkSync(importPath);
     return true;
   }
   return false;
 }
 
-export const handleReimportAssets = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleReimportAssets = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(ReimportAssetsSchema, preparedArgs);
@@ -91,7 +90,7 @@ export const handleReimportAssets = async (args: BaseToolArgs): Promise<ToolResp
   const method: ReimportMethod = 'touch'; // Default method
 
   // Validate project path
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
@@ -122,7 +121,7 @@ export const handleReimportAssets = async (args: BaseToolArgs): Promise<ToolResp
     const fullPath = join(typedArgs.projectPath, normalizedPath);
 
     // Check if asset exists
-    if (!existsSync(fullPath)) {
+    if (!ctx.existsSync(fullPath)) {
       results.push({
         path: assetPath,
         success: false,
@@ -135,7 +134,7 @@ export const handleReimportAssets = async (args: BaseToolArgs): Promise<ToolResp
 
     // Check if it's a file
     try {
-      const stat = statSync(fullPath);
+      const stat = ctx.statSync(fullPath);
       if (!stat.isFile()) {
         results.push({
           path: assetPath,
@@ -160,16 +159,16 @@ export const handleReimportAssets = async (args: BaseToolArgs): Promise<ToolResp
     // Apply reimport method
     try {
       if (method === 'touch') {
-        touchFile(fullPath);
-        logDebug(`Touched file: ${fullPath}`);
+        touchFile(fullPath, ctx);
+        ctx.logDebug(`Touched file: ${fullPath}`);
         results.push({
           path: assetPath,
           success: true,
           action: 'touched',
         });
       } else {
-        const hadImportFile = deleteImportFile(fullPath);
-        logDebug(`Deleted .import for: ${fullPath} (existed: ${hadImportFile})`);
+        const hadImportFile = deleteImportFile(fullPath, ctx);
+        ctx.logDebug(`Deleted .import for: ${fullPath} (existed: ${hadImportFile})`);
         results.push({
           path: assetPath,
           success: true,

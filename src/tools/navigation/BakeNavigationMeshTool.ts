@@ -13,9 +13,8 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import * as fs from 'fs-extra';
 import * as path from 'path';
-import { logDebug } from '../../utils/Logger.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   BakeNavigationMeshSchema,
   BakeNavigationMeshInput,
@@ -29,8 +28,8 @@ export const bakeNavigationMeshDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(BakeNavigationMeshSchema),
 };
 
-export const handleBakeNavigationMesh = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleBakeNavigationMesh = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(BakeNavigationMeshSchema, preparedArgs);
@@ -49,7 +48,7 @@ export const handleBakeNavigationMesh = async (args: BaseToolArgs): Promise<Tool
     ]);
   }
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
@@ -79,10 +78,10 @@ export const handleBakeNavigationMesh = async (args: BaseToolArgs): Promise<Tool
     const meshFullPath = path.join(typedArgs.projectPath, typedArgs.meshPath);
     const meshDir = path.dirname(meshFullPath);
 
-    await fs.ensureDir(meshDir);
-    await fs.writeFile(meshFullPath, meshContent, 'utf-8');
+    await ctx.ensureDir(meshDir);
+    await ctx.writeFile(meshFullPath, meshContent, 'utf-8');
 
-    logDebug(`Created ${resourceType} at ${typedArgs.meshPath}`);
+    ctx.logDebug(`Created ${resourceType} at ${typedArgs.meshPath}`);
 
     return createSuccessResponse(
       `${resourceType} created successfully at ${typedArgs.meshPath}\nAgent radius: ${typedArgs.agentRadius ?? 0.5}`,

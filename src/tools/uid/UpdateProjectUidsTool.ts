@@ -13,10 +13,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { executeOperation, getGodotVersion, isGodot44OrLater } from '../../core/GodotExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   UpdateProjectUidsSchema,
   UpdateProjectUidsInput,
@@ -33,9 +30,9 @@ export const updateProjectUidsDefinition: ToolDefinition = {
 /**
  * Handle the update_project_uids tool
  */
-export const handleUpdateProjectUids = async (args: BaseToolArgs): Promise<ToolResponse> => {
+export const handleUpdateProjectUids = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
   // Validate and normalize arguments
-  const preparedArgs = prepareToolArgs(args);
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(UpdateProjectUidsSchema, preparedArgs);
@@ -48,14 +45,14 @@ export const handleUpdateProjectUids = async (args: BaseToolArgs): Promise<ToolR
   const typedArgs: UpdateProjectUidsInput = validation.data;
 
   // Validate project path
-  const projectValidation = validateProjectPath(typedArgs.projectPath);
+  const projectValidation = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidation) {
     return projectValidation;
   }
 
   try {
     // Ensure Godot path is available
-    const godotPath = await detectGodotPath();
+    const godotPath = await ctx.detectGodotPath();
     if (!godotPath) {
       return createErrorResponse('Could not find a valid Godot executable path', [
         'Ensure Godot is installed correctly',
@@ -64,8 +61,8 @@ export const handleUpdateProjectUids = async (args: BaseToolArgs): Promise<ToolR
     }
 
     // Get Godot version to check if UIDs are supported
-    const version = await getGodotVersion(godotPath);
-    if (!isGodot44OrLater(version)) {
+    const version = await ctx.getGodotVersion(godotPath);
+    if (!ctx.isGodot44OrLater(version)) {
       return createErrorResponse(
         `UIDs are only supported in Godot 4.4 or later. Current version: ${version}`,
         [
@@ -75,7 +72,7 @@ export const handleUpdateProjectUids = async (args: BaseToolArgs): Promise<ToolR
       );
     }
 
-    logDebug(`Updating project UIDs for: ${typedArgs.projectPath}`);
+    ctx.logDebug(`Updating project UIDs for: ${typedArgs.projectPath}`);
 
     // Prepare parameters for the operation
     const params = {
@@ -83,13 +80,13 @@ export const handleUpdateProjectUids = async (args: BaseToolArgs): Promise<ToolR
     };
 
     // Use bridge if available, fallback to GodotExecutor
-    return await executeWithBridge(
+    return await ctx.executeWithBridge(
       'resave_resources',
       {
         project_path: typedArgs.projectPath,
       },
       async () => {
-        const { stdout, stderr } = await executeOperation(
+        const { stdout, stderr } = await ctx.executeOperation(
           'resave_resources',
           params,
           typedArgs.projectPath,

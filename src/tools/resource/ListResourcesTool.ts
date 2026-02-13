@@ -13,9 +13,8 @@ import {
   createJsonResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { logDebug } from '../../utils/Logger.js';
-import { readdirSync, statSync, readFileSync } from 'fs';
 import { join, extname, relative } from 'path';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   ListResourcesSchema,
   ListResourcesInput,
@@ -50,9 +49,9 @@ export const listResourcesDefinition: ToolDefinition = {
 /**
  * Extract resource type from .tres file
  */
-function extractResourceType(filePath: string): string | undefined {
+function extractResourceType(filePath: string, ctx: ToolContext): string | undefined {
   try {
-    const content = readFileSync(filePath, 'utf-8');
+    const content = ctx.readFileSync(filePath, 'utf-8');
     // Look for [gd_resource type="ResourceType" ...]
     const typeMatch = content.match(/\[gd_resource\s+type="([^"]+)"/);
     if (typeMatch) {
@@ -78,37 +77,38 @@ function extractResourceType(filePath: string): string | undefined {
 function scanForResources(
   basePath: string,
   currentPath: string,
-  recursive: boolean
+  recursive: boolean,
+  ctx: ToolContext
 ): ResourceInfo[] {
   const resources: ResourceInfo[] = [];
 
   try {
-    const entries = readdirSync(currentPath);
+    const entries = ctx.readdirSync(currentPath, { withFileTypes: true });
 
     for (const entry of entries) {
+      const entryName = entry.name;
       // Skip hidden files/directories and .godot folder
-      if (entry.startsWith('.') || entry === 'addons') {
+      if (entryName.startsWith('.') || entryName === 'addons') {
         continue;
       }
 
-      const fullPath = join(currentPath, entry);
+      const fullPath = join(currentPath, entryName);
 
       try {
-        const stat = statSync(fullPath);
-
-        if (stat.isDirectory()) {
+        if (entry.isDirectory()) {
           if (recursive) {
-            resources.push(...scanForResources(basePath, fullPath, recursive));
+            resources.push(...scanForResources(basePath, fullPath, recursive, ctx));
           }
         } else {
-          const ext = extname(entry).toLowerCase();
+          const ext = extname(entryName).toLowerCase();
           if (ext === '.tres' || ext === '.res') {
             const relativePath = relative(basePath, fullPath).replace(/\\/g, '/');
-            const resourceType = ext === '.tres' ? extractResourceType(fullPath) : undefined;
+            const resourceType = ext === '.tres' ? extractResourceType(fullPath, ctx) : undefined;
+            const stat = ctx.statSync(fullPath);
 
             resources.push({
               path: relativePath,
-              name: entry.replace(ext, ''),
+              name: entryName.replace(ext, ''),
               size: stat.size,
               modified: stat.mtime.toISOString(),
               format: ext === '.tres' ? 'tres' : 'res',
@@ -118,18 +118,18 @@ function scanForResources(
         }
       } catch {
         // Skip files we can't access
-        logDebug(`Could not access: ${fullPath}`);
+        ctx.logDebug(`Could not access: ${fullPath}`);
       }
     }
   } catch (error) {
-    logDebug(`Could not read directory: ${currentPath}, error: ${error}`);
+    ctx.logDebug(`Could not read directory: ${currentPath}, error: ${error}`);
   }
 
   return resources;
 }
 
-export const handleListResources = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleListResources = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(ListResourcesSchema, preparedArgs);
@@ -141,7 +141,7 @@ export const handleListResources = async (args: BaseToolArgs): Promise<ToolRespo
 
   const typedArgs: ListResourcesInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
@@ -153,9 +153,9 @@ export const handleListResources = async (args: BaseToolArgs): Promise<ToolRespo
       ? join(typedArgs.projectPath, directory)
       : typedArgs.projectPath;
 
-    logDebug(`Listing resources in: ${searchPath} (recursive: ${recursive})`);
+    ctx.logDebug(`Listing resources in: ${searchPath} (recursive: ${recursive})`);
 
-    let resources = scanForResources(typedArgs.projectPath, searchPath, recursive);
+    let resources = scanForResources(typedArgs.projectPath, searchPath, recursive, ctx);
 
     // Filter by resource type if specified
     if (typedArgs.resourceType) {

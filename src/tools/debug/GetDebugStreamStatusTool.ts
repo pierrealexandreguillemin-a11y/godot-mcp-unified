@@ -9,6 +9,7 @@
 import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import { createJsonResponse } from '../BaseToolHandler.js';
 import { debugStreamServer, DebugStreamStatus } from '../../debug/DebugStreamServer.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import { GetDebugStreamStatusSchema, toMcpSchema } from '../../core/ZodSchemas.js';
 
 export interface GetDebugStreamStatusResult extends DebugStreamStatus {
@@ -21,7 +22,7 @@ export const getDebugStreamStatusDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(GetDebugStreamStatusSchema),
 };
 
-export const handleGetDebugStreamStatus = async (_args: BaseToolArgs): Promise<ToolResponse> => {
+export const handleGetDebugStreamStatus = async (_args: BaseToolArgs, _ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
   const status = debugStreamServer.getStatus();
 
   const result: GetDebugStreamStatusResult = {

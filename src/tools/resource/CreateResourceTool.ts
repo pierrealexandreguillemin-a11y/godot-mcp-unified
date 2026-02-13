@@ -13,9 +13,8 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { logDebug } from '../../utils/Logger.js';
-import { writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   CreateResourceSchema,
   CreateResourceInput,
@@ -181,8 +180,8 @@ function generateTresContent(resourceType: ResourceType, properties: Record<stri
   return lines.join('\n');
 }
 
-export const handleCreateResource = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleCreateResource = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(CreateResourceSchema, preparedArgs);
@@ -194,7 +193,7 @@ export const handleCreateResource = async (args: BaseToolArgs): Promise<ToolResp
 
   const typedArgs: CreateResourceInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
@@ -208,7 +207,7 @@ export const handleCreateResource = async (args: BaseToolArgs): Promise<ToolResp
   const resourceFullPath = join(typedArgs.projectPath, resourcePath);
 
   // Check if file already exists
-  if (existsSync(resourceFullPath)) {
+  if (ctx.existsSync(resourceFullPath)) {
     return createErrorResponse(`Resource already exists: ${resourcePath}`, [
       'Use a different path',
       'Delete the existing resource first',
@@ -218,17 +217,17 @@ export const handleCreateResource = async (args: BaseToolArgs): Promise<ToolResp
   try {
     // Ensure directory exists
     const dir = dirname(resourceFullPath);
-    if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true });
+    if (!ctx.existsSync(dir)) {
+      ctx.mkdirSync(dir, { recursive: true });
     }
 
-    logDebug(`Creating ${typedArgs.resourceType} resource at: ${resourcePath}`);
+    ctx.logDebug(`Creating ${typedArgs.resourceType} resource at: ${resourcePath}`);
 
     // Generate content
     const content = generateTresContent(typedArgs.resourceType, typedArgs.properties || {});
 
     // Write file
-    writeFileSync(resourceFullPath, content, 'utf-8');
+    ctx.writeFileSync(resourceFullPath, content, 'utf-8');
 
     return createSuccessResponse(
       `Resource created successfully!\n` +

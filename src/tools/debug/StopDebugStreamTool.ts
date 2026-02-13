@@ -10,6 +10,7 @@ import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.j
 import { createJsonResponse } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { debugStreamServer } from '../../debug/DebugStreamServer.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import { StopDebugStreamSchema, toMcpSchema } from '../../core/ZodSchemas.js';
 
 export interface StopDebugStreamResult {
@@ -23,7 +24,7 @@ export const stopDebugStreamDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(StopDebugStreamSchema),
 };
 
-export const handleStopDebugStream = async (_args: BaseToolArgs): Promise<ToolResponse> => {
+export const handleStopDebugStream = async (_args: BaseToolArgs, _ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
   try {
     const status = debugStreamServer.getStatus();
     const clientCount = status.clientCount;

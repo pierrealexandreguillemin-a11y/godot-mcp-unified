@@ -13,7 +13,7 @@ import {
   createJsonResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { logDebug, logError } from '../../utils/Logger.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   BatchOperationsSchema,
   BatchOperationsInput,
@@ -110,7 +110,8 @@ async function validateOperation(
 async function executeOperation(
   operation: BatchOperation,
   index: number,
-  projectPath: string
+  projectPath: string,
+  ctx: ToolContext
 ): Promise<BatchOperationResult> {
   const startTime = Date.now();
 
@@ -134,7 +135,7 @@ async function executeOperation(
       projectPath: operation.args.projectPath ?? projectPath,
     };
 
-    logDebug(`Batch: Executing operation ${index} - ${operation.tool}`);
+    ctx.logDebug(`Batch: Executing operation ${index} - ${operation.tool}`);
     const response = await handler(argsWithProject);
 
     // Use response.isError for reliable error detection
@@ -160,7 +161,7 @@ async function executeOperation(
     };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    logError(`Batch: Operation ${index} (${operation.tool}) failed: ${errorMessage}`);
+    ctx.logError(`Batch: Operation ${index} (${operation.tool}) failed: ${errorMessage}`);
 
     return {
       index,
@@ -173,8 +174,8 @@ async function executeOperation(
   }
 }
 
-export const handleBatchOperations = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleBatchOperations = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation (replaces validateBasicArgs + array/empty checks)
   const validation = safeValidateInput(BatchOperationsSchema, preparedArgs);
@@ -208,7 +209,7 @@ export const handleBatchOperations = async (args: BaseToolArgs): Promise<ToolRes
   }
 
   // Validate project path
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
@@ -219,12 +220,12 @@ export const handleBatchOperations = async (args: BaseToolArgs): Promise<ToolRes
   let failureCount = 0;
   let stoppedEarly = false;
 
-  logDebug(`Batch: Starting execution of ${typedArgs.operations.length} operations`);
+  ctx.logDebug(`Batch: Starting execution of ${typedArgs.operations.length} operations`);
 
   // Execute operations sequentially
   for (let i = 0; i < typedArgs.operations.length; i++) {
     const operation = typedArgs.operations[i];
-    const result = await executeOperation(operation, i, typedArgs.projectPath);
+    const result = await executeOperation(operation, i, typedArgs.projectPath, ctx);
     results.push(result);
 
     if (result.success) {
@@ -233,7 +234,7 @@ export const handleBatchOperations = async (args: BaseToolArgs): Promise<ToolRes
       failureCount++;
       if (stopOnError) {
         stoppedEarly = true;
-        logDebug(`Batch: Stopping early due to error at operation ${i}`);
+        ctx.logDebug(`Batch: Stopping early due to error at operation ${i}`);
         break;
       }
     }
@@ -248,7 +249,7 @@ export const handleBatchOperations = async (args: BaseToolArgs): Promise<ToolRes
     results,
   };
 
-  logDebug(
+  ctx.logDebug(
     `Batch: Completed - ${successCount}/${typedArgs.operations.length} successful` +
       (stoppedEarly ? ' (stopped early)' : '')
   );

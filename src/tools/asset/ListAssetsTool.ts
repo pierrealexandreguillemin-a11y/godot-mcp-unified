@@ -13,9 +13,8 @@ import {
   createJsonResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { logDebug } from '../../utils/Logger.js';
-import { readdirSync, statSync, existsSync } from 'fs';
 import { join, extname, relative } from 'path';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   ListAssetsSchema,
   ListAssetsInput,
@@ -93,8 +92,8 @@ function getAssetCategory(ext: string): AssetCategory | undefined {
 /**
  * Check if file has an associated .import file
  */
-function hasImportFile(filePath: string): boolean {
-  return existsSync(filePath + '.import');
+function hasImportFile(filePath: string, ctx: ToolContext): boolean {
+  return ctx.existsSync(filePath + '.import');
 }
 
 /**
@@ -104,30 +103,30 @@ function scanForAssets(
   basePath: string,
   currentPath: string,
   recursive: boolean,
-  categoryFilter: 'all' | AssetCategory
+  categoryFilter: 'all' | AssetCategory,
+  ctx: ToolContext
 ): AssetInfo[] {
   const assets: AssetInfo[] = [];
 
   try {
-    const entries = readdirSync(currentPath);
+    const entries = ctx.readdirSync(currentPath, { withFileTypes: true });
 
     for (const entry of entries) {
+      const entryName = entry.name;
       // Skip hidden files/directories and .godot folder
-      if (entry.startsWith('.') || entry === 'addons') {
+      if (entryName.startsWith('.') || entryName === 'addons') {
         continue;
       }
 
-      const fullPath = join(currentPath, entry);
+      const fullPath = join(currentPath, entryName);
 
       try {
-        const stat = statSync(fullPath);
-
-        if (stat.isDirectory()) {
+        if (entry.isDirectory()) {
           if (recursive) {
-            assets.push(...scanForAssets(basePath, fullPath, recursive, categoryFilter));
+            assets.push(...scanForAssets(basePath, fullPath, recursive, categoryFilter, ctx));
           }
         } else {
-          const ext = extname(entry).toLowerCase();
+          const ext = extname(entryName).toLowerCase();
 
           // Check if this is a supported asset extension
           if (!ALL_ASSET_EXTENSIONS.has(ext)) {
@@ -145,31 +144,32 @@ function scanForAssets(
           }
 
           const relativePath = relative(basePath, fullPath).replace(/\\/g, '/');
+          const stat = ctx.statSync(fullPath);
 
           assets.push({
             path: relativePath,
-            name: entry.replace(ext, ''),
+            name: entryName.replace(ext, ''),
             category,
             format: ext.substring(1), // Remove leading dot
             size: stat.size,
             modified: stat.mtime.toISOString(),
-            hasImportFile: hasImportFile(fullPath),
+            hasImportFile: hasImportFile(fullPath, ctx),
           });
         }
       } catch {
         // Skip files we can't access
-        logDebug(`Could not access: ${fullPath}`);
+        ctx.logDebug(`Could not access: ${fullPath}`);
       }
     }
   } catch (error) {
-    logDebug(`Could not read directory: ${currentPath}, error: ${error}`);
+    ctx.logDebug(`Could not read directory: ${currentPath}, error: ${error}`);
   }
 
   return assets;
 }
 
-export const handleListAssets = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleListAssets = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation (replaces validateBasicArgs + manual category check)
   const validation = safeValidateInput(ListAssetsSchema, preparedArgs);
@@ -182,7 +182,7 @@ export const handleListAssets = async (args: BaseToolArgs): Promise<ToolResponse
 
   const typedArgs: ListAssetsInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
@@ -195,9 +195,9 @@ export const handleListAssets = async (args: BaseToolArgs): Promise<ToolResponse
       ? join(typedArgs.projectPath, directory)
       : typedArgs.projectPath;
 
-    logDebug(`Listing assets in: ${searchPath} (recursive: ${recursive}, category: ${category})`);
+    ctx.logDebug(`Listing assets in: ${searchPath} (recursive: ${recursive}, category: ${category})`);
 
-    const assets = scanForAssets(typedArgs.projectPath, searchPath, recursive, category);
+    const assets = scanForAssets(typedArgs.projectPath, searchPath, recursive, category, ctx);
 
     // Sort by path for consistent ordering
     assets.sort((a, b) => a.path.localeCompare(b.path));

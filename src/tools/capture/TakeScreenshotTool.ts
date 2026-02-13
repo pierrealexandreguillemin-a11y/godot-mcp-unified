@@ -13,11 +13,8 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { logDebug } from '../../utils/Logger.js';
-import { getGodotPool } from '../../core/ProcessPool.js';
-import { writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   TakeScreenshotSchema,
   TakeScreenshotInput,
@@ -86,8 +83,8 @@ func take_screenshot():
         print("SCREENSHOT_ERROR:Failed to save screenshot to " + save_path)
 `;
 
-export const handleTakeScreenshot = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleTakeScreenshot = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(TakeScreenshotSchema, preparedArgs);
@@ -99,13 +96,13 @@ export const handleTakeScreenshot = async (args: BaseToolArgs): Promise<ToolResp
 
   const typedArgs: TakeScreenshotInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
   try {
-    const godotPath = await detectGodotPath();
+    const godotPath = await ctx.detectGodotPath();
     if (!godotPath) {
       return createErrorResponse('Could not find a valid Godot executable path', [
         'Ensure Godot is installed correctly',
@@ -117,17 +114,17 @@ export const handleTakeScreenshot = async (args: BaseToolArgs): Promise<ToolResp
     const outputPath = typedArgs.outputPath || 'screenshots/capture.png';
     const resOutputPath = `res://${outputPath}`;
 
-    logDebug(`Taking screenshot of project: ${typedArgs.projectPath}`);
+    ctx.logDebug(`Taking screenshot of project: ${typedArgs.projectPath}`);
 
     // Create screenshots directory if needed
     const screenshotsDir = join(typedArgs.projectPath, 'screenshots');
-    if (!existsSync(screenshotsDir)) {
-      mkdirSync(screenshotsDir, { recursive: true });
+    if (!ctx.existsSync(screenshotsDir)) {
+      ctx.mkdirSync(screenshotsDir, { recursive: true });
     }
 
     // Write temporary screenshot script
     const tempScriptPath = join(typedArgs.projectPath, '_mcp_screenshot_temp.gd');
-    writeFileSync(tempScriptPath, SCREENSHOT_SCRIPT, 'utf-8');
+    ctx.writeFileSync(tempScriptPath, SCREENSHOT_SCRIPT, 'utf-8');
 
     // Create a temporary scene that runs the screenshot script
     const tempScenePath = join(typedArgs.projectPath, '_mcp_screenshot_temp.tscn');
@@ -138,7 +135,7 @@ export const handleTakeScreenshot = async (args: BaseToolArgs): Promise<ToolResp
 [node name="ScreenshotCapture" type="Node"]
 script = ExtResource("1")
 `;
-    writeFileSync(tempScenePath, tempScene, 'utf-8');
+    ctx.writeFileSync(tempScenePath, tempScene, 'utf-8');
 
     try {
       // Run the screenshot scene
@@ -154,9 +151,9 @@ script = ExtResource("1")
         resOutputPath,
       ];
 
-      logDebug(`Executing via ProcessPool: ${godotPath} ${args.join(' ')}`);
+      ctx.logDebug(`Executing via ProcessPool: ${godotPath} ${args.join(' ')}`);
 
-      const pool = getGodotPool();
+      const pool = ctx.getGodotPool();
       const result = await pool.execute(godotPath, args, {
         cwd: typedArgs.projectPath,
         timeout: 30000,
@@ -181,7 +178,7 @@ script = ExtResource("1")
       } else {
         // Check if file exists anyway
         const fullOutputPath = join(typedArgs.projectPath, outputPath);
-        if (existsSync(fullOutputPath)) {
+        if (ctx.existsSync(fullOutputPath)) {
           return createSuccessResponse(
             `Screenshot captured successfully!\n` +
             `Output: ${fullOutputPath}\n` +
@@ -197,8 +194,8 @@ script = ExtResource("1")
     } finally {
       // Clean up temporary files
       try {
-        if (existsSync(tempScriptPath)) unlinkSync(tempScriptPath);
-        if (existsSync(tempScenePath)) unlinkSync(tempScenePath);
+        if (ctx.existsSync(tempScriptPath)) ctx.unlinkSync(tempScriptPath);
+        if (ctx.existsSync(tempScenePath)) ctx.unlinkSync(tempScenePath);
       } catch {
         // Ignore cleanup errors
       }

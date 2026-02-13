@@ -14,10 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { executeOperation } from '../../core/GodotExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   CreateCollisionShapeSchema,
   CreateCollisionShapeInput,
@@ -31,8 +28,8 @@ export const createCollisionShapeDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(CreateCollisionShapeSchema),
 };
 
-export const handleCreateCollisionShape = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleCreateCollisionShape = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(CreateCollisionShapeSchema, preparedArgs);
@@ -61,21 +58,21 @@ export const handleCreateCollisionShape = async (args: BaseToolArgs): Promise<To
     ]);
   }
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath, ctx);
   if (sceneValidationError) {
     return sceneValidationError;
   }
 
   const nodeType = is3D ? 'CollisionShape3D' : 'CollisionShape2D';
-  logDebug(`Creating ${nodeType} with ${typedArgs.shapeType} shape in scene: ${typedArgs.scenePath}`);
+  ctx.logDebug(`Creating ${nodeType} with ${typedArgs.shapeType} shape in scene: ${typedArgs.scenePath}`);
 
   // Try bridge first, fallback to GodotExecutor
-  return executeWithBridge(
+  return ctx.executeWithBridge(
     'create_collision_shape',
     {
       node_name: typedArgs.nodeName,
@@ -87,7 +84,7 @@ export const handleCreateCollisionShape = async (args: BaseToolArgs): Promise<To
     async () => {
       // Fallback: traditional GodotExecutor method
       try {
-        const godotPath = await detectGodotPath();
+        const godotPath = await ctx.detectGodotPath();
         if (!godotPath) {
           return createErrorResponse('Could not find a valid Godot executable path', [
             'Ensure Godot is installed correctly',
@@ -108,7 +105,7 @@ export const handleCreateCollisionShape = async (args: BaseToolArgs): Promise<To
       params.shapeParams = typedArgs.shapeParams;
     }
 
-    const { stdout, stderr } = await executeOperation(
+    const { stdout, stderr } = await ctx.executeOperation(
       'create_collision_shape',
       params,
       typedArgs.projectPath,

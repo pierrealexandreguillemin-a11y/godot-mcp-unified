@@ -13,9 +13,8 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { logDebug } from '../../utils/Logger.js';
-import { existsSync, copyFileSync, mkdirSync, statSync } from 'fs';
 import { join, dirname, basename, extname } from 'path';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   ImportAssetSchema,
   ImportAssetInput,
@@ -41,8 +40,8 @@ export const importAssetDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(ImportAssetSchema),
 };
 
-export const handleImportAsset = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleImportAsset = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(ImportAssetSchema, preparedArgs);
@@ -55,7 +54,7 @@ export const handleImportAsset = async (args: BaseToolArgs): Promise<ToolRespons
   const typedArgs: ImportAssetInput = validation.data;
 
   // Validate source file exists
-  if (!existsSync(typedArgs.sourcePath)) {
+  if (!ctx.existsSync(typedArgs.sourcePath)) {
     return createErrorResponse(`Source file not found: ${typedArgs.sourcePath}`, [
       'Ensure the source file path is correct and the file exists',
       'Use an absolute path for the source file',
@@ -63,7 +62,7 @@ export const handleImportAsset = async (args: BaseToolArgs): Promise<ToolRespons
   }
 
   // Validate source is a file, not a directory
-  const sourceStat = statSync(typedArgs.sourcePath);
+  const sourceStat = ctx.statSync(typedArgs.sourcePath);
   if (!sourceStat.isFile()) {
     return createErrorResponse('Source path must be a file, not a directory', [
       'Provide a path to a single file',
@@ -83,7 +82,7 @@ export const handleImportAsset = async (args: BaseToolArgs): Promise<ToolRespons
   }
 
   // Validate project path
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
@@ -105,7 +104,7 @@ export const handleImportAsset = async (args: BaseToolArgs): Promise<ToolRespons
   const fullDestPath = join(typedArgs.projectPath, destPath);
 
   // Check if destination already exists
-  if (existsSync(fullDestPath) && !typedArgs.overwrite) {
+  if (ctx.existsSync(fullDestPath) && !typedArgs.overwrite) {
     return createErrorResponse(`Destination file already exists: ${destPath}`, [
       'Set overwrite: true to replace the existing file',
       'Or choose a different destination path',
@@ -115,14 +114,14 @@ export const handleImportAsset = async (args: BaseToolArgs): Promise<ToolRespons
   try {
     // Create destination directory if it doesn't exist
     const destDir = dirname(fullDestPath);
-    if (!existsSync(destDir)) {
-      mkdirSync(destDir, { recursive: true });
-      logDebug(`Created directory: ${destDir}`);
+    if (!ctx.existsSync(destDir)) {
+      ctx.mkdirSync(destDir, { recursive: true });
+      ctx.logDebug(`Created directory: ${destDir}`);
     }
 
     // Copy the file
-    copyFileSync(typedArgs.sourcePath, fullDestPath);
-    logDebug(`Copied ${typedArgs.sourcePath} to ${fullDestPath}`);
+    ctx.copyFileSync(typedArgs.sourcePath, fullDestPath);
+    ctx.logDebug(`Copied ${typedArgs.sourcePath} to ${fullDestPath}`);
 
     return createSuccessResponse(
       `Asset imported: ${basename(typedArgs.sourcePath)} -> ${destPath} (${sourceStat.size} bytes). Godot will automatically import it on next project scan.`

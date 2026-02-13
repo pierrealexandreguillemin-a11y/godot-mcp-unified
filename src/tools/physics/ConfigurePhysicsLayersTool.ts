@@ -13,9 +13,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { executeOperation } from '../../core/GodotExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   ConfigurePhysicsLayersSchema,
   ConfigurePhysicsLayersInput,
@@ -29,8 +27,8 @@ export const configurePhysicsLayersDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(ConfigurePhysicsLayersSchema),
 };
 
-export const handleConfigurePhysicsLayers = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleConfigurePhysicsLayers = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(ConfigurePhysicsLayersSchema, preparedArgs);
@@ -64,13 +62,13 @@ export const handleConfigurePhysicsLayers = async (args: BaseToolArgs): Promise<
     }
   }
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
   try {
-    const godotPath = await detectGodotPath();
+    const godotPath = await ctx.detectGodotPath();
     if (!godotPath) {
       return createErrorResponse('Could not find a valid Godot executable path', [
         'Ensure Godot is installed correctly',
@@ -78,7 +76,7 @@ export const handleConfigurePhysicsLayers = async (args: BaseToolArgs): Promise<
       ]);
     }
 
-    logDebug(`Configuring ${typedArgs.dimension} physics layers for project: ${typedArgs.projectPath}`);
+    ctx.logDebug(`Configuring ${typedArgs.dimension} physics layers for project: ${typedArgs.projectPath}`);
 
     // Set each layer name via project settings
     const results: string[] = [];
@@ -91,7 +89,7 @@ export const handleConfigurePhysicsLayers = async (args: BaseToolArgs): Promise<
         value: layerConfig.name,
       };
 
-      const { stderr } = await executeOperation(
+      const { stderr } = await ctx.executeOperation(
         'set_project_setting',
         params,
         typedArgs.projectPath,

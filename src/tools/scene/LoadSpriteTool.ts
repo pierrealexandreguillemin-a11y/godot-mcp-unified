@@ -15,10 +15,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { executeOperation } from '../../core/GodotExecutor.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   LoadSpriteSchema,
   LoadSpriteInput,
@@ -32,8 +29,8 @@ export const loadSpriteDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(LoadSpriteSchema),
 };
 
-export const handleLoadSprite = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleLoadSprite = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(LoadSpriteSchema, preparedArgs);
@@ -45,27 +42,27 @@ export const handleLoadSprite = async (args: BaseToolArgs): Promise<ToolResponse
 
   const typedArgs: LoadSpriteInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath, ctx);
   if (sceneValidationError) {
     return sceneValidationError;
   }
 
-  const textureValidationError = validateFilePath(typedArgs.projectPath, typedArgs.texturePath);
+  const textureValidationError = validateFilePath(typedArgs.projectPath, typedArgs.texturePath, ctx);
   if (textureValidationError) {
     return textureValidationError;
   }
 
-  logDebug(
+  ctx.logDebug(
     `Loading sprite ${typedArgs.texturePath} into node ${typedArgs.nodePath} in scene: ${typedArgs.scenePath}`,
   );
 
   // Try bridge first (uses edit_node to set texture property), fallback to GodotExecutor
-  return executeWithBridge(
+  return ctx.executeWithBridge(
     'edit_node',
     {
       node_path: typedArgs.nodePath,
@@ -76,7 +73,7 @@ export const handleLoadSprite = async (args: BaseToolArgs): Promise<ToolResponse
     async () => {
       // Fallback: traditional GodotExecutor method
       try {
-        const godotPath = await detectGodotPath();
+        const godotPath = await ctx.detectGodotPath();
         if (!godotPath) {
           return createErrorResponse('Could not find a valid Godot executable path', [
             'Ensure Godot is installed correctly',
@@ -90,7 +87,7 @@ export const handleLoadSprite = async (args: BaseToolArgs): Promise<ToolResponse
           texturePath: typedArgs.texturePath,
         };
 
-        const { stdout, stderr } = await executeOperation(
+        const { stdout, stderr } = await ctx.executeOperation(
           'load_sprite',
           params,
           typedArgs.projectPath,

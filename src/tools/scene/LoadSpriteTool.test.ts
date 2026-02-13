@@ -2,12 +2,11 @@
  * LoadSpriteTool Unit Tests
  * ISO/IEC 29119 compliant - covers uncovered lines 49, 62-104
  *
- * These tests mock the Godot executor and path detection to exercise
- * the project/scene/file validation paths (line 49), the try block
- * (lines 62-101), and error handling (lines 102-104).
+ * Uses dependency injection via ToolContext instead of jest.mock().
+ * All external dependencies are provided through createMockContext().
  */
 
-import { jest } from '@jest/globals';
+import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 import { writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import {
@@ -15,31 +14,7 @@ import {
   getResponseText,
   isErrorResponse,
 } from '../test-utils.js';
-
-// Define mock functions at module scope
-const mockDetectGodotPath = jest.fn<(...args: unknown[]) => Promise<string | null>>();
-const mockExecuteOperation = jest.fn<(...args: unknown[]) => Promise<{ stdout: string; stderr: string }>>();
-
-jest.mock('../../core/PathManager', () => ({
-  detectGodotPath: mockDetectGodotPath,
-  validatePath: jest.fn(() => true),
-  normalizePath: jest.fn((p: string) => p),
-  normalizeHandlerPaths: jest.fn((args: Record<string, unknown>) => args),
-}));
-
-jest.mock('../../core/GodotExecutor', () => ({
-  executeOperation: mockExecuteOperation,
-}));
-
-// Mock BridgeExecutor to always use fallback (no bridge connected)
-jest.mock('../../bridge/BridgeExecutor.js', () => ({
-  executeWithBridge: async (
-    _action: string,
-    _params: Record<string, unknown>,
-    fallback: () => Promise<unknown>,
-  ) => fallback(),
-}));
-
+import { createMockContext, ToolContext } from '../ToolContext.js';
 import { handleLoadSprite } from './LoadSpriteTool.js';
 
 /**
@@ -58,6 +33,17 @@ describe('LoadSpriteTool', () => {
   let projectPath: string;
   let cleanup: () => void;
 
+  // Mock functions that need assertion checking
+  const mockDetectGodotPath = jest.fn<() => Promise<string | null>>();
+  const mockExecuteOperation = jest.fn<(
+    operation: string,
+    params: Record<string, unknown>,
+    projectPath: string,
+    godotPath: string,
+  ) => Promise<{ stdout: string; stderr: string }>>();
+
+  let ctx: ToolContext;
+
   beforeEach(() => {
     const temp = createTempProject();
     projectPath = temp.projectPath;
@@ -68,6 +54,12 @@ describe('LoadSpriteTool', () => {
     writeFileSync(join(projectPath, 'assets', 'icon.png'), MINIMAL_PNG);
 
     jest.clearAllMocks();
+
+    // Default context: permissive paths, valid project, files exist
+    ctx = createMockContext({
+      detectGodotPath: mockDetectGodotPath,
+      executeOperation: mockExecuteOperation,
+    });
   });
 
   afterEach(() => {
@@ -80,7 +72,7 @@ describe('LoadSpriteTool', () => {
         scenePath: 'scenes/main.tscn',
         nodePath: 'Sprite',
         texturePath: 'assets/icon.png',
-      });
+      }, ctx);
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Validation failed');
     });
@@ -90,7 +82,7 @@ describe('LoadSpriteTool', () => {
         projectPath,
         nodePath: 'Sprite',
         texturePath: 'assets/icon.png',
-      });
+      }, ctx);
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Validation failed');
     });
@@ -100,7 +92,7 @@ describe('LoadSpriteTool', () => {
         projectPath,
         scenePath: 'scenes/main.tscn',
         texturePath: 'assets/icon.png',
-      });
+      }, ctx);
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Validation failed');
     });
@@ -110,7 +102,7 @@ describe('LoadSpriteTool', () => {
         projectPath,
         scenePath: 'scenes/main.tscn',
         nodePath: 'Sprite',
-      });
+      }, ctx);
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Validation failed');
     });
@@ -121,7 +113,7 @@ describe('LoadSpriteTool', () => {
         scenePath: 'scenes/main.tscn',
         nodePath: 'Sprite',
         texturePath: '',
-      });
+      }, ctx);
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Validation failed');
     });
@@ -132,7 +124,7 @@ describe('LoadSpriteTool', () => {
         scenePath: 'scenes/main.tscn',
         nodePath: '',
         texturePath: 'assets/icon.png',
-      });
+      }, ctx);
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Validation failed');
     });
@@ -140,34 +132,52 @@ describe('LoadSpriteTool', () => {
 
   describe('Security', () => {
     it('should reject path traversal in projectPath', async () => {
+      const securityCtx = createMockContext({
+        detectGodotPath: mockDetectGodotPath,
+        executeOperation: mockExecuteOperation,
+        validatePath: (p: string) => !p.includes('..'),
+      });
+
       const result = await handleLoadSprite({
         projectPath: '../../../etc',
         scenePath: 'scenes/main.tscn',
         nodePath: 'Sprite',
         texturePath: 'assets/icon.png',
-      });
+      }, securityCtx);
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toMatch(/path traversal|Validation failed/i);
     });
 
     it('should reject path traversal in scenePath', async () => {
+      const securityCtx = createMockContext({
+        detectGodotPath: mockDetectGodotPath,
+        executeOperation: mockExecuteOperation,
+        validatePath: (p: string) => !p.includes('..'),
+      });
+
       const result = await handleLoadSprite({
         projectPath,
         scenePath: '../../etc/passwd',
         nodePath: 'Sprite',
         texturePath: 'assets/icon.png',
-      });
+      }, securityCtx);
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toMatch(/path traversal|Validation failed/i);
     });
 
     it('should reject path traversal in texturePath', async () => {
+      const securityCtx = createMockContext({
+        detectGodotPath: mockDetectGodotPath,
+        executeOperation: mockExecuteOperation,
+        validatePath: (p: string) => !p.includes('..'),
+      });
+
       const result = await handleLoadSprite({
         projectPath,
         scenePath: 'scenes/main.tscn',
         nodePath: 'Sprite',
         texturePath: '../../../etc/passwd',
-      });
+      }, securityCtx);
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toMatch(/path traversal|Validation failed/i);
     });
@@ -175,34 +185,52 @@ describe('LoadSpriteTool', () => {
 
   describe('Happy Path', () => {
     it('should return error when project path is invalid (line 49)', async () => {
+      const invalidProjectCtx = createMockContext({
+        detectGodotPath: mockDetectGodotPath,
+        executeOperation: mockExecuteOperation,
+        isGodotProject: () => false,
+      });
+
       const result = await handleLoadSprite({
         projectPath: '/non/existent/project',
         scenePath: 'scenes/main.tscn',
         nodePath: 'Sprite',
         texturePath: 'assets/icon.png',
-      });
+      }, invalidProjectCtx);
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toMatch(/not found|does not exist|invalid|not a valid/i);
     });
 
     it('should return error when scene path is invalid', async () => {
+      const noSceneCtx = createMockContext({
+        detectGodotPath: mockDetectGodotPath,
+        executeOperation: mockExecuteOperation,
+        existsSync: (p: string) => !p.includes('nonexistent'),
+      });
+
       const result = await handleLoadSprite({
         projectPath,
         scenePath: 'scenes/nonexistent.tscn',
         nodePath: 'Sprite',
         texturePath: 'assets/icon.png',
-      });
+      }, noSceneCtx);
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toMatch(/not found|does not exist/i);
     });
 
     it('should return error when texture file not found', async () => {
+      const noTextureCtx = createMockContext({
+        detectGodotPath: mockDetectGodotPath,
+        executeOperation: mockExecuteOperation,
+        existsSync: (p: string) => !p.includes('nonexistent'),
+      });
+
       const result = await handleLoadSprite({
         projectPath,
         scenePath: 'scenes/main.tscn',
         nodePath: 'Sprite',
         texturePath: 'assets/nonexistent.png',
-      });
+      }, noTextureCtx);
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toMatch(/not found|does not exist/i);
     });
@@ -215,7 +243,7 @@ describe('LoadSpriteTool', () => {
         scenePath: 'scenes/main.tscn',
         nodePath: 'Sprite',
         texturePath: 'assets/icon.png',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Could not find a valid Godot executable path');
@@ -233,7 +261,7 @@ describe('LoadSpriteTool', () => {
         scenePath: 'scenes/main.tscn',
         nodePath: 'Player/Sprite',
         texturePath: 'assets/icon.png',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(false);
       expect(getResponseText(result)).toContain('Sprite loaded successfully');
@@ -265,7 +293,7 @@ describe('LoadSpriteTool', () => {
         scenePath: 'scenes/main.tscn',
         nodePath: 'Player',
         texturePath: 'assets/icon.png',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Failed to load sprite');
@@ -284,7 +312,7 @@ describe('LoadSpriteTool', () => {
         scenePath: 'scenes/main.tscn',
         nodePath: 'Sprite',
         texturePath: 'assets/icon.png',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(false);
       expect(getResponseText(result)).toContain('Sprite loaded successfully');
@@ -301,7 +329,7 @@ describe('LoadSpriteTool', () => {
         scenePath: 'scenes/main.tscn',
         nodePath: 'Sprite',
         texturePath: 'assets/icon.png',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Failed to load sprite');
@@ -317,7 +345,7 @@ describe('LoadSpriteTool', () => {
         scenePath: 'scenes/main.tscn',
         nodePath: 'Sprite',
         texturePath: 'assets/icon.png',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Failed to load sprite');
@@ -332,7 +360,7 @@ describe('LoadSpriteTool', () => {
         scenePath: 'scenes/main.tscn',
         nodePath: 'Sprite',
         texturePath: 'assets/icon.png',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Failed to load sprite');

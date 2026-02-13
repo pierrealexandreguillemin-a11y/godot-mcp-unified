@@ -33,8 +33,14 @@ import {
   existsSync as _existsSync,
   readFileSync as _readFileSync,
   readdirSync as _readdirSync,
+  writeFileSync as _writeFileSync,
+  mkdirSync as _mkdirSync,
+  unlinkSync as _unlinkSync,
+  copyFileSync as _copyFileSync,
+  statSync as _statSync,
+  utimesSync as _utimesSync,
 } from 'fs';
-import type { Dirent } from 'fs';
+import type { Dirent, Stats } from 'fs';
 import * as _fsExtra from 'fs-extra';
 import {
   logDebug as _logDebug,
@@ -43,6 +49,14 @@ import {
   logWarn as _logWarn,
 } from '../utils/Logger.js';
 import { getGodotPool as _getGodotPool, ProcessResult } from '../core/ProcessPool.js';
+import {
+  runGodotProject as _runGodotProject,
+  launchGodotEditor as _launchGodotEditor,
+} from '../core/ProcessManager.js';
+import type { GodotProcess } from '../core/ProcessManager.js';
+import { isGodot44OrLater as _isGodot44OrLater } from '../core/GodotExecutor.js';
+import { validateScript as _validateScript } from '../bridge/ScriptValidator.js';
+import type { ValidationResult } from '../bridge/ScriptValidator.js';
 
 /**
  * Injectable context for tool handlers and resource providers.
@@ -85,10 +99,30 @@ export interface ToolContext {
     other: number;
   };
 
+  // -- GodotExecutor (additional) --
+  isGodot44OrLater: (version: string) => boolean;
+
+  // -- ProcessManager --
+  runGodotProject: (godotPath: string, projectPath: string, scene?: string) => GodotProcess;
+  launchGodotEditor: (godotPath: string, projectPath: string) => void;
+
+  // -- ScriptValidator --
+  validateScript: (
+    projectPath: string,
+    scriptPath: string,
+    options?: { useLSP?: boolean; useBridge?: boolean },
+  ) => Promise<ValidationResult | null>;
+
   // -- fs --
   existsSync: (path: string) => boolean;
   readFileSync: (path: string, encoding: BufferEncoding) => string;
   readdirSync: (path: string, options: { withFileTypes: true }) => Dirent[];
+  writeFileSync: (path: string, data: string, encoding?: BufferEncoding) => void;
+  mkdirSync: (path: string, options?: { recursive: boolean }) => void;
+  unlinkSync: (path: string) => void;
+  copyFileSync: (src: string, dest: string) => void;
+  statSync: (path: string) => Stats;
+  utimesSync: (path: string, atime: Date | number, mtime: Date | number) => void;
 
   // -- fs-extra --
   ensureDir: (path: string) => Promise<void>;
@@ -129,6 +163,14 @@ export const defaultToolContext: ToolContext = {
   // GodotExecutor
   executeOperation: _executeOperation,
   getGodotVersion: _getGodotVersion,
+  isGodot44OrLater: _isGodot44OrLater,
+
+  // ProcessManager
+  runGodotProject: _runGodotProject,
+  launchGodotEditor: _launchGodotEditor,
+
+  // ScriptValidator
+  validateScript: _validateScript,
 
   // BridgeExecutor
   executeWithBridge: _executeWithBridge,
@@ -144,6 +186,15 @@ export const defaultToolContext: ToolContext = {
     _readFileSync(path, encoding) as string,
   readdirSync: (path: string, options: { withFileTypes: true }) =>
     _readdirSync(path, options),
+  writeFileSync: (path: string, data: string, encoding?: BufferEncoding) =>
+    _writeFileSync(path, data, { encoding: encoding ?? 'utf-8' }),
+  mkdirSync: (path: string, options?: { recursive: boolean }) =>
+    _mkdirSync(path, options ?? { recursive: false }),
+  unlinkSync: (path: string) => _unlinkSync(path),
+  copyFileSync: (src: string, dest: string) => _copyFileSync(src, dest),
+  statSync: (path: string) => _statSync(path),
+  utimesSync: (path: string, atime: Date | number, mtime: Date | number) =>
+    _utimesSync(path, atime, mtime),
 
   // fs-extra (wrapped to match simplified signatures)
   ensureDir: (path: string) => _fsExtra.ensureDir(path),
@@ -190,6 +241,18 @@ export const createMockContext = (overrides?: Partial<ToolContext>): ToolContext
   // GodotExecutor - success stubs
   executeOperation: async () => ({ stdout: '', stderr: '' }),
   getGodotVersion: async () => '4.2.stable',
+  isGodot44OrLater: () => true,
+
+  // ProcessManager - noop stubs
+  runGodotProject: (_godotPath, _projectPath, _scene?) => ({
+    process: { kill: () => {}, pid: 0, stdout: null, stderr: null } as unknown as import('child_process').ChildProcess,
+    output: [],
+    errors: [],
+  }),
+  launchGodotEditor: () => {},
+
+  // ScriptValidator - no errors stub
+  validateScript: async () => ({ errors: [], source: 'none' as const }),
 
   // BridgeExecutor - always fallback (no bridge)
   executeWithBridge: async (_action, _params, fallback) => fallback(),
@@ -203,6 +266,12 @@ export const createMockContext = (overrides?: Partial<ToolContext>): ToolContext
   existsSync: () => true,
   readFileSync: () => '',
   readdirSync: () => [],
+  writeFileSync: () => {},
+  mkdirSync: () => {},
+  unlinkSync: () => {},
+  copyFileSync: () => {},
+  statSync: () => ({ size: 0, mtime: new Date(), isFile: () => true, isDirectory: () => false }) as unknown as Stats,
+  utimesSync: () => {},
 
   // fs-extra - success stubs
   ensureDir: async () => {},

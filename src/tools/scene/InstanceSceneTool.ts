@@ -14,9 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import { join, basename } from 'path';
 import { parseTscn, serializeTscn, findNodeByPath, addExtResource, TscnNode } from '../../core/TscnParser.js';
 import {
@@ -32,8 +30,8 @@ export const instanceSceneDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(InstanceSceneSchema),
 };
 
-export const handleInstanceScene = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleInstanceScene = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(InstanceSceneSchema, preparedArgs);
@@ -45,19 +43,19 @@ export const handleInstanceScene = async (args: BaseToolArgs): Promise<ToolRespo
 
   const typedArgs: InstanceSceneInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath, ctx);
   if (sceneValidationError) {
     return sceneValidationError;
   }
 
   // Verify instance scene exists
   const instanceFullPath = join(typedArgs.projectPath, typedArgs.instancePath);
-  if (!existsSync(instanceFullPath)) {
+  if (!ctx.existsSync(instanceFullPath)) {
     return createErrorResponse(`Instance scene not found: ${typedArgs.instancePath}`, [
       'Check the instance path is correct',
       'Create the scene first using create_scene',
@@ -71,10 +69,10 @@ export const handleInstanceScene = async (args: BaseToolArgs): Promise<ToolRespo
     ]);
   }
 
-  logDebug(`Instancing ${typedArgs.instancePath} into ${typedArgs.scenePath}`);
+  ctx.logDebug(`Instancing ${typedArgs.instancePath} into ${typedArgs.scenePath}`);
 
   // Try bridge first, fallback to TSCN manipulation
-  return executeWithBridge(
+  return ctx.executeWithBridge(
     'instance_scene',
     {
       scene_path: typedArgs.instancePath.replace(/\\/g, '/'),
@@ -87,7 +85,7 @@ export const handleInstanceScene = async (args: BaseToolArgs): Promise<ToolRespo
         const sceneFullPath = join(typedArgs.projectPath, typedArgs.scenePath);
 
     // Read and parse parent scene
-    const content = readFileSync(sceneFullPath, 'utf-8');
+    const content = ctx.readFileSync(sceneFullPath, 'utf-8');
     const doc = parseTscn(content);
 
     // Determine parent node
@@ -155,7 +153,7 @@ export const handleInstanceScene = async (args: BaseToolArgs): Promise<ToolRespo
 
     // Serialize and write back
     const serialized = serializeTscn(doc);
-    writeFileSync(sceneFullPath, serialized, 'utf-8');
+    ctx.writeFileSync(sceneFullPath, serialized, 'utf-8');
 
         return createSuccessResponse(
           `Scene instanced successfully!\n` +

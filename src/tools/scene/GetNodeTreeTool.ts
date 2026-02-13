@@ -14,9 +14,7 @@ import {
   createJsonResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
-import { readFileSync } from 'fs';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import { join } from 'path';
 import { parseTscn, TscnDocument, TscnNode } from '../../core/TscnParser.js';
 import {
@@ -169,8 +167,8 @@ function formatTreeAsAscii(node: NodeTreeNode, prefix: string = '', isLast: bool
   return lines.join('\n');
 }
 
-export const handleGetNodeTree = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleGetNodeTree = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(GetNodeTreeSchema, preparedArgs);
@@ -182,20 +180,20 @@ export const handleGetNodeTree = async (args: BaseToolArgs): Promise<ToolRespons
 
   const typedArgs: GetNodeTreeInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath, ctx);
   if (sceneValidationError) {
     return sceneValidationError;
   }
 
-  logDebug(`Reading node tree from: ${typedArgs.scenePath}`);
+  ctx.logDebug(`Reading node tree from: ${typedArgs.scenePath}`);
 
   // Try bridge first, fallback to file parsing
-  return executeWithBridge(
+  return ctx.executeWithBridge(
     'get_scene_tree',
     {
       scene_path: `res://${typedArgs.scenePath.replace(/\\/g, '/')}`,
@@ -207,7 +205,7 @@ export const handleGetNodeTree = async (args: BaseToolArgs): Promise<ToolRespons
         const sceneFullPath = join(typedArgs.projectPath, typedArgs.scenePath);
 
         // Read and parse scene file
-        const content = readFileSync(sceneFullPath, 'utf-8');
+        const content = ctx.readFileSync(sceneFullPath, 'utf-8');
         const doc = parseTscn(content);
 
         // Build tree structure

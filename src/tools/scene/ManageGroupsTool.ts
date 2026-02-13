@@ -15,9 +15,7 @@ import {
   createJsonResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
-import { readFileSync, writeFileSync } from 'fs';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import { join } from 'path';
 import { parseTscn, serializeTscn, findNodeByPath } from '../../core/TscnParser.js';
 import {
@@ -33,8 +31,8 @@ export const manageGroupsDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(ManageGroupsSchema),
 };
 
-export const handleManageGroups = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleManageGroups = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(ManageGroupsSchema, preparedArgs);
@@ -46,20 +44,20 @@ export const handleManageGroups = async (args: BaseToolArgs): Promise<ToolRespon
 
   const typedArgs: ManageGroupsInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath, ctx);
   if (sceneValidationError) {
     return sceneValidationError;
   }
 
-  logDebug(`Managing groups for ${typedArgs.nodePath} in scene ${typedArgs.scenePath}`);
+  ctx.logDebug(`Managing groups for ${typedArgs.nodePath} in scene ${typedArgs.scenePath}`);
 
   // Try bridge first, fallback to TSCN manipulation
-  return executeWithBridge(
+  return ctx.executeWithBridge(
     'manage_groups',
     {
       node_path: typedArgs.nodePath,
@@ -72,7 +70,7 @@ export const handleManageGroups = async (args: BaseToolArgs): Promise<ToolRespon
         const sceneFullPath = join(typedArgs.projectPath, typedArgs.scenePath);
 
     // Read and parse scene file
-    const content = readFileSync(sceneFullPath, 'utf-8');
+    const content = ctx.readFileSync(sceneFullPath, 'utf-8');
     const doc = parseTscn(content);
 
     // Find the node
@@ -123,9 +121,9 @@ export const handleManageGroups = async (args: BaseToolArgs): Promise<ToolRespon
 
             // Serialize and write back
             const serialized = serializeTscn(doc);
-            writeFileSync(sceneFullPath, serialized, 'utf-8');
+            ctx.writeFileSync(sceneFullPath, serialized, 'utf-8');
 
-            logDebug(`Added ${addedCount} groups to ${typedArgs.nodePath}`);
+            ctx.logDebug(`Added ${addedCount} groups to ${typedArgs.nodePath}`);
 
             return createSuccessResponse(
               `Groups added successfully!\n` +
@@ -161,9 +159,9 @@ export const handleManageGroups = async (args: BaseToolArgs): Promise<ToolRespon
 
           // Serialize and write back
           const serialized = serializeTscn(doc);
-          writeFileSync(sceneFullPath, serialized, 'utf-8');
+          ctx.writeFileSync(sceneFullPath, serialized, 'utf-8');
 
-          logDebug(`Removed ${removedCount} groups from ${typedArgs.nodePath}`);
+          ctx.logDebug(`Removed ${removedCount} groups from ${typedArgs.nodePath}`);
 
           return createSuccessResponse(
             `Groups removed successfully!\n` +

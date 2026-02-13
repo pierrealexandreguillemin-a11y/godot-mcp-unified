@@ -14,10 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { executeOperation } from '../../core/GodotExecutor.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   SaveSceneSchema,
   SaveSceneInput,
@@ -31,8 +28,8 @@ export const saveSceneDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(SaveSceneSchema),
 };
 
-export const handleSaveScene = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleSaveScene = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(SaveSceneSchema, preparedArgs);
@@ -44,21 +41,21 @@ export const handleSaveScene = async (args: BaseToolArgs): Promise<ToolResponse>
 
   const typedArgs: SaveSceneInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath, ctx);
   if (sceneValidationError) {
     return sceneValidationError;
   }
 
   const isVariant = Boolean(typedArgs.newPath);
-  logDebug(`Saving scene: ${typedArgs.scenePath}${isVariant ? ` as variant: ${typedArgs.newPath}` : ''}`);
+  ctx.logDebug(`Saving scene: ${typedArgs.scenePath}${isVariant ? ` as variant: ${typedArgs.newPath}` : ''}`);
 
   // Try bridge first, fallback to GodotExecutor
-  return executeWithBridge(
+  return ctx.executeWithBridge(
     'save_scene',
     {
       scene_path: typedArgs.newPath || typedArgs.scenePath,
@@ -66,7 +63,7 @@ export const handleSaveScene = async (args: BaseToolArgs): Promise<ToolResponse>
     async () => {
       // Fallback: traditional GodotExecutor method
       try {
-        const godotPath = await detectGodotPath();
+        const godotPath = await ctx.detectGodotPath();
         if (!godotPath) {
           return createErrorResponse('Could not find a valid Godot executable path', [
             'Ensure Godot is installed correctly',
@@ -82,7 +79,7 @@ export const handleSaveScene = async (args: BaseToolArgs): Promise<ToolResponse>
           params.newPath = typedArgs.newPath;
         }
 
-        const { stdout, stderr } = await executeOperation(
+        const { stdout, stderr } = await ctx.executeOperation(
           'save_scene',
           params,
           typedArgs.projectPath,

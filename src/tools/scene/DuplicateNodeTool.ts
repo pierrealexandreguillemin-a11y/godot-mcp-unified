@@ -14,9 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
-import { readFileSync, writeFileSync } from 'fs';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import { join } from 'path';
 import { parseTscn, serializeTscn, findNodeByPath, TscnNode } from '../../core/TscnParser.js';
 import {
@@ -32,8 +30,8 @@ export const duplicateNodeDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(DuplicateNodeSchema),
 };
 
-export const handleDuplicateNode = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleDuplicateNode = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(DuplicateNodeSchema, preparedArgs);
@@ -45,12 +43,12 @@ export const handleDuplicateNode = async (args: BaseToolArgs): Promise<ToolRespo
 
   const typedArgs: DuplicateNodeInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath, ctx);
   if (sceneValidationError) {
     return sceneValidationError;
   }
@@ -63,10 +61,10 @@ export const handleDuplicateNode = async (args: BaseToolArgs): Promise<ToolRespo
     ]);
   }
 
-  logDebug(`Duplicating node ${typedArgs.nodePath} in scene ${typedArgs.scenePath}`);
+  ctx.logDebug(`Duplicating node ${typedArgs.nodePath} in scene ${typedArgs.scenePath}`);
 
   // Try bridge first, fallback to file manipulation
-  return executeWithBridge(
+  return ctx.executeWithBridge(
     'duplicate_node',
     {
       node_path: typedArgs.nodePath,
@@ -78,7 +76,7 @@ export const handleDuplicateNode = async (args: BaseToolArgs): Promise<ToolRespo
         const sceneFullPath = join(typedArgs.projectPath, typedArgs.scenePath);
 
         // Read and parse scene file
-        const content = readFileSync(sceneFullPath, 'utf-8');
+        const content = ctx.readFileSync(sceneFullPath, 'utf-8');
         const doc = parseTscn(content);
 
         // Find the source node
@@ -144,7 +142,7 @@ export const handleDuplicateNode = async (args: BaseToolArgs): Promise<ToolRespo
 
         // Serialize and write back
         const serialized = serializeTscn(doc);
-        writeFileSync(sceneFullPath, serialized, 'utf-8');
+        ctx.writeFileSync(sceneFullPath, serialized, 'utf-8');
 
         const totalDuplicatedNodes = 1 + clonedChildren.length;
 

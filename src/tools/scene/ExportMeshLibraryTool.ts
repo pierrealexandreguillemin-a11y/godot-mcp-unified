@@ -14,10 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { executeOperation } from '../../core/GodotExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   ExportMeshLibrarySchema,
   ExportMeshLibraryInput,
@@ -31,8 +28,8 @@ export const exportMeshLibraryDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(ExportMeshLibrarySchema),
 };
 
-export const handleExportMeshLibrary = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleExportMeshLibrary = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(ExportMeshLibrarySchema, preparedArgs);
@@ -44,20 +41,20 @@ export const handleExportMeshLibrary = async (args: BaseToolArgs): Promise<ToolR
 
   const typedArgs: ExportMeshLibraryInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath, ctx);
   if (sceneValidationError) {
     return sceneValidationError;
   }
 
-  logDebug(`Exporting MeshLibrary from scene: ${typedArgs.scenePath} to ${typedArgs.outputPath}`);
+  ctx.logDebug(`Exporting MeshLibrary from scene: ${typedArgs.scenePath} to ${typedArgs.outputPath}`);
 
   // Try bridge first, fallback to GodotExecutor
-  return executeWithBridge(
+  return ctx.executeWithBridge(
     'export_mesh_library',
     {
       scene_path: typedArgs.scenePath.replace(/\\/g, '/'),
@@ -68,7 +65,7 @@ export const handleExportMeshLibrary = async (args: BaseToolArgs): Promise<ToolR
       // Fallback: traditional GodotExecutor method
       try {
         // Ensure Godot path is available
-        const godotPath = await detectGodotPath();
+        const godotPath = await ctx.detectGodotPath();
         if (!godotPath) {
           return createErrorResponse('Could not find a valid Godot executable path', [
             'Ensure Godot is installed correctly',
@@ -89,7 +86,7 @@ export const handleExportMeshLibrary = async (args: BaseToolArgs): Promise<ToolR
         }
 
         // Execute the operation
-        const { stdout, stderr } = await executeOperation(
+        const { stdout, stderr } = await ctx.executeOperation(
           'export_mesh_library',
           params,
           typedArgs.projectPath,

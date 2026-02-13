@@ -13,9 +13,7 @@ import {
   createJsonResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
-import { readdirSync, statSync } from 'fs';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import { join, extname, relative } from 'path';
 import {
   ListScenesSchema,
@@ -52,35 +50,36 @@ export const listScenesDefinition: ToolDefinition = {
 function scanForScenes(
   basePath: string,
   currentPath: string,
-  recursive: boolean
+  recursive: boolean,
+  ctx: ToolContext
 ): SceneInfo[] {
   const scenes: SceneInfo[] = [];
 
   try {
-    const entries = readdirSync(currentPath);
+    const entries = ctx.readdirSync(currentPath, { withFileTypes: true });
 
     for (const entry of entries) {
+      const entryName = entry.name;
       // Skip hidden files/directories and .godot folder
-      if (entry.startsWith('.') || entry === 'addons') {
+      if (entryName.startsWith('.') || entryName === 'addons') {
         continue;
       }
 
-      const fullPath = join(currentPath, entry);
+      const fullPath = join(currentPath, entryName);
 
       try {
-        const stat = statSync(fullPath);
-
-        if (stat.isDirectory()) {
+        if (entry.isDirectory()) {
           if (recursive) {
-            scenes.push(...scanForScenes(basePath, fullPath, recursive));
+            scenes.push(...scanForScenes(basePath, fullPath, recursive, ctx));
           }
         } else {
-          const ext = extname(entry).toLowerCase();
+          const ext = extname(entryName).toLowerCase();
           if (ext === '.tscn' || ext === '.scn') {
+            const stat = ctx.statSync(fullPath);
             const relativePath = relative(basePath, fullPath).replace(/\\/g, '/');
             scenes.push({
               path: relativePath,
-              name: entry.replace(ext, ''),
+              name: entryName.replace(ext, ''),
               size: stat.size,
               modified: stat.mtime.toISOString(),
               type: ext === '.tscn' ? 'tscn' : 'scn',
@@ -89,18 +88,18 @@ function scanForScenes(
         }
       } catch {
         // Skip files we can't access
-        logDebug(`Could not access: ${fullPath}`);
+        ctx.logDebug(`Could not access: ${fullPath}`);
       }
     }
   } catch (error) {
-    logDebug(`Could not read directory: ${currentPath}, error: ${error}`);
+    ctx.logDebug(`Could not read directory: ${currentPath}, error: ${error}`);
   }
 
   return scenes;
 }
 
-export const handleListScenes = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleListScenes = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(ListScenesSchema, preparedArgs);
@@ -112,7 +111,7 @@ export const handleListScenes = async (args: BaseToolArgs): Promise<ToolResponse
 
   const typedArgs: ListScenesInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
@@ -120,10 +119,10 @@ export const handleListScenes = async (args: BaseToolArgs): Promise<ToolResponse
   const recursive = typedArgs.recursive !== false; // Default to true
   const directory = typedArgs.directory || '';
 
-  logDebug(`Listing scenes in: ${directory || '(root)'} (recursive: ${recursive})`);
+  ctx.logDebug(`Listing scenes in: ${directory || '(root)'} (recursive: ${recursive})`);
 
   // Try bridge first, fallback to file system scan
-  return executeWithBridge(
+  return ctx.executeWithBridge(
     'list_scenes',
     {
       directory: directory,
@@ -136,7 +135,7 @@ export const handleListScenes = async (args: BaseToolArgs): Promise<ToolResponse
           ? join(typedArgs.projectPath, directory)
           : typedArgs.projectPath;
 
-        const scenes = scanForScenes(typedArgs.projectPath, searchPath, recursive);
+        const scenes = scanForScenes(typedArgs.projectPath, searchPath, recursive, ctx);
 
         // Sort by path for consistent ordering
         scenes.sort((a, b) => a.path.localeCompare(b.path));

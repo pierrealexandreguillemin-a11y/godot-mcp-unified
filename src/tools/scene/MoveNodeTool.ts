@@ -14,9 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
-import { readFileSync, writeFileSync } from 'fs';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import { join } from 'path';
 import { parseTscn, serializeTscn, findNodeByPath } from '../../core/TscnParser.js';
 import {
@@ -32,8 +30,8 @@ export const moveNodeDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(MoveNodeSchema),
 };
 
-export const handleMoveNode = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleMoveNode = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(MoveNodeSchema, preparedArgs);
@@ -45,12 +43,12 @@ export const handleMoveNode = async (args: BaseToolArgs): Promise<ToolResponse> 
 
   const typedArgs: MoveNodeInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath, ctx);
   if (sceneValidationError) {
     return sceneValidationError;
   }
@@ -62,10 +60,10 @@ export const handleMoveNode = async (args: BaseToolArgs): Promise<ToolResponse> 
     ]);
   }
 
-  logDebug(`Moving node ${typedArgs.nodePath} to parent ${typedArgs.newParentPath} in scene ${typedArgs.scenePath}`);
+  ctx.logDebug(`Moving node ${typedArgs.nodePath} to parent ${typedArgs.newParentPath} in scene ${typedArgs.scenePath}`);
 
   // Try bridge first, fallback to file manipulation
-  return executeWithBridge(
+  return ctx.executeWithBridge(
     'move_node',
     {
       node_path: typedArgs.nodePath,
@@ -77,7 +75,7 @@ export const handleMoveNode = async (args: BaseToolArgs): Promise<ToolResponse> 
         const sceneFullPath = join(typedArgs.projectPath, typedArgs.scenePath);
 
         // Read and parse scene file
-        const content = readFileSync(sceneFullPath, 'utf-8');
+        const content = ctx.readFileSync(sceneFullPath, 'utf-8');
         const doc = parseTscn(content);
 
         // Find the node to move
@@ -131,7 +129,7 @@ export const handleMoveNode = async (args: BaseToolArgs): Promise<ToolResponse> 
 
         // Serialize and write back
         const serialized = serializeTscn(doc);
-        writeFileSync(sceneFullPath, serialized, 'utf-8');
+        ctx.writeFileSync(sceneFullPath, serialized, 'utf-8');
 
         return createSuccessResponse(
           `Node moved successfully!\n` +

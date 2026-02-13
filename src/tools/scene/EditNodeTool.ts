@@ -14,10 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { executeOperation } from '../../core/GodotExecutor.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   EditNodeSchema,
   EditNodeInput,
@@ -31,8 +28,8 @@ export const editNodeDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(EditNodeSchema),
 };
 
-export const handleEditNode = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleEditNode = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(EditNodeSchema, preparedArgs);
@@ -44,20 +41,20 @@ export const handleEditNode = async (args: BaseToolArgs): Promise<ToolResponse> 
 
   const typedArgs: EditNodeInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath, ctx);
   if (sceneValidationError) {
     return sceneValidationError;
   }
 
-  logDebug(`Editing node ${typedArgs.nodePath} in scene: ${typedArgs.scenePath}`);
+  ctx.logDebug(`Editing node ${typedArgs.nodePath} in scene: ${typedArgs.scenePath}`);
 
   // Try bridge first, fallback to GodotExecutor
-  return executeWithBridge(
+  return ctx.executeWithBridge(
     'edit_node',
     {
       node_path: typedArgs.nodePath,
@@ -66,7 +63,7 @@ export const handleEditNode = async (args: BaseToolArgs): Promise<ToolResponse> 
     async () => {
       // Fallback: traditional GodotExecutor method
       try {
-        const godotPath = await detectGodotPath();
+        const godotPath = await ctx.detectGodotPath();
         if (!godotPath) {
           return createErrorResponse('Could not find a valid Godot executable path', [
             'Ensure Godot is installed correctly',
@@ -80,7 +77,7 @@ export const handleEditNode = async (args: BaseToolArgs): Promise<ToolResponse> 
           properties: typedArgs.properties,
         };
 
-        const { stdout, stderr } = await executeOperation(
+        const { stdout, stderr } = await ctx.executeOperation(
           'edit_node',
           params,
           typedArgs.projectPath,

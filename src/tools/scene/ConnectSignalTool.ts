@@ -14,9 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
-import { readFileSync, writeFileSync } from 'fs';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import { join } from 'path';
 import { parseTscn, serializeTscn, findNodeByPath, TscnConnection } from '../../core/TscnParser.js';
 import {
@@ -32,8 +30,8 @@ export const connectSignalDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(ConnectSignalSchema),
 };
 
-export const handleConnectSignal = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleConnectSignal = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(ConnectSignalSchema, preparedArgs);
@@ -45,20 +43,20 @@ export const handleConnectSignal = async (args: BaseToolArgs): Promise<ToolRespo
 
   const typedArgs: ConnectSignalInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath, ctx);
   if (sceneValidationError) {
     return sceneValidationError;
   }
 
-  logDebug(`Connecting signal ${typedArgs.signal} from ${typedArgs.fromNodePath} to ${typedArgs.toNodePath}::${typedArgs.method}`);
+  ctx.logDebug(`Connecting signal ${typedArgs.signal} from ${typedArgs.fromNodePath} to ${typedArgs.toNodePath}::${typedArgs.method}`);
 
   // Try bridge first, fallback to TSCN manipulation
-  return executeWithBridge(
+  return ctx.executeWithBridge(
     'connect_signal',
     {
       from_node_path: typedArgs.fromNodePath,
@@ -73,7 +71,7 @@ export const handleConnectSignal = async (args: BaseToolArgs): Promise<ToolRespo
         const sceneFullPath = join(typedArgs.projectPath, typedArgs.scenePath);
 
         // Read and parse scene file
-        const content = readFileSync(sceneFullPath, 'utf-8');
+        const content = ctx.readFileSync(sceneFullPath, 'utf-8');
         const doc = parseTscn(content);
 
         // Verify source node exists
@@ -126,7 +124,7 @@ export const handleConnectSignal = async (args: BaseToolArgs): Promise<ToolRespo
 
         // Serialize and write back
         const serialized = serializeTscn(doc);
-        writeFileSync(sceneFullPath, serialized, 'utf-8');
+        ctx.writeFileSync(sceneFullPath, serialized, 'utf-8');
 
         return createSuccessResponse(
           `Signal connected successfully!\n` +

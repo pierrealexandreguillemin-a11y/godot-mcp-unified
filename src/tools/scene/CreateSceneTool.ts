@@ -13,10 +13,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { executeOperation } from '../../core/GodotExecutor.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   CreateSceneSchema,
   CreateSceneInput,
@@ -38,9 +35,9 @@ export const createSceneDefinition: ToolDefinition = {
 // Tool Handler
 // ============================================================================
 
-export const handleCreateScene = async (args: BaseToolArgs): Promise<ToolResponse> => {
+export const handleCreateScene = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
   // Step 1: Prepare args (normalize paths, camelCase)
-  const preparedArgs = prepareToolArgs(args);
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Step 2: Validate with Zod (replaces validateBasicArgs + type assertion)
   const validation = safeValidateInput(CreateSceneSchema, preparedArgs);
@@ -56,15 +53,15 @@ export const handleCreateScene = async (args: BaseToolArgs): Promise<ToolRespons
   const typedArgs: CreateSceneInput = validation.data;
 
   // Step 4: Validate project exists
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  logDebug(`Creating scene: ${typedArgs.scenePath} in project: ${typedArgs.projectPath}`);
+  ctx.logDebug(`Creating scene: ${typedArgs.scenePath} in project: ${typedArgs.projectPath}`);
 
   // Try bridge first, fallback to GodotExecutor
-  return executeWithBridge(
+  return ctx.executeWithBridge(
     'create_scene',
     {
       scene_path: typedArgs.scenePath,
@@ -73,7 +70,7 @@ export const handleCreateScene = async (args: BaseToolArgs): Promise<ToolRespons
     async () => {
       // Fallback: traditional GodotExecutor method
       try {
-        const godotPath = await detectGodotPath();
+        const godotPath = await ctx.detectGodotPath();
         if (!godotPath) {
           return createErrorResponse('Could not find a valid Godot executable path', [
             'Ensure Godot is installed correctly',
@@ -86,7 +83,7 @@ export const handleCreateScene = async (args: BaseToolArgs): Promise<ToolRespons
           rootNodeType: typedArgs.rootNodeType,
         };
 
-        const { stdout, stderr } = await executeOperation(
+        const { stdout, stderr } = await ctx.executeOperation(
           'create_scene',
           params,
           typedArgs.projectPath,

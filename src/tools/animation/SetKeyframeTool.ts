@@ -14,10 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { executeOperation } from '../../core/GodotExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   SetKeyframeSchema,
   SetKeyframeInput,
@@ -31,8 +28,8 @@ export const setKeyframeDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(SetKeyframeSchema),
 };
 
-export const handleSetKeyframe = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleSetKeyframe = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(SetKeyframeSchema, preparedArgs);
@@ -59,20 +56,20 @@ export const handleSetKeyframe = async (args: BaseToolArgs): Promise<ToolRespons
     ]);
   }
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath, ctx);
   if (sceneValidationError) {
     return sceneValidationError;
   }
 
-  logDebug(`Setting keyframe at ${typedArgs.time}s in track ${typedArgs.trackIndex} of animation ${typedArgs.animationName}`);
+  ctx.logDebug(`Setting keyframe at ${typedArgs.time}s in track ${typedArgs.trackIndex} of animation ${typedArgs.animationName}`);
 
   // Try bridge first, fallback to GodotExecutor
-  return executeWithBridge(
+  return ctx.executeWithBridge(
     'set_keyframe',
     {
       player_node_path: typedArgs.playerNodePath,
@@ -86,7 +83,7 @@ export const handleSetKeyframe = async (args: BaseToolArgs): Promise<ToolRespons
     async () => {
       // Fallback: traditional GodotExecutor method
       try {
-        const godotPath = await detectGodotPath();
+        const godotPath = await ctx.detectGodotPath();
         if (!godotPath) {
           return createErrorResponse('Could not find a valid Godot executable path', [
             'Ensure Godot is installed correctly',
@@ -111,7 +108,7 @@ export const handleSetKeyframe = async (args: BaseToolArgs): Promise<ToolRespons
           params.easing = typedArgs.easing;
         }
 
-        const { stdout, stderr } = await executeOperation(
+        const { stdout, stderr } = await ctx.executeOperation(
           'set_keyframe',
           params,
           typedArgs.projectPath,

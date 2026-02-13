@@ -14,10 +14,7 @@ import {
   createJsonResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { executeOperation } from '../../core/GodotExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   CreateAnimationTreeSchema,
   CreateAnimationTreeInput,
@@ -39,8 +36,8 @@ export const createAnimationTreeDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(CreateAnimationTreeSchema),
 };
 
-export const handleCreateAnimationTree = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleCreateAnimationTree = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(CreateAnimationTreeSchema, preparedArgs);
@@ -83,20 +80,20 @@ export const handleCreateAnimationTree = async (args: BaseToolArgs): Promise<Too
     ]);
   }
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath, ctx);
   if (sceneValidationError) {
     return sceneValidationError;
   }
 
-  logDebug(`Creating AnimationTree node ${typedArgs.nodeName} in scene: ${typedArgs.scenePath}`);
+  ctx.logDebug(`Creating AnimationTree node ${typedArgs.nodeName} in scene: ${typedArgs.scenePath}`);
 
   // Try bridge first, fallback to GodotExecutor
-  return executeWithBridge(
+  return ctx.executeWithBridge(
     'create_animation_tree',
     {
       node_name: typedArgs.nodeName,
@@ -108,7 +105,7 @@ export const handleCreateAnimationTree = async (args: BaseToolArgs): Promise<Too
     async () => {
       // Fallback: traditional GodotExecutor method
       try {
-        const godotPath = await detectGodotPath();
+        const godotPath = await ctx.detectGodotPath();
         if (!godotPath) {
           return createErrorResponse('Could not find a valid Godot executable path', [
             'Ensure Godot is installed correctly',
@@ -134,7 +131,7 @@ export const handleCreateAnimationTree = async (args: BaseToolArgs): Promise<Too
       params.processCallback = typedArgs.processCallback;
     }
 
-    const { stderr } = await executeOperation(
+    const { stderr } = await ctx.executeOperation(
       'create_animation_tree',
       params,
       typedArgs.projectPath,

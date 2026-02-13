@@ -14,10 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { executeOperation } from '../../core/GodotExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   CreateAnimationPlayerSchema,
   CreateAnimationPlayerInput,
@@ -31,8 +28,8 @@ export const createAnimationPlayerDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(CreateAnimationPlayerSchema),
 };
 
-export const handleCreateAnimationPlayer = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleCreateAnimationPlayer = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(CreateAnimationPlayerSchema, preparedArgs);
@@ -44,20 +41,20 @@ export const handleCreateAnimationPlayer = async (args: BaseToolArgs): Promise<T
 
   const typedArgs: CreateAnimationPlayerInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath, ctx);
   if (sceneValidationError) {
     return sceneValidationError;
   }
 
-  logDebug(`Creating AnimationPlayer node ${typedArgs.nodeName} in scene: ${typedArgs.scenePath}`);
+  ctx.logDebug(`Creating AnimationPlayer node ${typedArgs.nodeName} in scene: ${typedArgs.scenePath}`);
 
   // Try bridge first, fallback to GodotExecutor
-  return executeWithBridge(
+  return ctx.executeWithBridge(
     'add_node',
     {
       node_type: 'AnimationPlayer',
@@ -67,7 +64,7 @@ export const handleCreateAnimationPlayer = async (args: BaseToolArgs): Promise<T
     async () => {
       // Fallback: traditional GodotExecutor method
       try {
-        const godotPath = await detectGodotPath();
+        const godotPath = await ctx.detectGodotPath();
         if (!godotPath) {
           return createErrorResponse('Could not find a valid Godot executable path', [
             'Ensure Godot is installed correctly',
@@ -85,7 +82,7 @@ export const handleCreateAnimationPlayer = async (args: BaseToolArgs): Promise<T
           params.parentNodePath = typedArgs.parentNodePath;
         }
 
-        const { stdout, stderr } = await executeOperation(
+        const { stdout, stderr } = await ctx.executeOperation(
           'add_node',
           params,
           typedArgs.projectPath,

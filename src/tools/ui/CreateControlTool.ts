@@ -14,10 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { executeOperation } from '../../core/GodotExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   CreateControlSchema,
   CreateControlInput,
@@ -50,8 +47,8 @@ const controlTypeToClass: Record<string, string> = {
   menu_button: 'MenuButton',
 };
 
-export const handleCreateControl = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleCreateControl = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(CreateControlSchema, preparedArgs);
@@ -70,18 +67,18 @@ export const handleCreateControl = async (args: BaseToolArgs): Promise<ToolRespo
     ]);
   }
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath, ctx);
   if (sceneValidationError) {
     return sceneValidationError;
   }
 
   try {
-    const godotPath = await detectGodotPath();
+    const godotPath = await ctx.detectGodotPath();
     if (!godotPath) {
       return createErrorResponse('Could not find a valid Godot executable path', [
         'Ensure Godot is installed correctly',
@@ -90,7 +87,7 @@ export const handleCreateControl = async (args: BaseToolArgs): Promise<ToolRespo
     }
 
     const nodeType = controlTypeToClass[typedArgs.controlType];
-    logDebug(`Creating ${nodeType}: ${typedArgs.nodeName}`);
+    ctx.logDebug(`Creating ${nodeType}: ${typedArgs.nodeName}`);
 
     const params: BaseToolArgs = {
       scene_path: typedArgs.scenePath,
@@ -138,7 +135,7 @@ export const handleCreateControl = async (args: BaseToolArgs): Promise<ToolRespo
     if (typedArgs.value !== undefined) bridgeProperties.value = typedArgs.value;
 
     // Use bridge if available, fallback to GodotExecutor
-    return await executeWithBridge(
+    return await ctx.executeWithBridge(
       'add_node',
       {
         scene_path: typedArgs.scenePath,
@@ -148,7 +145,7 @@ export const handleCreateControl = async (args: BaseToolArgs): Promise<ToolRespo
         properties: bridgeProperties,
       },
       async () => {
-        const { stdout, stderr } = await executeOperation(
+        const { stdout, stderr } = await ctx.executeOperation(
           'create_control',
           params,
           typedArgs.projectPath,

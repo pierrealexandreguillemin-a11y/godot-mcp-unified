@@ -10,25 +10,15 @@
  * - Error cases and edge cases
  */
 
-import { jest } from '@jest/globals';
+import { jest, describe, it, expect, beforeEach } from '@jest/globals';
+import { RESOURCE_URIS } from '../types.js';
+import { AssetsResourceProvider, AssetsResourceDeps } from './AssetsResourceProvider.js';
 
 // ============================================================================
-// MOCK SETUP - Must be before dynamic imports
+// TEST DATA
 // ============================================================================
 
-const mockReadFileSync = jest.fn<(path: string, encoding?: string) => string>();
-const mockExistsSync = jest.fn<(path: string) => boolean>();
-
-jest.mock('fs', () => ({
-  readFileSync: mockReadFileSync,
-  existsSync: mockExistsSync,
-}));
-
-const mockIsGodotProject = jest.fn<(path: string) => boolean>();
-
-jest.mock('../../utils/FileUtils.js', () => ({
-  isGodotProject: mockIsGodotProject,
-}));
+const MOCK_DATE = new Date('2025-01-15T10:30:00Z');
 
 interface MockScannedFile {
   path: string;
@@ -37,25 +27,6 @@ interface MockScannedFile {
   size: number;
   modified: Date;
 }
-
-const mockFindFiles = jest.fn<(dir: string, extensions: string[]) => MockScannedFile[]>();
-
-jest.mock('../utils/fileScanner.js', () => ({
-  findFiles: mockFindFiles,
-  findFilePaths: jest.fn<(dir: string, extensions: string[]) => string[]>().mockReturnValue([]),
-}));
-
-// Static import of types (not mocked)
-import { RESOURCE_URIS } from '../types.js';
-
-// Import after all mocks are set up (jest.mock is hoisted)
-import { AssetsResourceProvider } from './AssetsResourceProvider.js';
-
-// ============================================================================
-// TEST DATA
-// ============================================================================
-
-const MOCK_DATE = new Date('2025-01-15T10:30:00Z');
 
 const MOCK_IMAGE_FILES: MockScannedFile[] = [
   { path: '/mock/project/icon.png', relativePath: 'icon.png', ext: '.png', size: 2048, modified: MOCK_DATE },
@@ -76,12 +47,24 @@ const MOCK_RESOURCE_FILES: MockScannedFile[] = [
 const MOCK_ALL_ASSETS = [...MOCK_IMAGE_FILES, ...MOCK_AUDIO_FILES, ...MOCK_RESOURCE_FILES];
 
 describe('AssetsResourceProvider', () => {
-  let provider: InstanceType<typeof AssetsResourceProvider>;
+  const mockReadFileSync = jest.fn<(path: string, encoding: BufferEncoding) => string>();
+  const mockExistsSync = jest.fn<(path: string) => boolean>();
+  const mockIsGodotProject = jest.fn<(path: string) => boolean>();
+  const mockFindFiles = jest.fn<(dir: string, extensions: string[]) => Array<{ path: string; relativePath: string; ext: string; size: number; modified: Date }>>();
+
+  let deps: AssetsResourceDeps;
+  let provider: AssetsResourceProvider;
   const projectPath = '/mock/project';
 
   beforeEach(() => {
-    provider = new AssetsResourceProvider();
     jest.clearAllMocks();
+    deps = {
+      readFileSync: mockReadFileSync,
+      existsSync: mockExistsSync,
+      isGodotProject: mockIsGodotProject,
+      findFiles: mockFindFiles,
+    };
+    provider = new AssetsResourceProvider(deps);
   });
 
   // ==========================================================================

@@ -14,10 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { executeOperation } from '../../core/GodotExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   CreateLightSchema,
   CreateLightInput,
@@ -40,8 +37,8 @@ const lightTypeToClass: Record<string, string> = {
   directional_2d: 'DirectionalLight2D',
 };
 
-export const handleCreateLight = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleCreateLight = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(CreateLightSchema, preparedArgs);
@@ -60,18 +57,18 @@ export const handleCreateLight = async (args: BaseToolArgs): Promise<ToolRespons
     ]);
   }
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath, ctx);
   if (sceneValidationError) {
     return sceneValidationError;
   }
 
   try {
-    const godotPath = await detectGodotPath();
+    const godotPath = await ctx.detectGodotPath();
     if (!godotPath) {
       return createErrorResponse('Could not find a valid Godot executable path', [
         'Ensure Godot is installed correctly',
@@ -80,7 +77,7 @@ export const handleCreateLight = async (args: BaseToolArgs): Promise<ToolRespons
     }
 
     const nodeType = lightTypeToClass[typedArgs.lightType];
-    logDebug(`Creating ${nodeType}: ${typedArgs.nodeName}`);
+    ctx.logDebug(`Creating ${nodeType}: ${typedArgs.nodeName}`);
 
     // Build properties for the light node
     const properties: Record<string, unknown> = {};
@@ -101,7 +98,7 @@ export const handleCreateLight = async (args: BaseToolArgs): Promise<ToolRespons
     }
 
     // Use bridge if available, fallback to GodotExecutor
-    return await executeWithBridge(
+    return await ctx.executeWithBridge(
       'add_node',
       {
         node_type: nodeType,
@@ -136,7 +133,7 @@ export const handleCreateLight = async (args: BaseToolArgs): Promise<ToolRespons
           params.texture_path = typedArgs.texturePath;
         }
 
-        const { stdout, stderr } = await executeOperation(
+        const { stdout, stderr } = await ctx.executeOperation(
           'create_light',
           params,
           typedArgs.projectPath,

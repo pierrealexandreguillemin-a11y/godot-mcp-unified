@@ -9,7 +9,7 @@
  * - godot://uid/{path} - UID for a specific file
  */
 
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync as _readFileSync, existsSync as _existsSync } from 'fs';
 import { basename } from 'path';
 import {
   ResourceProvider,
@@ -20,16 +20,32 @@ import {
   validateUidPath,
   validatePathWithinProject,
 } from '../types.js';
-import { isGodotProject } from '../../utils/FileUtils.js';
-import { findFiles } from '../utils/fileScanner.js';
+import { isGodotProject as _isGodotProject } from '../../utils/FileUtils.js';
+import { findFiles as _findFiles } from '../utils/fileScanner.js';
 import {
   ASSET_CATEGORIES,
   getAllAssetExtensions,
   getCategoryForExtension,
 } from '../utils/assetCategories.js';
 
+export interface AssetsResourceDeps {
+  readFileSync: (path: string, encoding: BufferEncoding) => string;
+  existsSync: (path: string) => boolean;
+  isGodotProject: (path: string) => boolean;
+  findFiles: (dir: string, extensions: string[]) => Array<{ path: string; relativePath: string; ext: string; size: number; modified: Date }>;
+}
+
+const defaultAssetsResourceDeps: AssetsResourceDeps = {
+  readFileSync: (path: string, encoding: BufferEncoding) => _readFileSync(path, encoding) as string,
+  existsSync: _existsSync,
+  isGodotProject: _isGodotProject,
+  findFiles: _findFiles,
+};
+
 export class AssetsResourceProvider implements ResourceProvider {
   prefix = 'assets';
+
+  constructor(private deps: AssetsResourceDeps = defaultAssetsResourceDeps) {}
 
   handlesUri(uri: string): boolean {
     return (
@@ -111,7 +127,7 @@ export class AssetsResourceProvider implements ResourceProvider {
   }
 
   private async listAllAssets(projectPath: string): Promise<ResourceContent | null> {
-    if (!projectPath || !isGodotProject(projectPath)) {
+    if (!projectPath || !this.deps.isGodotProject(projectPath)) {
       return {
         uri: RESOURCE_URIS.ASSETS,
         mimeType: 'application/json',
@@ -119,7 +135,7 @@ export class AssetsResourceProvider implements ResourceProvider {
       };
     }
 
-    const files = findFiles(projectPath, getAllAssetExtensions());
+    const files = this.deps.findFiles(projectPath, getAllAssetExtensions());
 
     // Group by category
     const byCategory: Record<string, typeof files> = {};
@@ -160,7 +176,7 @@ export class AssetsResourceProvider implements ResourceProvider {
     projectPath: string,
     category: string
   ): Promise<ResourceContent | null> {
-    if (!projectPath || !isGodotProject(projectPath)) {
+    if (!projectPath || !this.deps.isGodotProject(projectPath)) {
       return {
         uri: `${RESOURCE_URIS.ASSETS_CATEGORY}${category}`,
         mimeType: 'application/json',
@@ -184,7 +200,7 @@ export class AssetsResourceProvider implements ResourceProvider {
       };
     }
 
-    const files = findFiles(projectPath, extensions);
+    const files = this.deps.findFiles(projectPath, extensions);
 
     return {
       uri: `${RESOURCE_URIS.ASSETS_CATEGORY}${category}`,
@@ -209,7 +225,7 @@ export class AssetsResourceProvider implements ResourceProvider {
   }
 
   private async listResourceFiles(projectPath: string): Promise<ResourceContent | null> {
-    if (!projectPath || !isGodotProject(projectPath)) {
+    if (!projectPath || !this.deps.isGodotProject(projectPath)) {
       return {
         uri: RESOURCE_URIS.RESOURCES,
         mimeType: 'application/json',
@@ -217,7 +233,7 @@ export class AssetsResourceProvider implements ResourceProvider {
       };
     }
 
-    const files = findFiles(projectPath, ['.tres', '.res']);
+    const files = this.deps.findFiles(projectPath, ['.tres', '.res']);
 
     // Try to extract resource type from .tres files
     const resources = files.map((f) => {
@@ -225,7 +241,7 @@ export class AssetsResourceProvider implements ResourceProvider {
 
       if (f.ext === '.tres') {
         try {
-          const content = readFileSync(f.path, 'utf-8');
+          const content = this.deps.readFileSync(f.path, 'utf-8');
           const typeMatch = content.match(/\[gd_resource type="([^"]+)"/);
           if (typeMatch) resourceType = typeMatch[1];
         } catch {
@@ -258,7 +274,7 @@ export class AssetsResourceProvider implements ResourceProvider {
   }
 
   private async getFileUid(projectPath: string, filePath: string): Promise<ResourceContent | null> {
-    if (!projectPath || !isGodotProject(projectPath)) {
+    if (!projectPath || !this.deps.isGodotProject(projectPath)) {
       return null;
     }
 
@@ -270,7 +286,7 @@ export class AssetsResourceProvider implements ResourceProvider {
 
     const importFilePath = `${fullFilePath}.import`;
 
-    if (!existsSync(fullFilePath)) {
+    if (!this.deps.existsSync(fullFilePath)) {
       return {
         uri: `${RESOURCE_URIS.UID}${filePath}`,
         mimeType: 'application/json',
@@ -281,9 +297,9 @@ export class AssetsResourceProvider implements ResourceProvider {
     let uid: string | null = null;
 
     // Try to read UID from .import file
-    if (existsSync(importFilePath)) {
+    if (this.deps.existsSync(importFilePath)) {
       try {
-        const importContent = readFileSync(importFilePath, 'utf-8');
+        const importContent = this.deps.readFileSync(importFilePath, 'utf-8');
         const uidMatch = importContent.match(/uid="([^"]+)"/);
         if (uidMatch) uid = uidMatch[1];
       } catch {
@@ -294,7 +310,7 @@ export class AssetsResourceProvider implements ResourceProvider {
     // For .tscn files, check the uid in the file header
     if (!uid && filePath.endsWith('.tscn')) {
       try {
-        const content = readFileSync(fullFilePath, 'utf-8');
+        const content = this.deps.readFileSync(fullFilePath, 'utf-8');
         const uidMatch = content.match(/uid="([^"]+)"/);
         if (uidMatch) uid = uidMatch[1];
       } catch {
@@ -305,7 +321,7 @@ export class AssetsResourceProvider implements ResourceProvider {
     return {
       uri: `${RESOURCE_URIS.UID}${filePath}`,
       mimeType: 'application/json',
-      text: JSON.stringify({ path: filePath, uid, hasImportFile: existsSync(importFilePath) }, null, 2),
+      text: JSON.stringify({ path: filePath, uid, hasImportFile: this.deps.existsSync(importFilePath) }, null, 2),
     };
   }
 }

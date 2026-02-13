@@ -17,36 +17,12 @@
 
 import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 import { getResponseText, isErrorResponse } from '../test-utils.js';
+import { createMockContext, ToolContext } from '../ToolContext.js';
 
 // Helper to get all text content from response (including suggestions)
 const getAllResponseText = (response: { content: Array<{ text: string }> }): string => {
   return response.content.map((c) => c.text).join('\n');
 };
-
-// Create mock functions before mocking modules
-const mockDetectGodotPath = jest.fn<() => Promise<string | null>>();
-const mockGetGodotVersion = jest.fn<(godotPath: string) => Promise<string>>();
-const mockIsValidGodotPath = jest.fn<(path: string) => Promise<boolean>>();
-
-// Mock the dependencies using unstable_mockModule for ESM support
-// PathManager needs all exports that transitive imports might use
-jest.mock('../../core/PathManager.js', () => ({
-  detectGodotPath: mockDetectGodotPath,
-  validatePath: jest.fn(() => true),
-  normalizePath: jest.fn((p: string) => p),
-  normalizeHandlerPaths: jest.fn(<T>(args: T) => args),
-  isValidGodotPathSync: jest.fn(() => true),
-  isValidGodotPath: mockIsValidGodotPath,
-  getPlatformGodotPaths: jest.fn(() => []),
-  clearPathCache: jest.fn(),
-  getPathCacheStats: jest.fn(() => ({ hits: 0, misses: 0, size: 0 })),
-}));
-
-jest.mock('../../core/GodotExecutor.js', () => ({
-  getGodotVersion: mockGetGodotVersion,
-  isGodot44OrLater: jest.fn(() => false),
-  executeOperation: jest.fn(),
-}));
 
 import { getGodotVersionDefinition, handleGetGodotVersion } from './GetGodotVersionTool.js';
 import { systemHealthDefinition, handleSystemHealth } from './SystemHealthTool.js';
@@ -59,9 +35,19 @@ describe('GetGodotVersionTool', () => {
    *          and handles error conditions appropriately
    */
 
+  // Create mock functions for assertion checking
+  const mockDetectGodotPath = jest.fn<() => Promise<string | null>>();
+  const mockGetGodotVersion = jest.fn<(godotPath: string) => Promise<string>>();
+
+  let ctx: ToolContext;
+
   // Preconditions: Reset all mocks before each test
   beforeEach(() => {
     jest.clearAllMocks();
+    ctx = createMockContext({
+      detectGodotPath: mockDetectGodotPath,
+      getGodotVersion: mockGetGodotVersion,
+    });
   });
 
   // Cleanup: Ensure mocks are reset after each test
@@ -131,7 +117,7 @@ describe('GetGodotVersionTool', () => {
       mockGetGodotVersion.mockResolvedValue(mockVersion);
 
       // When: We call handleGetGodotVersion
-      const result = await handleGetGodotVersion();
+      const result = await handleGetGodotVersion({}, ctx);
 
       // Then: The result should contain the version
       expect(isErrorResponse(result)).toBe(false);
@@ -149,7 +135,7 @@ describe('GetGodotVersionTool', () => {
       mockGetGodotVersion.mockResolvedValue('4.2.stable');
 
       // When: We call handleGetGodotVersion
-      const result = await handleGetGodotVersion();
+      const result = await handleGetGodotVersion({}, ctx);
 
       // Then: The version should be returned correctly
       expect(isErrorResponse(result)).toBe(false);
@@ -167,7 +153,7 @@ describe('GetGodotVersionTool', () => {
       mockGetGodotVersion.mockResolvedValue('4.3.beta2');
 
       // When: We call handleGetGodotVersion
-      const result = await handleGetGodotVersion();
+      const result = await handleGetGodotVersion({}, ctx);
 
       // Then: The version should be returned correctly
       expect(isErrorResponse(result)).toBe(false);
@@ -185,7 +171,7 @@ describe('GetGodotVersionTool', () => {
       mockGetGodotVersion.mockResolvedValue('4.3.rc1');
 
       // When: We call handleGetGodotVersion
-      const result = await handleGetGodotVersion();
+      const result = await handleGetGodotVersion({}, ctx);
 
       // Then: The version should be returned correctly
       expect(isErrorResponse(result)).toBe(false);
@@ -203,7 +189,7 @@ describe('GetGodotVersionTool', () => {
       mockGetGodotVersion.mockResolvedValue('4.4.dev.custom_build');
 
       // When: We call handleGetGodotVersion
-      const result = await handleGetGodotVersion();
+      const result = await handleGetGodotVersion({}, ctx);
 
       // Then: The version should be returned correctly
       expect(isErrorResponse(result)).toBe(false);
@@ -221,7 +207,7 @@ describe('GetGodotVersionTool', () => {
       mockGetGodotVersion.mockResolvedValue('4.2.1.stable');
 
       // When: We call handleGetGodotVersion
-      await handleGetGodotVersion();
+      await handleGetGodotVersion({}, ctx);
 
       // Then: detectGodotPath should be called without arguments
       expect(mockDetectGodotPath).toHaveBeenCalledTimes(1);
@@ -240,7 +226,7 @@ describe('GetGodotVersionTool', () => {
       mockGetGodotVersion.mockResolvedValue('4.2.stable');
 
       // When: We call handleGetGodotVersion
-      await handleGetGodotVersion();
+      await handleGetGodotVersion({}, ctx);
 
       // Then: getGodotVersion should be called with the detected path
       expect(mockGetGodotVersion).toHaveBeenCalledTimes(1);
@@ -260,7 +246,7 @@ describe('GetGodotVersionTool', () => {
       mockDetectGodotPath.mockResolvedValue(null);
 
       // When: We call handleGetGodotVersion
-      const result = await handleGetGodotVersion();
+      const result = await handleGetGodotVersion({}, ctx);
 
       // Then: An error should be returned with helpful suggestions
       expect(isErrorResponse(result)).toBe(true);
@@ -279,7 +265,7 @@ describe('GetGodotVersionTool', () => {
       mockDetectGodotPath.mockResolvedValue(null);
 
       // When: We call handleGetGodotVersion
-      const result = await handleGetGodotVersion();
+      const result = await handleGetGodotVersion({}, ctx);
 
       // Then: The error should suggest installation (in suggestions content item)
       expect(isErrorResponse(result)).toBe(true);
@@ -296,7 +282,7 @@ describe('GetGodotVersionTool', () => {
       mockDetectGodotPath.mockResolvedValue(null);
 
       // When: We call handleGetGodotVersion
-      await handleGetGodotVersion();
+      await handleGetGodotVersion({}, ctx);
 
       // Then: getGodotVersion should not be called
       expect(mockGetGodotVersion).not.toHaveBeenCalled();
@@ -315,7 +301,7 @@ describe('GetGodotVersionTool', () => {
       mockGetGodotVersion.mockRejectedValue(new Error('Execution failed'));
 
       // When: We call handleGetGodotVersion
-      const result = await handleGetGodotVersion();
+      const result = await handleGetGodotVersion({}, ctx);
 
       // Then: An error should be returned
       expect(isErrorResponse(result)).toBe(true);
@@ -335,7 +321,7 @@ describe('GetGodotVersionTool', () => {
       mockGetGodotVersion.mockRejectedValue('String error');
 
       // When: We call handleGetGodotVersion
-      const result = await handleGetGodotVersion();
+      const result = await handleGetGodotVersion({}, ctx);
 
       // Then: An error should be returned with 'Unknown error'
       expect(isErrorResponse(result)).toBe(true);
@@ -355,7 +341,7 @@ describe('GetGodotVersionTool', () => {
       mockGetGodotVersion.mockRejectedValue(new Error('Command timed out after 10000ms'));
 
       // When: We call handleGetGodotVersion
-      const result = await handleGetGodotVersion();
+      const result = await handleGetGodotVersion({}, ctx);
 
       // Then: An error should be returned mentioning the timeout
       expect(isErrorResponse(result)).toBe(true);
@@ -374,7 +360,7 @@ describe('GetGodotVersionTool', () => {
       mockGetGodotVersion.mockRejectedValue(new Error('EACCES: permission denied'));
 
       // When: We call handleGetGodotVersion
-      const result = await handleGetGodotVersion();
+      const result = await handleGetGodotVersion({}, ctx);
 
       // Then: An error should be returned
       expect(isErrorResponse(result)).toBe(true);
@@ -393,7 +379,7 @@ describe('GetGodotVersionTool', () => {
       mockGetGodotVersion.mockRejectedValue(new Error('ENOENT: no such file or directory'));
 
       // When: We call handleGetGodotVersion
-      const result = await handleGetGodotVersion();
+      const result = await handleGetGodotVersion({}, ctx);
 
       // Then: An error should be returned
       expect(isErrorResponse(result)).toBe(true);
@@ -412,7 +398,7 @@ describe('GetGodotVersionTool', () => {
       mockGetGodotVersion.mockRejectedValue(new Error('Any error'));
 
       // When: We call handleGetGodotVersion
-      const result = await handleGetGodotVersion();
+      const result = await handleGetGodotVersion({}, ctx);
 
       // Then: The error should suggest checking GODOT_PATH (in suggestions content item)
       expect(isErrorResponse(result)).toBe(true);
@@ -431,7 +417,7 @@ describe('GetGodotVersionTool', () => {
       mockDetectGodotPath.mockRejectedValue(new Error('Path detection failed'));
 
       // When: We call handleGetGodotVersion
-      const result = await handleGetGodotVersion();
+      const result = await handleGetGodotVersion({}, ctx);
 
       // Then: An error should be returned
       expect(isErrorResponse(result)).toBe(true);
@@ -453,7 +439,7 @@ describe('GetGodotVersionTool', () => {
       mockGetGodotVersion.mockResolvedValue('4.2.stable');
 
       // When: We call handleGetGodotVersion
-      const result = await handleGetGodotVersion();
+      const result = await handleGetGodotVersion({}, ctx);
 
       // Then: Response should have proper structure
       expect(result).toHaveProperty('content');
@@ -473,7 +459,7 @@ describe('GetGodotVersionTool', () => {
       mockDetectGodotPath.mockResolvedValue(null);
 
       // When: We call handleGetGodotVersion
-      const result = await handleGetGodotVersion();
+      const result = await handleGetGodotVersion({}, ctx);
 
       // Then: Response should have isError = true
       expect(result.isError).toBe(true);
@@ -490,7 +476,7 @@ describe('GetGodotVersionTool', () => {
       mockGetGodotVersion.mockResolvedValue('4.2.stable');
 
       // When: We call handleGetGodotVersion
-      const result = await handleGetGodotVersion();
+      const result = await handleGetGodotVersion({}, ctx);
 
       // Then: Response should not have isError or it should be undefined/false
       expect(result.isError).toBeUndefined();
@@ -509,7 +495,7 @@ describe('GetGodotVersionTool', () => {
       mockGetGodotVersion.mockResolvedValue('4.2.1.stable');
 
       // When: We call handleGetGodotVersion
-      const result = await handleGetGodotVersion();
+      const result = await handleGetGodotVersion({}, ctx);
 
       // Then: The version should be returned correctly
       expect(isErrorResponse(result)).toBe(false);
@@ -528,7 +514,7 @@ describe('GetGodotVersionTool', () => {
       mockGetGodotVersion.mockResolvedValue('4.2.1.stable');
 
       // When: We call handleGetGodotVersion
-      const result = await handleGetGodotVersion();
+      const result = await handleGetGodotVersion({}, ctx);
 
       // Then: The version should be returned correctly
       expect(isErrorResponse(result)).toBe(false);
@@ -546,7 +532,7 @@ describe('GetGodotVersionTool', () => {
       mockGetGodotVersion.mockResolvedValue('4.2.1.stable');
 
       // When: We call handleGetGodotVersion
-      const result = await handleGetGodotVersion();
+      const result = await handleGetGodotVersion({}, ctx);
 
       // Then: The version should be returned correctly
       expect(isErrorResponse(result)).toBe(false);
@@ -564,7 +550,7 @@ describe('GetGodotVersionTool', () => {
       mockGetGodotVersion.mockResolvedValue('4.2.1.stable');
 
       // When: We call handleGetGodotVersion
-      const result = await handleGetGodotVersion();
+      const result = await handleGetGodotVersion({}, ctx);
 
       // Then: The version should be returned correctly
       expect(isErrorResponse(result)).toBe(false);
@@ -585,7 +571,7 @@ describe('GetGodotVersionTool', () => {
       mockGetGodotVersion.mockResolvedValue('');
 
       // When: We call handleGetGodotVersion
-      const result = await handleGetGodotVersion();
+      const result = await handleGetGodotVersion({}, ctx);
 
       // Then: Should still return successfully with empty string
       expect(isErrorResponse(result)).toBe(false);
@@ -603,7 +589,7 @@ describe('GetGodotVersionTool', () => {
       mockGetGodotVersion.mockResolvedValue('4.2.stable');
 
       // When: We call handleGetGodotVersion
-      const result = await handleGetGodotVersion();
+      const result = await handleGetGodotVersion({}, ctx);
 
       // Then: Version should be returned as-is
       expect(isErrorResponse(result)).toBe(false);
@@ -622,7 +608,7 @@ describe('GetGodotVersionTool', () => {
       mockGetGodotVersion.mockResolvedValue(longVersion);
 
       // When: We call handleGetGodotVersion
-      const result = await handleGetGodotVersion();
+      const result = await handleGetGodotVersion({}, ctx);
 
       // Then: The full version should be returned
       expect(isErrorResponse(result)).toBe(false);
@@ -640,7 +626,7 @@ describe('GetGodotVersionTool', () => {
       mockGetGodotVersion.mockRejectedValue(undefined);
 
       // When: We call handleGetGodotVersion
-      const result = await handleGetGodotVersion();
+      const result = await handleGetGodotVersion({}, ctx);
 
       // Then: Should handle gracefully with 'Unknown error'
       expect(isErrorResponse(result)).toBe(true);
@@ -658,7 +644,7 @@ describe('GetGodotVersionTool', () => {
       mockGetGodotVersion.mockRejectedValue(null);
 
       // When: We call handleGetGodotVersion
-      const result = await handleGetGodotVersion();
+      const result = await handleGetGodotVersion({}, ctx);
 
       // Then: Should handle gracefully with 'Unknown error'
       expect(isErrorResponse(result)).toBe(true);
@@ -674,11 +660,23 @@ describe('SystemHealthTool', () => {
    * Purpose: Verify the SystemHealth tool returns correct health status and metrics
    */
 
+  // Create mock functions for assertion checking
+  const mockDetectGodotPath = jest.fn<() => Promise<string | null>>();
+  const mockGetGodotVersion = jest.fn<(godotPath: string) => Promise<string>>();
+  const mockIsValidGodotPath = jest.fn<(path: string) => Promise<boolean>>();
+
+  let ctx: ToolContext;
+
   beforeEach(() => {
     jest.clearAllMocks();
     mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
     mockIsValidGodotPath.mockResolvedValue(true);
     mockGetGodotVersion.mockResolvedValue('4.2.stable');
+    ctx = createMockContext({
+      detectGodotPath: mockDetectGodotPath,
+      getGodotVersion: mockGetGodotVersion,
+      isValidGodotPath: mockIsValidGodotPath,
+    });
   });
 
   afterEach(() => {
@@ -707,7 +705,7 @@ describe('SystemHealthTool', () => {
     it('should return healthy status with all metrics', async () => {
       // Given: Default healthy environment
       // When: We call handleSystemHealth with all metrics
-      const result = await handleSystemHealth({ includeMetrics: true, includeGodotStatus: true });
+      const result = await handleSystemHealth({ includeMetrics: true, includeGodotStatus: true }, ctx);
 
       // Then: The result should contain health info
       expect(isErrorResponse(result)).toBe(false);
@@ -717,21 +715,21 @@ describe('SystemHealthTool', () => {
     });
 
     it('should return version information', async () => {
-      const result = await handleSystemHealth({});
+      const result = await handleSystemHealth({}, ctx);
       expect(isErrorResponse(result)).toBe(false);
       const responseText = getResponseText(result);
       expect(responseText).toContain('version');
     });
 
     it('should return uptime', async () => {
-      const result = await handleSystemHealth({});
+      const result = await handleSystemHealth({}, ctx);
       expect(isErrorResponse(result)).toBe(false);
       const responseText = getResponseText(result);
       expect(responseText).toContain('uptime');
     });
 
     it('should return timestamp', async () => {
-      const result = await handleSystemHealth({});
+      const result = await handleSystemHealth({}, ctx);
       expect(isErrorResponse(result)).toBe(false);
       const responseText = getResponseText(result);
       expect(responseText).toContain('timestamp');
@@ -740,21 +738,21 @@ describe('SystemHealthTool', () => {
 
   describe('Metrics', () => {
     it('should include rate limiter stats when includeMetrics is true', async () => {
-      const result = await handleSystemHealth({ includeMetrics: true });
+      const result = await handleSystemHealth({ includeMetrics: true }, ctx);
       expect(isErrorResponse(result)).toBe(false);
       const responseText = getResponseText(result);
       expect(responseText).toContain('rateLimiter');
     });
 
     it('should include memory usage when includeMetrics is true', async () => {
-      const result = await handleSystemHealth({ includeMetrics: true });
+      const result = await handleSystemHealth({ includeMetrics: true }, ctx);
       expect(isErrorResponse(result)).toBe(false);
       const responseText = getResponseText(result);
       expect(responseText).toContain('memory');
     });
 
     it('should not include metrics when includeMetrics is false', async () => {
-      const result = await handleSystemHealth({ includeMetrics: false, includeGodotStatus: false });
+      const result = await handleSystemHealth({ includeMetrics: false, includeGodotStatus: false }, ctx);
       expect(isErrorResponse(result)).toBe(false);
       const responseText = getResponseText(result);
       // Should still have basic fields but no metrics section
@@ -765,7 +763,7 @@ describe('SystemHealthTool', () => {
 
   describe('Godot Status', () => {
     it('should include Godot availability when includeGodotStatus is true', async () => {
-      const result = await handleSystemHealth({ includeGodotStatus: true });
+      const result = await handleSystemHealth({ includeGodotStatus: true }, ctx);
       expect(isErrorResponse(result)).toBe(false);
       const responseText = getResponseText(result);
       expect(responseText).toContain('godot');
@@ -774,7 +772,7 @@ describe('SystemHealthTool', () => {
 
     it('should include Godot version when available', async () => {
       mockGetGodotVersion.mockResolvedValue('4.2.stable');
-      const result = await handleSystemHealth({ includeGodotStatus: true });
+      const result = await handleSystemHealth({ includeGodotStatus: true }, ctx);
       expect(isErrorResponse(result)).toBe(false);
       const responseText = getResponseText(result);
       expect(responseText).toContain('4.2.stable');
@@ -784,14 +782,14 @@ describe('SystemHealthTool', () => {
       mockDetectGodotPath.mockResolvedValue(null);
       mockIsValidGodotPath.mockResolvedValue(false);
 
-      const result = await handleSystemHealth({ includeGodotStatus: true, includeMetrics: false });
+      const result = await handleSystemHealth({ includeGodotStatus: true, includeMetrics: false }, ctx);
       expect(isErrorResponse(result)).toBe(false);
       const responseText = getResponseText(result);
       expect(responseText).toContain('degraded');
     });
 
     it('should not include Godot status when includeGodotStatus is false', async () => {
-      const result = await handleSystemHealth({ includeGodotStatus: false, includeMetrics: false });
+      const result = await handleSystemHealth({ includeGodotStatus: false, includeMetrics: false }, ctx);
       expect(isErrorResponse(result)).toBe(false);
       const responseText = getResponseText(result);
       // Should not contain godot section in response
@@ -801,7 +799,7 @@ describe('SystemHealthTool', () => {
 
   describe('Default Parameters', () => {
     it('should use default values when no parameters provided', async () => {
-      const result = await handleSystemHealth({});
+      const result = await handleSystemHealth({}, ctx);
       expect(isErrorResponse(result)).toBe(false);
       // Default is includeMetrics: true, includeGodotStatus: true
       const responseText = getResponseText(result);
@@ -814,7 +812,7 @@ describe('SystemHealthTool', () => {
     it('should handle Godot version retrieval failure gracefully', async () => {
       mockGetGodotVersion.mockRejectedValue(new Error('Version check failed'));
 
-      const result = await handleSystemHealth({ includeGodotStatus: true });
+      const result = await handleSystemHealth({ includeGodotStatus: true }, ctx);
       expect(isErrorResponse(result)).toBe(false);
       // Should still return health status, just without version
       const responseText = getResponseText(result);
@@ -824,7 +822,7 @@ describe('SystemHealthTool', () => {
 
   describe('Response Format', () => {
     it('should return response with correct content structure', async () => {
-      const result = await handleSystemHealth({});
+      const result = await handleSystemHealth({}, ctx);
       expect(result).toHaveProperty('content');
       expect(Array.isArray(result.content)).toBe(true);
       expect(result.content.length).toBeGreaterThan(0);
@@ -832,7 +830,7 @@ describe('SystemHealthTool', () => {
     });
 
     it('should return JSON-parseable response', async () => {
-      const result = await handleSystemHealth({});
+      const result = await handleSystemHealth({}, ctx);
       const responseText = getResponseText(result);
       expect(() => JSON.parse(responseText)).not.toThrow();
     });

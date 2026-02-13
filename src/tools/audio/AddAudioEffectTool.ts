@@ -13,10 +13,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { executeOperation } from '../../core/GodotExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   AddAudioEffectSchema,
   AddAudioEffectInput,
@@ -58,8 +55,8 @@ const effectTypeToClass: Record<string, string> = {
   stereo_enhance: 'AudioEffectStereoEnhance',
 };
 
-export const handleAddAudioEffect = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleAddAudioEffect = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(AddAudioEffectSchema, preparedArgs);
@@ -71,7 +68,7 @@ export const handleAddAudioEffect = async (args: BaseToolArgs): Promise<ToolResp
 
   const typedArgs: AddAudioEffectInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
@@ -85,7 +82,7 @@ export const handleAddAudioEffect = async (args: BaseToolArgs): Promise<ToolResp
   }
 
   try {
-    const godotPath = await detectGodotPath();
+    const godotPath = await ctx.detectGodotPath();
     if (!godotPath) {
       return createErrorResponse('Could not find a valid Godot executable path', [
         'Ensure Godot is installed correctly',
@@ -93,7 +90,7 @@ export const handleAddAudioEffect = async (args: BaseToolArgs): Promise<ToolResp
       ]);
     }
 
-    logDebug(`Adding ${effectClass} effect to bus: ${typedArgs.busName}`);
+    ctx.logDebug(`Adding ${effectClass} effect to bus: ${typedArgs.busName}`);
 
     const params: BaseToolArgs = {
       busName: typedArgs.busName,
@@ -105,7 +102,7 @@ export const handleAddAudioEffect = async (args: BaseToolArgs): Promise<ToolResp
     }
 
     // Use bridge if available, fallback to GodotExecutor
-    return await executeWithBridge(
+    return await ctx.executeWithBridge(
       'add_audio_effect',
       {
         bus_name: typedArgs.busName,
@@ -113,7 +110,7 @@ export const handleAddAudioEffect = async (args: BaseToolArgs): Promise<ToolResp
         effect_params: typedArgs.effectParams,
       },
       async () => {
-        const { stdout, stderr } = await executeOperation(
+        const { stdout, stderr } = await ctx.executeOperation(
           'add_audio_effect',
           params,
           typedArgs.projectPath,

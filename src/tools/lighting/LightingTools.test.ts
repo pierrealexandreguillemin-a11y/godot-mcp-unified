@@ -17,85 +17,43 @@
  */
 
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
-
-// Define mock functions with proper types
-const mockDetectGodotPath = jest.fn<() => Promise<string | null>>();
-const mockValidatePath = jest.fn<(p: string) => boolean>();
-const mockNormalizeHandlerPaths = jest.fn<(args: Record<string, unknown>) => Record<string, unknown>>();
-const mockNormalizePath = jest.fn<(p: string) => string>();
-const mockExecuteOperation = jest.fn<(op: string, params: Record<string, unknown>, projectPath: string, godotPath: string) => Promise<{ stdout: string; stderr: string }>>();
-const mockNormalizeParameters = jest.fn<(args: Record<string, unknown>) => Record<string, unknown>>();
-const mockConvertCamelToSnakeCase = jest.fn<(s: string) => string>();
-const mockLogDebug = jest.fn();
-const mockLogError = jest.fn();
-const mockLogInfo = jest.fn();
-const mockLogWarn = jest.fn();
-const mockIsGodotProject = jest.fn<(p: string) => boolean>();
-const mockExistsSync = jest.fn<(p: string) => boolean>();
-const mockEnsureDir = jest.fn<() => Promise<void>>();
-const mockWriteFile = jest.fn<() => Promise<void>>();
-
-// Mock all dependencies
-jest.mock('../../core/PathManager.js', () => ({
-  detectGodotPath: mockDetectGodotPath,
-  validatePath: mockValidatePath,
-  normalizeHandlerPaths: mockNormalizeHandlerPaths.mockImplementation((args) => args),
-  normalizePath: mockNormalizePath.mockImplementation((p) => p),
-}));
-
-jest.mock('../../core/GodotExecutor.js', () => ({
-  executeOperation: mockExecuteOperation,
-}));
-
-jest.mock('../../core/ParameterNormalizer.js', () => ({
-  normalizeParameters: mockNormalizeParameters.mockImplementation((args) => args),
-  convertCamelToSnakeCase: mockConvertCamelToSnakeCase.mockImplementation((s) => s),
-}));
-
-jest.mock('../../utils/Logger.js', () => ({
-  logDebug: mockLogDebug,
-  logError: mockLogError,
-  logInfo: mockLogInfo,
-  logWarn: mockLogWarn,
-}));
-
-// Mock BridgeExecutor to always use fallback (no bridge connected)
-jest.mock('../../bridge/BridgeExecutor.js', () => ({
-  executeWithBridge: async (
-    _action: string,
-    _params: Record<string, unknown>,
-    fallback: () => Promise<unknown>,
-  ) => fallback(),
-}));
-
-jest.mock('../../utils/FileUtils.js', () => ({
-  isGodotProject: mockIsGodotProject,
-}));
-
-jest.mock('fs', () => ({
-  existsSync: mockExistsSync,
-}));
-
-jest.mock('fs-extra', () => ({
-  default: {
-    ensureDir: mockEnsureDir,
-    writeFile: mockWriteFile,
-  },
-  ensureDir: mockEnsureDir,
-  writeFile: mockWriteFile,
-}));
-
+import { createMockContext, ToolContext } from '../ToolContext.js';
 import { handleCreateLight } from './CreateLightTool.js';
 import { handleSetupEnvironment } from './SetupEnvironmentTool.js';
 
 describe('Lighting Tools', () => {
+  const mockDetectGodotPath = jest.fn<() => Promise<string | null>>();
+  const mockValidatePath = jest.fn<(p: string) => boolean>();
+  const mockExecuteOperation = jest.fn<(op: string, params: Record<string, unknown>, projectPath: string, godotPath: string) => Promise<{ stdout: string; stderr: string }>>();
+  const mockIsGodotProject = jest.fn<(p: string) => boolean>();
+  const mockExistsSync = jest.fn<(p: string) => boolean>();
+  const mockEnsureDir = jest.fn<() => Promise<void>>();
+  const mockWriteFile = jest.fn<(path: string, data: string, encoding?: string) => Promise<void>>();
+  const mockLogDebug = jest.fn();
+  let ctx: ToolContext;
+
   beforeEach(() => {
-    jest.resetAllMocks();
-    // Reset default implementations
-    mockNormalizeHandlerPaths.mockImplementation((args) => args);
-    mockNormalizePath.mockImplementation((p) => p);
-    mockNormalizeParameters.mockImplementation((args) => args);
-    mockConvertCamelToSnakeCase.mockImplementation((s) => s);
+    jest.clearAllMocks();
+    // Reset queued mockReturnValueOnce values that clearAllMocks does not clear
+    mockDetectGodotPath.mockReset();
+    mockValidatePath.mockReset();
+    mockExecuteOperation.mockReset();
+    mockIsGodotProject.mockReset();
+    mockExistsSync.mockReset();
+    mockEnsureDir.mockReset();
+    mockWriteFile.mockReset();
+    mockLogDebug.mockReset();
+    ctx = createMockContext({
+      detectGodotPath: mockDetectGodotPath,
+      validatePath: mockValidatePath,
+      executeOperation: mockExecuteOperation,
+      isGodotProject: mockIsGodotProject,
+      existsSync: mockExistsSync,
+      ensureDir: mockEnsureDir,
+      writeFile: mockWriteFile,
+      logDebug: mockLogDebug,
+      executeWithBridge: async (_action, _params, fallback) => fallback(),
+    });
   });
 
   // ============================================================================
@@ -108,7 +66,7 @@ describe('Lighting Tools', () => {
           scenePath: 'scenes/main.tscn',
           nodeName: 'Sun',
           lightType: 'directional_3d',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('projectPath');
       });
@@ -118,7 +76,7 @@ describe('Lighting Tools', () => {
           projectPath: '/path/to/project',
           nodeName: 'Sun',
           lightType: 'directional_3d',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('scenePath');
       });
@@ -128,7 +86,7 @@ describe('Lighting Tools', () => {
           projectPath: '/path/to/project',
           scenePath: 'scenes/main.tscn',
           lightType: 'directional_3d',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('nodeName');
       });
@@ -138,13 +96,13 @@ describe('Lighting Tools', () => {
           projectPath: '/path/to/project',
           scenePath: 'scenes/main.tscn',
           nodeName: 'Sun',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('lightType');
       });
 
       it('should return error when all required parameters are missing', async () => {
-        const result = await handleCreateLight({});
+        const result = await handleCreateLight({}, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/Validation failed/i);
       });
@@ -155,7 +113,7 @@ describe('Lighting Tools', () => {
           scenePath: 'scenes/main.tscn',
           nodeName: '',
           lightType: 'directional_3d',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/nodeName|cannot be empty|Validation failed/i);
       });
@@ -166,7 +124,7 @@ describe('Lighting Tools', () => {
           scenePath: 'scenes/main.tscn',
           nodeName: 'Sun',
           lightType: 'invalid',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/Validation failed|Invalid|lightType/i);
       });
@@ -177,7 +135,7 @@ describe('Lighting Tools', () => {
           scenePath: 'scenes/main.tscn',
           nodeName: 'Sun',
           lightType: 'DIRECTIONAL_3D' as 'directional_3d',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/Validation failed|lightType/i);
       });
@@ -188,7 +146,7 @@ describe('Lighting Tools', () => {
           scenePath: 'scenes/main.tscn',
           nodeName: 123 as unknown as string,
           lightType: 'directional_3d',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/nodeName|string|Validation failed/i);
       });
@@ -200,7 +158,7 @@ describe('Lighting Tools', () => {
           nodeName: 'Sun',
           lightType: 'directional_3d',
           energy: 'high' as unknown as number,
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/energy|number|Validation failed/i);
       });
@@ -212,7 +170,7 @@ describe('Lighting Tools', () => {
           nodeName: 'Sun',
           lightType: 'directional_3d',
           shadowEnabled: 'yes' as unknown as boolean,
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/shadowEnabled|boolean|Validation failed/i);
       });
@@ -224,7 +182,7 @@ describe('Lighting Tools', () => {
           nodeName: 'Sun',
           lightType: 'directional_3d',
           color: { red: 1.0, green: 0.9 } as unknown as { r: number; g: number; b: number },
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/color|Validation failed/i);
       });
@@ -238,7 +196,7 @@ describe('Lighting Tools', () => {
           scenePath: 'scenes/main.tscn',
           nodeName: 'Sun',
           lightType: 'directional_3d',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
       });
 
@@ -251,7 +209,7 @@ describe('Lighting Tools', () => {
           scenePath: '../../../etc/passwd.tscn',
           nodeName: 'Sun',
           lightType: 'directional_3d',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
       });
 
@@ -263,7 +221,7 @@ describe('Lighting Tools', () => {
           scenePath: 'scenes/main.tscn',
           nodeName: 'Sun',
           lightType: 'directional_3d',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('Not a valid Godot project');
       });
@@ -285,7 +243,7 @@ describe('Lighting Tools', () => {
           scenePath: 'scenes/main.tscn',
           nodeName: 'Sun',
           lightType: 'directional_3d',
-        });
+        }, ctx);
         expect(result.isError).toBeUndefined();
         expect(result.content[0].text).toContain('Light created successfully');
         expect(result.content[0].text).toContain('Sun');
@@ -301,7 +259,7 @@ describe('Lighting Tools', () => {
           scenePath: 'scenes/main.tscn',
           nodeName: 'PointLight',
           lightType: 'omni_3d',
-        });
+        }, ctx);
         expect(result.isError).toBeUndefined();
         expect(result.content[0].text).toContain('OmniLight3D');
       });
@@ -315,7 +273,7 @@ describe('Lighting Tools', () => {
           scenePath: 'scenes/main.tscn',
           nodeName: 'Spot',
           lightType: 'spot_3d',
-        });
+        }, ctx);
         expect(result.isError).toBeUndefined();
         expect(result.content[0].text).toContain('SpotLight3D');
       });
@@ -329,7 +287,7 @@ describe('Lighting Tools', () => {
           scenePath: 'scenes/main.tscn',
           nodeName: 'Torch',
           lightType: 'point_2d',
-        });
+        }, ctx);
         expect(result.isError).toBeUndefined();
         expect(result.content[0].text).toContain('PointLight2D');
       });
@@ -343,7 +301,7 @@ describe('Lighting Tools', () => {
           scenePath: 'scenes/main.tscn',
           nodeName: 'DirLight2D',
           lightType: 'directional_2d',
-        });
+        }, ctx);
         expect(result.isError).toBeUndefined();
         expect(result.content[0].text).toContain('DirectionalLight2D');
       });
@@ -358,7 +316,7 @@ describe('Lighting Tools', () => {
           nodeName: 'Sun',
           lightType: 'directional_3d',
           color: { r: 1.0, g: 0.9, b: 0.8 },
-        });
+        }, ctx);
 
         expect(mockExecuteOperation).toHaveBeenCalledWith(
           'create_light',
@@ -380,7 +338,7 @@ describe('Lighting Tools', () => {
           nodeName: 'Sun',
           lightType: 'directional_3d',
           energy: 2.5,
-        });
+        }, ctx);
         expect(result.isError).toBeUndefined();
         expect(result.content[0].text).toContain('Energy: 2.5');
 
@@ -404,7 +362,7 @@ describe('Lighting Tools', () => {
           nodeName: 'OmniLight',
           lightType: 'omni_3d',
           range: 10.0,
-        });
+        }, ctx);
 
         expect(mockExecuteOperation).toHaveBeenCalledWith(
           'create_light',
@@ -426,7 +384,7 @@ describe('Lighting Tools', () => {
           nodeName: 'Spot',
           lightType: 'spot_3d',
           spotAngle: 45.0,
-        });
+        }, ctx);
 
         expect(mockExecuteOperation).toHaveBeenCalledWith(
           'create_light',
@@ -448,7 +406,7 @@ describe('Lighting Tools', () => {
           nodeName: 'Sun',
           lightType: 'directional_3d',
           shadowEnabled: true,
-        });
+        }, ctx);
 
         expect(mockExecuteOperation).toHaveBeenCalledWith(
           'create_light',
@@ -470,7 +428,7 @@ describe('Lighting Tools', () => {
           nodeName: 'PointLight',
           lightType: 'point_2d',
           texturePath: 'textures/light_gradient.png',
-        });
+        }, ctx);
 
         expect(mockExecuteOperation).toHaveBeenCalledWith(
           'create_light',
@@ -497,7 +455,7 @@ describe('Lighting Tools', () => {
           range: 15.0,
           spotAngle: 30.0,
           shadowEnabled: true,
-        });
+        }, ctx);
         expect(result.isError).toBeUndefined();
         expect(result.content[0].text).toContain('SpotLight3D');
         expect(result.content[0].text).toContain('Energy: 2');
@@ -511,7 +469,7 @@ describe('Lighting Tools', () => {
           scenePath: 'scenes/main.tscn',
           nodeName: 'Sun',
           lightType: 'directional_3d',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('Could not find a valid Godot executable path');
       });
@@ -528,7 +486,7 @@ describe('Lighting Tools', () => {
           scenePath: 'scenes/main.tscn',
           nodeName: 'Sun',
           lightType: 'directional_3d',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('Failed to create light');
       });
@@ -542,7 +500,7 @@ describe('Lighting Tools', () => {
           scenePath: 'scenes/main.tscn',
           nodeName: 'Sun',
           lightType: 'directional_3d',
-        });
+        }, ctx);
         expect(result.isError).toBeUndefined();
         expect(result.content[0].text).toContain('Energy: 1');
       });
@@ -564,7 +522,7 @@ describe('Lighting Tools', () => {
           scenePath: 'scenes/main.tscn',
           nodeName: 'Sun',
           lightType: 'directional_3d',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('Failed to create light');
         expect(result.content[0].text).toContain('Process failed');
@@ -579,7 +537,7 @@ describe('Lighting Tools', () => {
           scenePath: 'scenes/main.tscn',
           nodeName: 'Sun',
           lightType: 'directional_3d',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('Unknown error');
       });
@@ -592,7 +550,7 @@ describe('Lighting Tools', () => {
           scenePath: 'scenes/main.tscn',
           nodeName: 'Sun',
           lightType: 'directional_3d',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('Detection error');
       });
@@ -607,7 +565,7 @@ describe('Lighting Tools', () => {
       it('should return error when projectPath is missing', async () => {
         const result = await handleSetupEnvironment({
           environmentPath: 'environments/main_env.tres',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('projectPath');
       });
@@ -615,13 +573,13 @@ describe('Lighting Tools', () => {
       it('should return error when environmentPath is missing', async () => {
         const result = await handleSetupEnvironment({
           projectPath: '/path/to/project',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('environmentPath');
       });
 
       it('should return error when all required parameters are missing', async () => {
-        const result = await handleSetupEnvironment({});
+        const result = await handleSetupEnvironment({}, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/Validation failed/i);
       });
@@ -631,7 +589,7 @@ describe('Lighting Tools', () => {
         const result = await handleSetupEnvironment({
           projectPath: '/non/existent/path',
           environmentPath: 'environments/main_env.env',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('.tres');
       });
@@ -641,7 +599,7 @@ describe('Lighting Tools', () => {
         const result = await handleSetupEnvironment({
           projectPath: '/non/existent/path',
           environmentPath: 'environments/main_env.tscn',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/\.tres|\.res/i);
       });
@@ -651,7 +609,7 @@ describe('Lighting Tools', () => {
         const result = await handleSetupEnvironment({
           projectPath: '/non/existent/path',
           environmentPath: 'environments/main_env',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/\.tres|\.res/i);
       });
@@ -660,7 +618,7 @@ describe('Lighting Tools', () => {
         const result = await handleSetupEnvironment({
           projectPath: '/path/to/project',
           environmentPath: 123 as unknown as string,
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/environmentPath|string|Validation failed/i);
       });
@@ -670,7 +628,7 @@ describe('Lighting Tools', () => {
           projectPath: '/path/to/project',
           environmentPath: 'environments/main_env.tres',
           glowEnabled: 'true' as unknown as boolean,
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/glowEnabled|boolean|Validation failed/i);
       });
@@ -680,7 +638,7 @@ describe('Lighting Tools', () => {
           projectPath: '/path/to/project',
           environmentPath: 'environments/main_env.tres',
           fogDensity: 'thick' as unknown as number,
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/fogDensity|number|Validation failed/i);
       });
@@ -690,7 +648,7 @@ describe('Lighting Tools', () => {
           projectPath: '/non/existent/path',
           environmentPath: 'environments/main_env.tres',
           backgroundMode: 'invalid_mode' as 'clear_color',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/backgroundMode|Validation failed/i);
       });
@@ -700,7 +658,7 @@ describe('Lighting Tools', () => {
           projectPath: '/non/existent/path',
           environmentPath: 'environments/main_env.tres',
           tonemapMode: 'invalid_tonemap' as 'linear',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/tonemapMode|Validation failed/i);
       });
@@ -710,7 +668,7 @@ describe('Lighting Tools', () => {
           projectPath: '/path/to/project',
           environmentPath: 'environments/main_env.tres',
           backgroundColor: { red: 0.5, blue: 0.5 } as unknown as { r: number; g: number; b: number },
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/backgroundColor|Validation failed/i);
       });
@@ -722,7 +680,7 @@ describe('Lighting Tools', () => {
         const result = await handleSetupEnvironment({
           projectPath: '/path/../../../etc/passwd',
           environmentPath: 'environments/main_env.tres',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
       });
 
@@ -732,7 +690,7 @@ describe('Lighting Tools', () => {
         const result = await handleSetupEnvironment({
           projectPath: '/non/existent/path',
           environmentPath: 'environments/main_env.tres',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('Not a valid Godot project');
       });
@@ -750,7 +708,7 @@ describe('Lighting Tools', () => {
         const result = await handleSetupEnvironment({
           projectPath: '/path/to/project',
           environmentPath: 'environments/main_env.tres',
-        });
+        }, ctx);
         expect(result.isError).toBeUndefined();
         expect(result.content[0].text).toContain('Environment created successfully');
         expect(result.content[0].text).toContain('environments/main_env.tres');
@@ -762,7 +720,7 @@ describe('Lighting Tools', () => {
         const result = await handleSetupEnvironment({
           projectPath: '/path/to/project',
           environmentPath: 'environments/main_env.res',
-        });
+        }, ctx);
         expect(result.isError).toBeUndefined();
         expect(result.content[0].text).toContain('Environment created successfully');
       });
@@ -772,7 +730,7 @@ describe('Lighting Tools', () => {
           projectPath: '/path/to/project',
           environmentPath: 'environments/main_env.tres',
           backgroundMode: 'sky',
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -784,7 +742,7 @@ describe('Lighting Tools', () => {
           projectPath: '/path/to/project',
           environmentPath: 'environments/main_env.tres',
           backgroundColor: { r: 0.2, g: 0.3, b: 0.4 },
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -797,7 +755,7 @@ describe('Lighting Tools', () => {
           environmentPath: 'environments/main_env.tres',
           glowEnabled: true,
           glowIntensity: 0.8,
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -813,7 +771,7 @@ describe('Lighting Tools', () => {
           fogEnabled: true,
           fogDensity: 0.05,
           fogColor: { r: 0.8, g: 0.8, b: 0.9 },
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -828,7 +786,7 @@ describe('Lighting Tools', () => {
           projectPath: '/path/to/project',
           environmentPath: 'environments/main_env.tres',
           ssaoEnabled: true,
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -841,7 +799,7 @@ describe('Lighting Tools', () => {
           projectPath: '/path/to/project',
           environmentPath: 'environments/main_env.tres',
           ssrEnabled: true,
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -854,7 +812,7 @@ describe('Lighting Tools', () => {
           projectPath: '/path/to/project',
           environmentPath: 'environments/main_env.tres',
           sdfgiEnabled: true,
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -875,7 +833,7 @@ describe('Lighting Tools', () => {
         const result = await handleSetupEnvironment({
           projectPath: '/path/to/project',
           environmentPath: 'environments/main_env.tres',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('Failed to create environment');
         expect(result.content[0].text).toContain('Permission denied');
@@ -888,7 +846,7 @@ describe('Lighting Tools', () => {
         const result = await handleSetupEnvironment({
           projectPath: '/path/to/project',
           environmentPath: 'environments/main_env.tres',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('Failed to create environment');
         expect(result.content[0].text).toContain('Disk full');
@@ -900,7 +858,7 @@ describe('Lighting Tools', () => {
         const result = await handleSetupEnvironment({
           projectPath: '/path/to/project',
           environmentPath: 'environments/main_env.tres',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('Unknown error');
       });

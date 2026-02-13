@@ -9,12 +9,7 @@
 import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import { prepareToolArgs, validateProjectPath } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { getProjectStructure } from '../../utils/FileUtils.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
-import { getGodotPool } from '../../core/ProcessPool.js';
-import { readFileSync } from 'fs';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import { join, basename } from 'path';
 import {
   GetProjectInfoSchema,
@@ -29,8 +24,8 @@ export const getProjectInfoDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(GetProjectInfoSchema),
 };
 
-export const handleGetProjectInfo = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleGetProjectInfo = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(GetProjectInfoSchema, preparedArgs);
@@ -42,21 +37,21 @@ export const handleGetProjectInfo = async (args: BaseToolArgs): Promise<ToolResp
 
   const typedArgs: GetProjectInfoInput = validation.data;
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  logDebug(`Getting project info for: ${typedArgs.projectPath}`);
+  ctx.logDebug(`Getting project info for: ${typedArgs.projectPath}`);
 
   // Try bridge first, fallback to file/process methods
-  return executeWithBridge(
+  return ctx.executeWithBridge(
     'get_project_info',
     {},
     async () => {
       // Fallback: read files and spawn processes
       try {
-        const godotPath = await detectGodotPath();
+        const godotPath = await ctx.detectGodotPath();
         if (!godotPath) {
           return createErrorResponse('Could not find a valid Godot executable path', [
             'Ensure Godot is installed correctly',
@@ -65,25 +60,25 @@ export const handleGetProjectInfo = async (args: BaseToolArgs): Promise<ToolResp
         }
 
         // Get Godot version via ProcessPool
-        const pool = getGodotPool();
+        const pool = ctx.getGodotPool();
         const versionResult = await pool.execute(godotPath, ['--version'], { timeout: 10000 });
         const stdout = versionResult.stdout;
 
         // Get project structure using the utility
-        const projectStructure = getProjectStructure(typedArgs.projectPath);
+        const projectStructure = ctx.getProjectStructure(typedArgs.projectPath);
 
         // Extract project name from project.godot file
         let projectName = basename(typedArgs.projectPath);
         try {
           const projectFile = join(typedArgs.projectPath, 'project.godot');
-          const projectFileContent = readFileSync(projectFile, 'utf8');
+          const projectFileContent = ctx.readFileSync(projectFile, 'utf8');
           const configNameMatch = projectFileContent.match(/config\/name="([^"]+)"/);
           if (configNameMatch && configNameMatch[1]) {
             projectName = configNameMatch[1];
-            logDebug(`Found project name in config: ${projectName}`);
+            ctx.logDebug(`Found project name in config: ${projectName}`);
           }
         } catch (error) {
-          logDebug(`Error reading project file: ${error}`);
+          ctx.logDebug(`Error reading project file: ${error}`);
           // Continue with default project name if extraction fails
         }
 

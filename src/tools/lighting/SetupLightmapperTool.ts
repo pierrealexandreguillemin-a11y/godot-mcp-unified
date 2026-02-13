@@ -14,17 +14,14 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import * as fs from 'fs-extra';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import * as path from 'path';
-import { logDebug } from '../../utils/Logger.js';
 import {
   SetupLightmapperSchema,
   SetupLightmapperInput,
   toMcpSchema,
   safeValidateInput,
 } from '../../core/ZodSchemas.js';
-import { getGodotPool } from '../../core/ProcessPool.js';
 import {
   parseTscn,
   serializeTscn,
@@ -134,8 +131,8 @@ function updateDocumentWithLightmapGI(
   return { action: 'created' };
 }
 
-export const handleSetupLightmapper = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleSetupLightmapper = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(SetupLightmapperSchema, preparedArgs);
@@ -155,13 +152,13 @@ export const handleSetupLightmapper = async (args: BaseToolArgs): Promise<ToolRe
   }
 
   // Validate project path
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
   // Validate scene path
-  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath, ctx);
   if (sceneValidationError) {
     return sceneValidationError;
   }
@@ -169,7 +166,7 @@ export const handleSetupLightmapper = async (args: BaseToolArgs): Promise<ToolRe
   try {
     // Read scene file
     const sceneFullPath = path.join(typedArgs.projectPath, typedArgs.scenePath);
-    const tscnContent = await fs.readFile(sceneFullPath, 'utf-8');
+    const tscnContent = await ctx.readFile(sceneFullPath, 'utf-8');
 
     // Parse TSCN using proper parser (ISO/IEC 25010: parse → modify → serialize)
     const doc = parseTscn(tscnContent);
@@ -194,9 +191,9 @@ export const handleSetupLightmapper = async (args: BaseToolArgs): Promise<ToolRe
     const updatedContent = serializeTscn(doc);
 
     // Write updated scene
-    await fs.writeFile(sceneFullPath, updatedContent, 'utf-8');
+    await ctx.writeFile(sceneFullPath, updatedContent, 'utf-8');
 
-    logDebug(`${action === 'created' ? 'Created' : 'Updated'} LightmapGI in ${typedArgs.scenePath}`);
+    ctx.logDebug(`${action === 'created' ? 'Created' : 'Updated'} LightmapGI in ${typedArgs.scenePath}`);
 
     const configSummary = [
       `Quality: ${typedArgs.quality}`,
@@ -210,12 +207,12 @@ export const handleSetupLightmapper = async (args: BaseToolArgs): Promise<ToolRe
 
     // Phase 2: Bake lightmaps if requested
     if (typedArgs.bake) {
-      const godotPath = await detectGodotPath();
+      const godotPath = await ctx.detectGodotPath();
       if (!godotPath) {
         warnings.push('Bake skipped: could not find Godot executable');
       } else {
         try {
-          const pool = getGodotPool();
+          const pool = ctx.getGodotPool();
           const bakeArgs = [
             '--headless',
             '--path',
@@ -224,7 +221,7 @@ export const handleSetupLightmapper = async (args: BaseToolArgs): Promise<ToolRe
             typedArgs.scenePath,
           ];
 
-          logDebug(`Baking lightmaps: ${godotPath} ${bakeArgs.join(' ')}`);
+          ctx.logDebug(`Baking lightmaps: ${godotPath} ${bakeArgs.join(' ')}`);
 
           const bakeResult = await pool.execute(godotPath, bakeArgs, {
             cwd: typedArgs.projectPath,

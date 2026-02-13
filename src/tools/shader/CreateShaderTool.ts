@@ -13,15 +13,14 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import * as fs from 'fs-extra';
 import * as path from 'path';
-import { logDebug } from '../../utils/Logger.js';
 import {
   CreateShaderSchema,
   CreateShaderInput,
   toMcpSchema,
   safeValidateInput,
 } from '../../core/ZodSchemas.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 
 export const createShaderDefinition: ToolDefinition = {
   name: 'create_shader',
@@ -29,8 +28,8 @@ export const createShaderDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(CreateShaderSchema),
 };
 
-export const handleCreateShader = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleCreateShader = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(CreateShaderSchema, preparedArgs);
@@ -57,7 +56,7 @@ export const handleCreateShader = async (args: BaseToolArgs): Promise<ToolRespon
     ]);
   }
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
@@ -98,10 +97,10 @@ export const handleCreateShader = async (args: BaseToolArgs): Promise<ToolRespon
     const shaderFullPath = path.join(typedArgs.projectPath, typedArgs.shaderPath);
     const shaderDir = path.dirname(shaderFullPath);
 
-    await fs.ensureDir(shaderDir);
-    await fs.writeFile(shaderFullPath, shaderContent, 'utf-8');
+    await ctx.ensureDir(shaderDir);
+    await ctx.writeFile(shaderFullPath, shaderContent, 'utf-8');
 
-    logDebug(`Created shader at ${typedArgs.shaderPath}`);
+    ctx.logDebug(`Created shader at ${typedArgs.shaderPath}`);
 
     return createSuccessResponse(
       `Shader created successfully at ${typedArgs.shaderPath}\nType: ${typedArgs.shaderType}`,

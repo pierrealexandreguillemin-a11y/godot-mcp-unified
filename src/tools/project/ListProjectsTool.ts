@@ -6,13 +6,10 @@
  * ISO/IEC 25010 compliant - data integrity
  */
 
-import { existsSync } from 'fs';
-
 import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import { prepareToolArgs } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { findGodotProjects } from '../../utils/FileUtils.js';
-import { logDebug } from '../../utils/Logger.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   ListProjectsSchema,
   ListProjectsInput,
@@ -26,7 +23,7 @@ export const listProjectsDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(ListProjectsSchema),
 };
 
-export const handleListProjects = async (args: BaseToolArgs): Promise<ToolResponse> => {
+export const handleListProjects = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
   // Zod validation
@@ -40,16 +37,16 @@ export const handleListProjects = async (args: BaseToolArgs): Promise<ToolRespon
   const typedArgs: ListProjectsInput = validation.data;
 
   try {
-    logDebug(`Listing Godot projects in directory: ${typedArgs.directory}`);
+    ctx.logDebug(`Listing Godot projects in directory: ${typedArgs.directory}`);
 
-    if (!existsSync(typedArgs.directory)) {
+    if (!ctx.existsSync(typedArgs.directory)) {
       return createErrorResponse(`Directory does not exist: ${typedArgs.directory}`, [
         'Provide a valid directory path that exists on the system',
       ]);
     }
 
     const recursive = typedArgs.recursive === true;
-    const projects = findGodotProjects(typedArgs.directory, recursive);
+    const projects = ctx.findGodotProjects(typedArgs.directory, recursive);
 
     return {
       content: [

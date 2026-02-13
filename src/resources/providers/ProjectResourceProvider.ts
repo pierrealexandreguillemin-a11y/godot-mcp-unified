@@ -10,7 +10,7 @@
  * - godot://system/version - Godot version
  */
 
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync as _readFileSync, existsSync as _existsSync } from 'fs';
 import { join, basename } from 'path';
 import {
   ResourceProvider,
@@ -19,13 +19,33 @@ import {
   RESOURCE_URIS,
   validateSectionName,
 } from '../types.js';
-import { isGodotProject, getProjectStructure } from '../../utils/FileUtils.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { getGodotPool } from '../../core/ProcessPool.js';
+import { isGodotProject as _isGodotProject, getProjectStructure as _getProjectStructure } from '../../utils/FileUtils.js';
+import { detectGodotPath as _detectGodotPath } from '../../core/PathManager.js';
+import { getGodotPool as _getGodotPool } from '../../core/ProcessPool.js';
 import { parseProjectGodot, parseExportPresets } from '../utils/configParser.js';
+
+export interface ProjectResourceDeps {
+  readFileSync: (path: string, encoding: BufferEncoding) => string;
+  existsSync: (path: string) => boolean;
+  isGodotProject: (path: string) => boolean;
+  getProjectStructure: (projectPath: string) => { scenes: number; scripts: number; assets: number; other: number };
+  detectGodotPath: (customPath?: string, strictPathValidation?: boolean) => Promise<string | null>;
+  getGodotPool: () => { execute: (cmd: string, args: string[], opts?: Record<string, unknown>) => Promise<{ stdout: string; stderr: string; exitCode: number | null }> };
+}
+
+const defaultProjectResourceDeps: ProjectResourceDeps = {
+  readFileSync: (path: string, encoding: BufferEncoding) => _readFileSync(path, encoding) as string,
+  existsSync: _existsSync,
+  isGodotProject: _isGodotProject,
+  getProjectStructure: _getProjectStructure,
+  detectGodotPath: _detectGodotPath,
+  getGodotPool: _getGodotPool,
+};
 
 export class ProjectResourceProvider implements ResourceProvider {
   prefix = 'project';
+
+  constructor(private deps: ProjectResourceDeps = defaultProjectResourceDeps) {}
 
   handlesUri(uri: string): boolean {
     return (
@@ -61,7 +81,7 @@ export class ProjectResourceProvider implements ResourceProvider {
 
     // Add export presets if file exists
     const exportPresetsPath = join(projectPath, 'export_presets.cfg');
-    if (existsSync(exportPresetsPath)) {
+    if (this.deps.existsSync(exportPresetsPath)) {
       resources.push({
         uri: RESOURCE_URIS.EXPORT_PRESETS,
         name: 'Export Presets',
@@ -71,9 +91,9 @@ export class ProjectResourceProvider implements ResourceProvider {
     }
 
     // Add section-specific resources
-    if (projectPath && isGodotProject(projectPath)) {
+    if (projectPath && this.deps.isGodotProject(projectPath)) {
       try {
-        const content = readFileSync(join(projectPath, 'project.godot'), 'utf-8');
+        const content = this.deps.readFileSync(join(projectPath, 'project.godot'), 'utf-8');
         const { settings } = parseProjectGodot(content);
         const sections = [...new Set(settings.map((s) => s.section))];
 
@@ -134,18 +154,18 @@ export class ProjectResourceProvider implements ResourceProvider {
   }
 
   private async readProjectInfo(projectPath: string): Promise<ResourceContent | null> {
-    if (!projectPath || !isGodotProject(projectPath)) {
+    if (!projectPath || !this.deps.isGodotProject(projectPath)) {
       return null;
     }
 
     try {
       let projectName = basename(projectPath);
       const projectFile = join(projectPath, 'project.godot');
-      const content = readFileSync(projectFile, 'utf-8');
+      const content = this.deps.readFileSync(projectFile, 'utf-8');
       const nameMatch = content.match(/config\/name="([^"]+)"/);
       if (nameMatch) projectName = nameMatch[1];
 
-      const structure = getProjectStructure(projectPath);
+      const structure = this.deps.getProjectStructure(projectPath);
       const { configVersion } = parseProjectGodot(content);
 
       // Extract main scene
@@ -174,12 +194,12 @@ export class ProjectResourceProvider implements ResourceProvider {
     projectPath: string,
     section?: string
   ): Promise<ResourceContent | null> {
-    if (!projectPath || !isGodotProject(projectPath)) {
+    if (!projectPath || !this.deps.isGodotProject(projectPath)) {
       return null;
     }
 
     try {
-      const content = readFileSync(join(projectPath, 'project.godot'), 'utf-8');
+      const content = this.deps.readFileSync(join(projectPath, 'project.godot'), 'utf-8');
       const { settings, configVersion } = parseProjectGodot(content);
 
       let filteredSettings = settings;
@@ -211,12 +231,12 @@ export class ProjectResourceProvider implements ResourceProvider {
 
   private async readExportPresets(projectPath: string): Promise<ResourceContent | null> {
     const presetsPath = join(projectPath, 'export_presets.cfg');
-    if (!existsSync(presetsPath)) {
+    if (!this.deps.existsSync(presetsPath)) {
       return null;
     }
 
     try {
-      const content = readFileSync(presetsPath, 'utf-8');
+      const content = this.deps.readFileSync(presetsPath, 'utf-8');
       const presets = parseExportPresets(content);
 
       return {
@@ -231,7 +251,7 @@ export class ProjectResourceProvider implements ResourceProvider {
 
   private async readGodotVersion(): Promise<ResourceContent | null> {
     try {
-      const godotPath = await detectGodotPath();
+      const godotPath = await this.deps.detectGodotPath();
       if (!godotPath) {
         return {
           uri: RESOURCE_URIS.SYSTEM_VERSION,
@@ -240,7 +260,7 @@ export class ProjectResourceProvider implements ResourceProvider {
         };
       }
 
-      const pool = getGodotPool();
+      const pool = this.deps.getGodotPool();
       const result = await pool.execute(godotPath, ['--version'], { timeout: 10000 });
 
       return {

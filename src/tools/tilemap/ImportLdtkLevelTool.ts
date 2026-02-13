@@ -13,9 +13,8 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import * as fs from 'fs-extra';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import * as path from 'path';
-import { logDebug } from '../../utils/Logger.js';
 import {
   ImportLdtkLevelSchema,
   ImportLdtkLevelInput,
@@ -286,7 +285,7 @@ function generateCollisionLayerNode(
   return lines;
 }
 
-export const handleImportLdtkLevel = async (args: BaseToolArgs): Promise<ToolResponse> => {
+export const handleImportLdtkLevel = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
   const preparedArgs = prepareToolArgs(args);
 
   // Zod validation
@@ -307,14 +306,14 @@ export const handleImportLdtkLevel = async (args: BaseToolArgs): Promise<ToolRes
   }
 
   // Validate project path
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
   // Validate LDtk file exists
   const ldtkFullPath = path.join(typedArgs.projectPath, typedArgs.ldtkPath);
-  if (!fs.existsSync(ldtkFullPath)) {
+  if (!ctx.existsSync(ldtkFullPath)) {
     return createErrorResponse(`LDtk file not found: ${typedArgs.ldtkPath}`, [
       'Ensure the LDtk file path is correct (relative to project)',
       'Use import_asset to copy the .ldtk file into the project first',
@@ -323,10 +322,10 @@ export const handleImportLdtkLevel = async (args: BaseToolArgs): Promise<ToolRes
 
   try {
     // Read and parse LDtk file
-    const ldtkJson = await fs.readFile(ldtkFullPath, 'utf-8');
+    const ldtkJson = await ctx.readFile(ldtkFullPath, 'utf-8');
     const project = parseLdtkProject(ldtkJson);
 
-    logDebug(`Parsed LDtk project v${project.jsonVersion} with ${project.levels.length} levels`);
+    ctx.logDebug(`Parsed LDtk project v${project.jsonVersion} with ${project.levels.length} levels`);
 
     // Convert levels
     let convertedLevels: LdtkConvertedLevel[];
@@ -359,7 +358,7 @@ export const handleImportLdtkLevel = async (args: BaseToolArgs): Promise<ToolRes
       ? path.join(typedArgs.projectPath, typedArgs.outputPath)
       : path.join(typedArgs.projectPath, path.dirname(typedArgs.ldtkPath));
 
-    await fs.ensureDir(outputDir);
+    await ctx.ensureDir(outputDir);
 
     // Generate and write .tscn files
     const writtenFiles: string[] = [];
@@ -371,7 +370,7 @@ export const handleImportLdtkLevel = async (args: BaseToolArgs): Promise<ToolRes
       const tscnContent = generateTscn(level, typedArgs.entityMapping, typedArgs.tileSize);
       const outputFile = path.join(outputDir, `${level.identifier}.tscn`);
 
-      await fs.writeFile(outputFile, tscnContent, 'utf-8');
+      await ctx.writeFile(outputFile, tscnContent, 'utf-8');
 
       const relPath = path.relative(typedArgs.projectPath, outputFile);
       writtenFiles.push(relPath);
@@ -382,7 +381,7 @@ export const handleImportLdtkLevel = async (args: BaseToolArgs): Promise<ToolRes
         if (layer.type === 'entities') totalEntities += layer.entities.length;
       }
 
-      logDebug(`Wrote ${relPath}`);
+      ctx.logDebug(`Wrote ${relPath}`);
     }
 
     const stats = [

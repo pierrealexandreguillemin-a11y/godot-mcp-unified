@@ -13,15 +13,14 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import * as fs from 'fs-extra';
 import * as path from 'path';
-import { logDebug } from '../../utils/Logger.js';
 import {
   CreateShaderMaterialSchema,
   CreateShaderMaterialInput,
   toMcpSchema,
   safeValidateInput,
 } from '../../core/ZodSchemas.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 
 export const createShaderMaterialDefinition: ToolDefinition = {
   name: 'create_shader_material',
@@ -59,8 +58,8 @@ const formatValue = (value: unknown): string => {
   return String(value);
 };
 
-export const handleCreateShaderMaterial = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleCreateShaderMaterial = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(CreateShaderMaterialSchema, preparedArgs);
@@ -79,7 +78,7 @@ export const handleCreateShaderMaterial = async (args: BaseToolArgs): Promise<To
     ]);
   }
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
@@ -108,10 +107,10 @@ export const handleCreateShaderMaterial = async (args: BaseToolArgs): Promise<To
     const materialFullPath = path.join(typedArgs.projectPath, typedArgs.materialPath);
     const materialDir = path.dirname(materialFullPath);
 
-    await fs.ensureDir(materialDir);
-    await fs.writeFile(materialFullPath, materialContent, 'utf-8');
+    await ctx.ensureDir(materialDir);
+    await ctx.writeFile(materialFullPath, materialContent, 'utf-8');
 
-    logDebug(`Created shader material at ${typedArgs.materialPath}`);
+    ctx.logDebug(`Created shader material at ${typedArgs.materialPath}`);
 
     return createSuccessResponse(
       `ShaderMaterial created successfully at ${typedArgs.materialPath}\nShader: ${typedArgs.shaderPath}`,

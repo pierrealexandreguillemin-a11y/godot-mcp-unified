@@ -4,45 +4,7 @@
  */
 
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
-
-// Create mock functions before mocking modules
-const mockValidatePath = jest.fn<() => boolean>();
-const mockIsGodotProject = jest.fn<() => boolean>();
-const mockExistsSync = jest.fn<() => boolean>();
-const mockReadFile = jest.fn<(path: string, encoding: string) => Promise<string>>();
-const mockWriteFile = jest.fn<(path: string, content: string, encoding: string) => Promise<void>>();
-const mockEnsureDir = jest.fn<(path: string) => Promise<void>>();
-
-// Mock modules using unstable_mockModule for ESM support
-jest.mock('../../core/PathManager.js', () => ({
-  detectGodotPath: jest.fn(),
-  validatePath: mockValidatePath,
-  normalizeHandlerPaths: jest.fn(<T>(args: T) => args),
-  normalizePath: jest.fn((p: string) => p),
-}));
-
-jest.mock('../../core/ParameterNormalizer.js', () => ({
-  normalizeParameters: jest.fn(<T>(args: T) => args),
-  convertCamelToSnakeCase: jest.fn((s: string) => s),
-}));
-
-jest.mock('../../utils/Logger.js', () => ({
-  logDebug: jest.fn(),
-  logError: jest.fn(),
-  logInfo: jest.fn(),
-}));
-
-jest.mock('../../utils/FileUtils.js', () => ({
-  isGodotProject: mockIsGodotProject,
-}));
-
-jest.mock('fs-extra', () => ({
-  existsSync: mockExistsSync,
-  readFile: mockReadFile,
-  writeFile: mockWriteFile,
-  ensureDir: mockEnsureDir,
-}));
-
+import { createMockContext, ToolContext } from '../ToolContext.js';
 import { handleImportLdtkLevel } from './ImportLdtkLevelTool.js';
 
 // Minimal valid LDtk project fixture
@@ -87,8 +49,24 @@ function createLdtkJson(overrides?: Record<string, unknown>): string {
 }
 
 describe('ImportLdtkLevelTool', () => {
+  const mockValidatePath = jest.fn<(path: string) => boolean>();
+  const mockIsGodotProject = jest.fn<(path: string) => boolean>();
+  const mockExistsSync = jest.fn<(path: string) => boolean>();
+  const mockReadFile = jest.fn<(path: string, encoding: string) => Promise<string>>();
+  const mockWriteFile = jest.fn<(path: string, data: string, encoding?: string) => Promise<void>>();
+  const mockEnsureDir = jest.fn<(path: string) => Promise<void>>();
+  let ctx: ToolContext;
+
   beforeEach(() => {
     jest.clearAllMocks();
+    ctx = createMockContext({
+      validatePath: mockValidatePath,
+      isGodotProject: mockIsGodotProject,
+      existsSync: mockExistsSync,
+      readFile: mockReadFile,
+      writeFile: mockWriteFile,
+      ensureDir: mockEnsureDir,
+    });
   });
 
   // ============================================================================
@@ -98,7 +76,7 @@ describe('ImportLdtkLevelTool', () => {
     it('should return error when projectPath is missing', async () => {
       const result = await handleImportLdtkLevel({
         ldtkPath: 'levels/world.ldtk',
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('projectPath');
     });
@@ -106,13 +84,13 @@ describe('ImportLdtkLevelTool', () => {
     it('should return error when ldtkPath is missing', async () => {
       const result = await handleImportLdtkLevel({
         projectPath: '/path/to/project',
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('ldtkPath');
     });
 
     it('should return error when all required parameters are missing', async () => {
-      const result = await handleImportLdtkLevel({});
+      const result = await handleImportLdtkLevel({}, ctx);
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toMatch(/Validation failed/i);
     });
@@ -121,7 +99,7 @@ describe('ImportLdtkLevelTool', () => {
       const result = await handleImportLdtkLevel({
         projectPath: '/path/to/project',
         ldtkPath: '',
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
     });
 
@@ -129,7 +107,7 @@ describe('ImportLdtkLevelTool', () => {
       const result = await handleImportLdtkLevel({
         projectPath: '/path/to/project',
         ldtkPath: 123 as unknown as string,
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
     });
 
@@ -138,7 +116,7 @@ describe('ImportLdtkLevelTool', () => {
         projectPath: '/path/to/project',
         ldtkPath: 'levels/world.ldtk',
         createCollision: 'yes' as unknown as boolean,
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
     });
   });
@@ -152,7 +130,7 @@ describe('ImportLdtkLevelTool', () => {
       const result = await handleImportLdtkLevel({
         projectPath: '/path/to/project',
         ldtkPath: 'levels/world.json',
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('.ldtk');
     });
@@ -162,7 +140,7 @@ describe('ImportLdtkLevelTool', () => {
       const result = await handleImportLdtkLevel({
         projectPath: '/path/to/project',
         ldtkPath: 'scenes/level.tscn',
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('.ldtk');
     });
@@ -173,18 +151,20 @@ describe('ImportLdtkLevelTool', () => {
   // ============================================================================
   describe('Path Security', () => {
     it('should return error for path traversal in projectPath', async () => {
+      mockValidatePath.mockReturnValue(false);
       const result = await handleImportLdtkLevel({
         projectPath: '/path/../../../etc/passwd',
         ldtkPath: 'levels/world.ldtk',
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
     });
 
     it('should return error for path traversal in ldtkPath', async () => {
+      mockValidatePath.mockReturnValue(false);
       const result = await handleImportLdtkLevel({
         projectPath: '/path/to/project',
         ldtkPath: '../../../etc/world.ldtk',
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
     });
   });
@@ -199,7 +179,7 @@ describe('ImportLdtkLevelTool', () => {
       const result = await handleImportLdtkLevel({
         projectPath: '/non/existent/path',
         ldtkPath: 'levels/world.ldtk',
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Not a valid Godot project');
     });
@@ -217,7 +197,7 @@ describe('ImportLdtkLevelTool', () => {
       const result = await handleImportLdtkLevel({
         projectPath: '/path/to/project',
         ldtkPath: 'levels/world.ldtk',
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('LDtk file not found');
     });
@@ -241,7 +221,7 @@ describe('ImportLdtkLevelTool', () => {
       const result = await handleImportLdtkLevel({
         projectPath: '/path/to/project',
         ldtkPath: 'levels/world.ldtk',
-      });
+      }, ctx);
       expect(result.isError).toBeUndefined();
       expect(result.content[0].text).toContain('LDtk import successful');
       expect(result.content[0].text).toContain('Levels: 1');
@@ -255,7 +235,7 @@ describe('ImportLdtkLevelTool', () => {
         projectPath: '/path/to/project',
         ldtkPath: 'levels/world.ldtk',
         levelIdentifier: 'Level_0',
-      });
+      }, ctx);
       expect(result.isError).toBeUndefined();
       expect(result.content[0].text).toContain('Levels: 1');
     });
@@ -267,7 +247,7 @@ describe('ImportLdtkLevelTool', () => {
         projectPath: '/path/to/project',
         ldtkPath: 'levels/world.ldtk',
         levelIdentifier: 'NonExistent',
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Level not found');
       // Available levels are listed in the possible solutions (content[1])
@@ -281,7 +261,7 @@ describe('ImportLdtkLevelTool', () => {
       await handleImportLdtkLevel({
         projectPath: '/path/to/project',
         ldtkPath: 'levels/world.ldtk',
-      });
+      }, ctx);
 
       const writeCall = mockWriteFile.mock.calls[0];
       const content = (writeCall as unknown[])[1] as string;
@@ -296,7 +276,7 @@ describe('ImportLdtkLevelTool', () => {
       await handleImportLdtkLevel({
         projectPath: '/path/to/project',
         ldtkPath: 'levels/world.ldtk',
-      });
+      }, ctx);
 
       const writeCall = mockWriteFile.mock.calls[0];
       const content = (writeCall as unknown[])[1] as string;
@@ -346,7 +326,7 @@ describe('ImportLdtkLevelTool', () => {
       const result = await handleImportLdtkLevel({
         projectPath: '/path/to/project',
         ldtkPath: 'levels/world.ldtk',
-      });
+      }, ctx);
       expect(result.isError).toBeUndefined();
       // Auto-tiles layer should be created with _tiles suffix
       expect(result.content[0].text).toContain('Tiles: 3');
@@ -364,7 +344,7 @@ describe('ImportLdtkLevelTool', () => {
         projectPath: '/path/to/project',
         ldtkPath: 'levels/world.ldtk',
         outputPath: 'scenes/imported',
-      });
+      }, ctx);
 
       const ensureCall = mockEnsureDir.mock.calls[0];
       expect((ensureCall as unknown[])[0]).toContain('scenes');
@@ -407,7 +387,7 @@ describe('ImportLdtkLevelTool', () => {
         projectPath: '/path/to/project',
         ldtkPath: 'levels/world.ldtk',
         createCollision: true,
-      });
+      }, ctx);
       expect(result.isError).toBeUndefined();
       expect(result.content[0].text).toContain('Collision: enabled');
     });
@@ -460,7 +440,7 @@ describe('ImportLdtkLevelTool', () => {
         entityMapping: [
           { ldtkIdentifier: 'Player', godotNodeType: 'CharacterBody2D' },
         ],
-      });
+      }, ctx);
       expect(result.isError).toBeUndefined();
       expect(result.content[0].text).toContain('Entities: 1');
 
@@ -475,7 +455,7 @@ describe('ImportLdtkLevelTool', () => {
       const result = await handleImportLdtkLevel({
         projectPath: '/path/to/project',
         ldtkPath: 'levels/world.ldtk',
-      });
+      }, ctx);
       expect(result.content[0].text).toContain('Layers: 1');
       expect(result.content[0].text).toContain('Tiles: 2');
       expect(result.content[0].text).toContain('Entities: 0');
@@ -488,7 +468,7 @@ describe('ImportLdtkLevelTool', () => {
         projectPath: '/path/to/project',
         ldtkPath: 'levels/world.ldtk',
         tileSize: { x: 32, y: 32 }, // Override LDtk's 16x16
-      });
+      }, ctx);
 
       const writeCall = mockWriteFile.mock.calls[0];
       const content = (writeCall as unknown[])[1] as string;
@@ -510,7 +490,7 @@ describe('ImportLdtkLevelTool', () => {
       const result = await handleImportLdtkLevel({
         projectPath: '/path/to/project',
         ldtkPath: 'levels/world.ldtk',
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('No levels found');
     });
@@ -532,7 +512,7 @@ describe('ImportLdtkLevelTool', () => {
       const result = await handleImportLdtkLevel({
         projectPath: '/path/to/project',
         ldtkPath: 'levels/world.ldtk',
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Failed to import LDtk level');
     });
@@ -543,7 +523,7 @@ describe('ImportLdtkLevelTool', () => {
       const result = await handleImportLdtkLevel({
         projectPath: '/path/to/project',
         ldtkPath: 'levels/world.ldtk',
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Permission denied');
     });
@@ -556,7 +536,7 @@ describe('ImportLdtkLevelTool', () => {
       const result = await handleImportLdtkLevel({
         projectPath: '/path/to/project',
         ldtkPath: 'levels/world.ldtk',
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Disk full');
     });
@@ -567,7 +547,7 @@ describe('ImportLdtkLevelTool', () => {
       const result = await handleImportLdtkLevel({
         projectPath: '/path/to/project',
         ldtkPath: 'levels/world.ldtk',
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Unknown error');
     });

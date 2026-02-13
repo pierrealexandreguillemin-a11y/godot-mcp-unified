@@ -3,58 +3,11 @@
  * ISO/IEC 29119 compliant - comprehensive test documentation
  *
  * Tests use actual TscnParser (not mocked) for integration verification
+ * Uses dependency injection via ToolContext instead of jest.mock()
  */
 
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
-
-// Create mock functions before mocking modules (typed properly for ESM)
-const mockDetectGodotPath = jest.fn<() => Promise<string | null>>();
-const mockValidatePath = jest.fn<() => boolean>();
-const mockIsGodotProject = jest.fn<() => boolean>();
-const mockExistsSync = jest.fn<() => boolean>();
-const mockReadFile = jest.fn<(path: string, encoding: string) => Promise<string>>();
-const mockWriteFile = jest.fn<(path: string, content: string, encoding: string) => Promise<void>>();
-const mockExecute = jest.fn<(cmd: string, args: string[], opts: unknown) => Promise<{ stdout: string; stderr: string }>>();
-
-// Mock modules
-jest.mock('../../core/PathManager.js', () => ({
-  detectGodotPath: mockDetectGodotPath,
-  validatePath: mockValidatePath,
-  normalizeHandlerPaths: jest.fn(<T>(args: T) => args),
-  normalizePath: jest.fn((p: string) => p),
-}));
-
-jest.mock('../../core/ParameterNormalizer.js', () => ({
-  normalizeParameters: jest.fn(<T>(args: T) => args),
-  convertCamelToSnakeCase: jest.fn((s: string) => s),
-}));
-
-jest.mock('../../utils/Logger.js', () => ({
-  logDebug: jest.fn(),
-  logError: jest.fn(),
-  logInfo: jest.fn(),
-}));
-
-jest.mock('../../utils/FileUtils.js', () => ({
-  isGodotProject: mockIsGodotProject,
-}));
-
-jest.mock('fs', () => ({
-  existsSync: mockExistsSync,
-}));
-
-jest.mock('fs-extra', () => ({
-  readFile: mockReadFile,
-  writeFile: mockWriteFile,
-}));
-
-jest.mock('../../core/ProcessPool.js', () => ({
-  getGodotPool: jest.fn(() => ({
-    execute: mockExecute,
-  })),
-}));
-
-// Import after all mocks are set up (jest.mock is hoisted)
+import { createMockContext, ToolContext } from '../ToolContext.js';
 import { handleSetupLightmapper } from './SetupLightmapperTool.js';
 
 // Minimal .tscn content - valid for TscnParser
@@ -74,8 +27,30 @@ bounces = 3
 `;
 
 describe('SetupLightmapperTool', () => {
+  // Mock functions that need assertion checking
+  const mockDetectGodotPath = jest.fn<() => Promise<string | null>>();
+  const mockValidatePath = jest.fn<() => boolean>();
+  const mockIsGodotProject = jest.fn<() => boolean>();
+  const mockExistsSync = jest.fn<() => boolean>();
+  const mockReadFile = jest.fn<(path: string, encoding: string) => Promise<string>>();
+  const mockWriteFile = jest.fn<(path: string, content: string, encoding?: string) => Promise<void>>();
+  const mockExecute = jest.fn<(cmd: string, args: string[], opts?: Record<string, unknown>) => Promise<{ stdout: string; stderr: string; exitCode: number; duration: number }>>();
+
+  let ctx: ToolContext;
+
   beforeEach(() => {
     jest.clearAllMocks();
+    ctx = createMockContext({
+      detectGodotPath: mockDetectGodotPath,
+      validatePath: mockValidatePath,
+      isGodotProject: mockIsGodotProject,
+      existsSync: mockExistsSync,
+      readFile: mockReadFile,
+      writeFile: mockWriteFile,
+      getGodotPool: () => ({
+        execute: mockExecute,
+      }),
+    });
   });
 
   // ============================================================================
@@ -85,7 +60,7 @@ describe('SetupLightmapperTool', () => {
     it('should return error when projectPath is missing', async () => {
       const result = await handleSetupLightmapper({
         scenePath: 'scenes/level.tscn',
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('projectPath');
     });
@@ -93,13 +68,13 @@ describe('SetupLightmapperTool', () => {
     it('should return error when scenePath is missing', async () => {
       const result = await handleSetupLightmapper({
         projectPath: '/path/to/project',
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('scenePath');
     });
 
     it('should return error when all required parameters are missing', async () => {
-      const result = await handleSetupLightmapper({});
+      const result = await handleSetupLightmapper({}, ctx);
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toMatch(/Validation failed/i);
     });
@@ -109,7 +84,7 @@ describe('SetupLightmapperTool', () => {
         projectPath: '/path/to/project',
         scenePath: 'scenes/level.tscn',
         quality: 'extreme' as 'low',
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toMatch(/quality|Validation failed/i);
     });
@@ -119,7 +94,7 @@ describe('SetupLightmapperTool', () => {
         projectPath: '/path/to/project',
         scenePath: 'scenes/level.tscn',
         bounces: -1,
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
     });
 
@@ -128,7 +103,7 @@ describe('SetupLightmapperTool', () => {
         projectPath: '/path/to/project',
         scenePath: 'scenes/level.tscn',
         bounces: 17,
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
     });
 
@@ -137,7 +112,7 @@ describe('SetupLightmapperTool', () => {
         projectPath: '/path/to/project',
         scenePath: 'scenes/level.tscn',
         bakeTimeout: 5000,
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
     });
 
@@ -146,7 +121,7 @@ describe('SetupLightmapperTool', () => {
         projectPath: '/path/to/project',
         scenePath: 'scenes/level.tscn',
         bakeTimeout: 4000000,
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
     });
 
@@ -155,7 +130,7 @@ describe('SetupLightmapperTool', () => {
         projectPath: '/path/to/project',
         scenePath: 'scenes/level.tscn',
         useDenoiser: 'yes' as unknown as boolean,
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
     });
 
@@ -164,7 +139,7 @@ describe('SetupLightmapperTool', () => {
         projectPath: '/path/to/project',
         scenePath: 'scenes/level.tscn',
         environmentMode: 'invalid' as 'disabled',
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
     });
   });
@@ -178,7 +153,7 @@ describe('SetupLightmapperTool', () => {
       const result = await handleSetupLightmapper({
         projectPath: '/path/to/project',
         scenePath: 'scenes/level.tres',
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('.tscn');
     });
@@ -192,7 +167,7 @@ describe('SetupLightmapperTool', () => {
       const result = await handleSetupLightmapper({
         projectPath: '/path/../../../etc',
         scenePath: 'scenes/level.tscn',
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
     });
 
@@ -200,7 +175,7 @@ describe('SetupLightmapperTool', () => {
       const result = await handleSetupLightmapper({
         projectPath: '/path/to/project',
         scenePath: '../../../etc/level.tscn',
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
     });
   });
@@ -215,7 +190,7 @@ describe('SetupLightmapperTool', () => {
       const result = await handleSetupLightmapper({
         projectPath: '/non/existent/path',
         scenePath: 'scenes/level.tscn',
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Not a valid Godot project');
     });
@@ -227,7 +202,7 @@ describe('SetupLightmapperTool', () => {
       const result = await handleSetupLightmapper({
         projectPath: '/path/to/project',
         scenePath: 'scenes/missing.tscn',
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('does not exist');
     });
@@ -249,7 +224,7 @@ describe('SetupLightmapperTool', () => {
       const result = await handleSetupLightmapper({
         projectPath: '/path/to/project',
         scenePath: 'scenes/level.tscn',
-      });
+      }, ctx);
       expect(result.isError).toBeUndefined();
       expect(result.content[0].text).toContain('created');
       expect(result.content[0].text).toContain('Quality: medium');
@@ -266,7 +241,7 @@ describe('SetupLightmapperTool', () => {
         useDenoiser: false,
         directional: true,
         interior: true,
-      });
+      }, ctx);
 
       const writeCall = mockWriteFile.mock.calls[0];
       const content = (writeCall as unknown[])[1] as string;
@@ -283,7 +258,7 @@ describe('SetupLightmapperTool', () => {
         projectPath: '/path/to/project',
         scenePath: 'scenes/level.tscn',
         maxTextureSize: 4096,
-      });
+      }, ctx);
 
       const writeCall = mockWriteFile.mock.calls[0];
       const content = (writeCall as unknown[])[1] as string;
@@ -297,7 +272,7 @@ describe('SetupLightmapperTool', () => {
         environmentMode: 'custom_color',
         environmentColor: { r: 0.2, g: 0.3, b: 0.5 },
         environmentEnergy: 1.5,
-      });
+      }, ctx);
 
       const writeCall = mockWriteFile.mock.calls[0];
       const content = (writeCall as unknown[])[1] as string;
@@ -326,7 +301,7 @@ describe('SetupLightmapperTool', () => {
           projectPath: '/path/to/project',
           scenePath: 'scenes/level.tscn',
           quality: quality as 'low',
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0];
         const content = (writeCall as unknown[])[1] as string;
@@ -353,7 +328,7 @@ describe('SetupLightmapperTool', () => {
         scenePath: 'scenes/level.tscn',
         quality: 'ultra',
         bounces: 8,
-      });
+      }, ctx);
       expect(result.isError).toBeUndefined();
       expect(result.content[0].text).toContain('updated');
       expect(result.content[0].text).toContain('Quality: ultra');
@@ -366,7 +341,7 @@ describe('SetupLightmapperTool', () => {
         scenePath: 'scenes/level.tscn',
         quality: 'ultra',
         bounces: 8,
-      });
+      }, ctx);
 
       const writeCall = mockWriteFile.mock.calls[0];
       const content = (writeCall as unknown[])[1] as string;
@@ -393,7 +368,7 @@ describe('SetupLightmapperTool', () => {
         projectPath: '/path/to/project',
         scenePath: 'scenes/level.tscn',
         createNode: false,
-      });
+      }, ctx);
       expect(result.isError).toBeUndefined();
       expect(result.content[0].text).toContain('not found');
       expect(result.content[0].text).toContain('No changes made');
@@ -407,7 +382,7 @@ describe('SetupLightmapperTool', () => {
         projectPath: '/path/to/project',
         scenePath: 'scenes/level.tscn',
         createNode: false,
-      });
+      }, ctx);
       expect(result.isError).toBeUndefined();
       expect(result.content[0].text).toContain('updated');
     });
@@ -427,13 +402,13 @@ describe('SetupLightmapperTool', () => {
 
     it('should attempt bake when bake=true', async () => {
       mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
-      mockExecute.mockResolvedValue({ stdout: 'Baked OK', stderr: '' });
+      mockExecute.mockResolvedValue({ stdout: 'Baked OK', stderr: '', exitCode: 0, duration: 0 });
 
       const result = await handleSetupLightmapper({
         projectPath: '/path/to/project',
         scenePath: 'scenes/level.tscn',
         bake: true,
-      });
+      }, ctx);
       expect(result.isError).toBeUndefined();
       expect(result.content[0].text).toContain('Bake: completed');
       expect(mockExecute).toHaveBeenCalledWith(
@@ -450,7 +425,7 @@ describe('SetupLightmapperTool', () => {
         projectPath: '/path/to/project',
         scenePath: 'scenes/level.tscn',
         bake: true,
-      });
+      }, ctx);
       expect(result.isError).toBeUndefined();
       expect(result.content[0].text).toContain('Bake skipped');
       expect(result.content[0].text).toContain('could not find Godot');
@@ -464,7 +439,7 @@ describe('SetupLightmapperTool', () => {
         projectPath: '/path/to/project',
         scenePath: 'scenes/level.tscn',
         bake: true,
-      });
+      }, ctx);
       expect(result.isError).toBeUndefined();
       expect(result.content[0].text).toContain('Bake failed');
       expect(result.content[0].text).toContain('Timeout exceeded');
@@ -475,27 +450,29 @@ describe('SetupLightmapperTool', () => {
       mockExecute.mockResolvedValue({
         stdout: '',
         stderr: 'Failed to bake: no meshes',
+        exitCode: 0,
+        duration: 0,
       });
 
       const result = await handleSetupLightmapper({
         projectPath: '/path/to/project',
         scenePath: 'scenes/level.tscn',
         bake: true,
-      });
+      }, ctx);
       expect(result.isError).toBeUndefined();
       expect(result.content[0].text).toContain('Bake warning');
     });
 
     it('should use custom bakeTimeout', async () => {
       mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
-      mockExecute.mockResolvedValue({ stdout: 'OK', stderr: '' });
+      mockExecute.mockResolvedValue({ stdout: 'OK', stderr: '', exitCode: 0, duration: 0 });
 
       await handleSetupLightmapper({
         projectPath: '/path/to/project',
         scenePath: 'scenes/level.tscn',
         bake: true,
         bakeTimeout: 600000,
-      });
+      }, ctx);
 
       expect(mockExecute).toHaveBeenCalledWith(
         '/usr/bin/godot',
@@ -521,7 +498,7 @@ describe('SetupLightmapperTool', () => {
       const result = await handleSetupLightmapper({
         projectPath: '/path/to/project',
         scenePath: 'scenes/level.tscn',
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Permission denied');
     });
@@ -533,7 +510,7 @@ describe('SetupLightmapperTool', () => {
       const result = await handleSetupLightmapper({
         projectPath: '/path/to/project',
         scenePath: 'scenes/level.tscn',
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Disk full');
     });
@@ -544,7 +521,7 @@ describe('SetupLightmapperTool', () => {
       const result = await handleSetupLightmapper({
         projectPath: '/path/to/project',
         scenePath: 'scenes/level.tscn',
-      });
+      }, ctx);
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Unknown error');
     });

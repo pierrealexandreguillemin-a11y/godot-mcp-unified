@@ -3,7 +3,7 @@
  * ISO/IEC 29119 compliant - covers uncovered Godot execution paths
  *
  * The existing TileMapTools.test.ts covers validation and security.
- * These tests mock Godot to cover:
+ * These tests use dependency injection (ToolContext) to cover:
  * - Godot path not found (~line 66 in each tool)
  * - Successful execution and response building
  * - stderr with "Failed to" message handling
@@ -18,39 +18,7 @@ import {
   getResponseText,
   isErrorResponse,
 } from '../test-utils.js';
-
-// Define mock functions at module scope BEFORE mock module declarations
-const mockDetectGodotPath = jest.fn<(...args: unknown[]) => Promise<string | null>>();
-const mockExecuteOperation = jest.fn<(...args: unknown[]) => Promise<{ stdout: string; stderr: string }>>();
-
-jest.mock('../../core/PathManager.js', () => ({
-  detectGodotPath: mockDetectGodotPath,
-  validatePath: jest.fn(() => true),
-  normalizePath: jest.fn((p: string) => p),
-  normalizeHandlerPaths: jest.fn(<T,>(args: T) => args),
-  isValidGodotPathSync: jest.fn(() => true),
-  isValidGodotPath: jest.fn(async () => true),
-  getPlatformGodotPaths: jest.fn(() => []),
-  clearPathCache: jest.fn(),
-  getPathCacheStats: jest.fn(() => ({ hits: 0, misses: 0, size: 0 })),
-}));
-
-jest.mock('../../core/GodotExecutor.js', () => ({
-  executeOperation: mockExecuteOperation,
-  getGodotVersion: jest.fn(async () => '4.2.stable'),
-  isGodot44OrLater: jest.fn(() => false),
-}));
-
-// Mock BridgeExecutor to always use fallback (no bridge connected)
-jest.mock('../../bridge/BridgeExecutor.js', () => ({
-  executeWithBridge: jest.fn(async (
-    _action: string,
-    _params: Record<string, unknown>,
-    fallback: () => Promise<unknown>,
-  ) => await fallback()),
-  isBridgeAvailable: jest.fn(() => false),
-  tryInitializeBridge: jest.fn(async () => false),
-}));
+import { createMockContext, ToolContext } from '../ToolContext.js';
 
 import { handleCreateTileSet } from './CreateTileSetTool.js';
 import { handleCreateTileMapLayer } from './CreateTileMapLayerTool.js';
@@ -61,12 +29,23 @@ describe('TileMap Tools Enhanced Tests', () => {
   let projectPath: string;
   let cleanup: () => void;
 
+  const mockDetectGodotPath = jest.fn<(...args: unknown[]) => Promise<string | null>>();
+  const mockExecuteOperation = jest.fn<(...args: unknown[]) => Promise<{ stdout: string; stderr: string }>>();
+  let ctx: ToolContext;
+
   beforeEach(() => {
     const temp = createTempProject();
     projectPath = temp.projectPath;
     cleanup = temp.cleanup;
     mkdirSync(join(projectPath, 'tilesets'), { recursive: true });
     jest.clearAllMocks();
+    ctx = createMockContext({
+      detectGodotPath: mockDetectGodotPath,
+      executeOperation: mockExecuteOperation,
+      isGodotProject: () => true,
+      existsSync: () => true,
+      validatePath: () => true,
+    });
   });
 
   afterEach(() => {
@@ -84,7 +63,7 @@ describe('TileMap Tools Enhanced Tests', () => {
         projectPath,
         tilesetPath: 'res://tilesets/main.tres',
         tileSize: { x: 16, y: 16 },
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Could not find a valid Godot executable path');
@@ -101,7 +80,7 @@ describe('TileMap Tools Enhanced Tests', () => {
         projectPath,
         tilesetPath: 'res://tilesets/main.tres',
         tileSize: { x: 16, y: 16 },
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(false);
       expect(getResponseText(result)).toContain('TileSet created successfully');
@@ -120,7 +99,7 @@ describe('TileMap Tools Enhanced Tests', () => {
         tilesetPath: 'res://tilesets/main.tres',
         tileSize: { x: 32, y: 32 },
         texturePath: 'res://textures/tileset.png',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(false);
       expect(getResponseText(result)).toContain('tileset.png');
@@ -137,7 +116,7 @@ describe('TileMap Tools Enhanced Tests', () => {
         projectPath,
         tilesetPath: 'res://tilesets/main.tres',
         tileSize: { x: 16, y: 16 },
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Failed to create TileSet');
@@ -151,7 +130,7 @@ describe('TileMap Tools Enhanced Tests', () => {
         projectPath,
         tilesetPath: 'res://tilesets/main.tres',
         tileSize: { x: 16, y: 16 },
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Failed to create TileSet');
@@ -166,7 +145,7 @@ describe('TileMap Tools Enhanced Tests', () => {
         projectPath,
         tilesetPath: 'res://tilesets/main.tres',
         tileSize: { x: 16, y: 16 },
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Unknown error');
@@ -185,7 +164,7 @@ describe('TileMap Tools Enhanced Tests', () => {
         scenePath: 'scenes/main.tscn',
         nodeName: 'Ground',
         tilesetPath: 'res://tilesets/main.tres',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Could not find a valid Godot executable path');
@@ -203,7 +182,7 @@ describe('TileMap Tools Enhanced Tests', () => {
         scenePath: 'scenes/main.tscn',
         nodeName: 'Ground',
         tilesetPath: 'res://tilesets/main.tres',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(false);
       expect(getResponseText(result)).toContain('TileMapLayer created successfully');
@@ -223,7 +202,7 @@ describe('TileMap Tools Enhanced Tests', () => {
         nodeName: 'Foreground',
         tilesetPath: 'res://tilesets/main.tres',
         zIndex: 5,
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(false);
       expect(getResponseText(result)).toContain('Z-Index: 5');
@@ -242,7 +221,7 @@ describe('TileMap Tools Enhanced Tests', () => {
         nodeName: 'Ground',
         tilesetPath: 'res://tilesets/main.tres',
         parentNodePath: 'World',
-      });
+      }, ctx);
 
       expect(mockExecuteOperation).toHaveBeenCalledWith(
         'add_node',
@@ -266,7 +245,7 @@ describe('TileMap Tools Enhanced Tests', () => {
         scenePath: 'scenes/main.tscn',
         nodeName: 'Ground',
         tilesetPath: 'res://tilesets/main.tres',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Failed to create TileMapLayer');
@@ -281,7 +260,7 @@ describe('TileMap Tools Enhanced Tests', () => {
         scenePath: 'scenes/main.tscn',
         nodeName: 'Ground',
         tilesetPath: 'res://tilesets/main.tres',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Failed to create TileMapLayer');
@@ -303,7 +282,7 @@ describe('TileMap Tools Enhanced Tests', () => {
         position: { x: 0, y: 0 },
         sourceId: 0,
         atlasCoords: { x: 0, y: 0 },
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Could not find a valid Godot executable path');
@@ -323,7 +302,7 @@ describe('TileMap Tools Enhanced Tests', () => {
         position: { x: 5, y: 3 },
         sourceId: 0,
         atlasCoords: { x: 1, y: 2 },
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(false);
       expect(getResponseText(result)).toContain('Tile set successfully');
@@ -347,7 +326,7 @@ describe('TileMap Tools Enhanced Tests', () => {
         atlasCoords: { x: 0, y: 0 },
         layer: 2,
         alternativeTile: 3,
-      });
+      }, ctx);
 
       expect(mockExecuteOperation).toHaveBeenCalledWith(
         'set_tile',
@@ -374,7 +353,7 @@ describe('TileMap Tools Enhanced Tests', () => {
         position: { x: 0, y: 0 },
         sourceId: 0,
         atlasCoords: { x: 0, y: 0 },
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Failed to set tile');
@@ -391,7 +370,7 @@ describe('TileMap Tools Enhanced Tests', () => {
         position: { x: 0, y: 0 },
         sourceId: 0,
         atlasCoords: { x: 0, y: 0 },
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Godot crashed');
@@ -410,7 +389,7 @@ describe('TileMap Tools Enhanced Tests', () => {
         scenePath: 'scenes/main.tscn',
         tilemapNodePath: 'Ground',
         tiles: [{ position: { x: 0, y: 0 }, sourceId: 0, atlasCoords: { x: 0, y: 0 } }],
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Could not find a valid Godot executable path');
@@ -431,7 +410,7 @@ describe('TileMap Tools Enhanced Tests', () => {
           { position: { x: 0, y: 0 }, sourceId: 0, atlasCoords: { x: 0, y: 0 } },
           { position: { x: 1, y: 0 }, sourceId: 0, atlasCoords: { x: 1, y: 0 } },
         ],
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(false);
       expect(getResponseText(result)).toContain('Successfully painted 2 tiles');
@@ -452,7 +431,7 @@ describe('TileMap Tools Enhanced Tests', () => {
         tiles: [
           { position: { x: 0, y: 0 }, sourceId: 0, atlasCoords: { x: 0, y: 0 }, alternativeTile: 1 },
         ],
-      });
+      }, ctx);
 
       expect(mockExecuteOperation).toHaveBeenCalledWith(
         'paint_tiles',
@@ -479,7 +458,7 @@ describe('TileMap Tools Enhanced Tests', () => {
         scenePath: 'scenes/main.tscn',
         tilemapNodePath: 'Ground',
         tiles: [{ position: { x: 0, y: 0 }, sourceId: 0, atlasCoords: { x: 0, y: 0 } }],
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Failed to paint tiles');
@@ -494,7 +473,7 @@ describe('TileMap Tools Enhanced Tests', () => {
         scenePath: 'scenes/main.tscn',
         tilemapNodePath: 'Ground',
         tiles: [{ position: { x: 0, y: 0 }, sourceId: 0, atlasCoords: { x: 0, y: 0 } }],
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Timeout exceeded');
@@ -509,7 +488,7 @@ describe('TileMap Tools Enhanced Tests', () => {
         scenePath: 'scenes/main.tscn',
         tilemapNodePath: 'Ground',
         tiles: [{ position: { x: 0, y: 0 }, sourceId: 0, atlasCoords: { x: 0, y: 0 } }],
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Unknown error');

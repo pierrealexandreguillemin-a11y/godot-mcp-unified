@@ -10,27 +10,16 @@
  * - Error cases and edge cases
  */
 
-import { jest } from '@jest/globals';
+import { jest, describe, it, expect, beforeEach } from '@jest/globals';
+import type { TscnNode, TscnValue } from '../../core/TscnParser.js';
+import { RESOURCE_URIS } from '../types.js';
+import { SceneScriptResourceProvider, SceneScriptResourceDeps } from './SceneScriptResourceProvider.js';
 
 // ============================================================================
-// MOCK SETUP - Must be before dynamic imports
+// TEST DATA
 // ============================================================================
 
-const mockReadFileSync = jest.fn<(path: string, encoding?: string) => string>();
-const mockExistsSync = jest.fn<(path: string) => boolean>();
-const mockStatSync = jest.fn();
-
-jest.mock('fs', () => ({
-  readFileSync: mockReadFileSync,
-  existsSync: mockExistsSync,
-  statSync: mockStatSync,
-}));
-
-const mockIsGodotProject = jest.fn<(path: string) => boolean>();
-
-jest.mock('../../utils/FileUtils.js', () => ({
-  isGodotProject: mockIsGodotProject,
-}));
+const MOCK_DATE = new Date('2025-01-15T10:30:00Z');
 
 interface MockScannedFile {
   path: string;
@@ -39,49 +28,6 @@ interface MockScannedFile {
   size: number;
   modified: Date;
 }
-
-const mockFindFiles = jest.fn<(dir: string, extensions: string[]) => MockScannedFile[]>();
-const mockFindFilePaths = jest.fn<(dir: string, extensions: string[]) => string[]>();
-
-jest.mock('../utils/fileScanner.js', () => ({
-  findFiles: mockFindFiles,
-  findFilePaths: mockFindFilePaths,
-}));
-
-interface MockTscnNode {
-  name: string;
-  type?: string;
-  parent?: string;
-  script?: string;
-  properties: Record<string, unknown>;
-}
-
-interface MockTscnDocument {
-  header: { format: number; uidType: string; uid: string };
-  extResources: unknown[];
-  subResources: unknown[];
-  nodes: MockTscnNode[];
-  connections: unknown[];
-  editableInstances: unknown[];
-}
-
-const mockParseTscn = jest.fn<(content: string) => MockTscnDocument>();
-
-jest.mock('../../core/TscnParser.js', () => ({
-  parseTscn: mockParseTscn,
-}));
-
-// Static import of types (not mocked)
-import { RESOURCE_URIS } from '../types.js';
-
-// Import after all mocks are set up (jest.mock is hoisted)
-import { SceneScriptResourceProvider } from './SceneScriptResourceProvider.js';
-
-// ============================================================================
-// TEST DATA
-// ============================================================================
-
-const MOCK_DATE = new Date('2025-01-15T10:30:00Z');
 
 const MOCK_SCENE_FILES: MockScannedFile[] = [
   { path: '/mock/project/scenes/main.tscn', relativePath: 'scenes/main.tscn', ext: '.tscn', size: 2048, modified: MOCK_DATE },
@@ -104,6 +50,23 @@ script = ExtResource("1")
 
 [node name="Sprite" type="Sprite2D" parent="Player"]
 `;
+
+interface MockTscnNode {
+  name: string;
+  type?: string;
+  parent?: string;
+  script?: string;
+  properties: Record<string, TscnValue>;
+}
+
+interface MockTscnDocument {
+  header: { format: number; uidType: string; uid: string };
+  extResources: unknown[];
+  subResources: unknown[];
+  nodes: MockTscnNode[];
+  connections: unknown[];
+  editableInstances: unknown[];
+}
 
 const MOCK_TSCN_DOC: MockTscnDocument = {
   header: { format: 3, uidType: 'uid', uid: 'uid://abc123' },
@@ -137,12 +100,28 @@ func _ready() -> void:
 `;
 
 describe('SceneScriptResourceProvider', () => {
-  let provider: InstanceType<typeof SceneScriptResourceProvider>;
+  const mockReadFileSync = jest.fn<(path: string, encoding: BufferEncoding) => string>();
+  const mockExistsSync = jest.fn<(path: string) => boolean>();
+  const mockIsGodotProject = jest.fn<(path: string) => boolean>();
+  const mockParseTscn = jest.fn<(content: string) => { nodes: TscnNode[] }>();
+  const mockFindFiles = jest.fn<(dir: string, extensions: string[]) => Array<{ path: string; relativePath: string; ext: string; size: number; modified: Date }>>();
+  const mockFindFilePaths = jest.fn<(dir: string, extensions: string[]) => string[]>();
+
+  let deps: SceneScriptResourceDeps;
+  let provider: SceneScriptResourceProvider;
   const projectPath = '/mock/project';
 
   beforeEach(() => {
-    provider = new SceneScriptResourceProvider();
     jest.clearAllMocks();
+    deps = {
+      readFileSync: mockReadFileSync,
+      existsSync: mockExistsSync,
+      isGodotProject: mockIsGodotProject,
+      parseTscn: mockParseTscn,
+      findFiles: mockFindFiles,
+      findFilePaths: mockFindFilePaths,
+    };
+    provider = new SceneScriptResourceProvider(deps);
   });
 
   // ==========================================================================

@@ -10,56 +10,9 @@
  * - Error cases and edge cases
  */
 
-import { jest } from '@jest/globals';
-
-// ============================================================================
-// MOCK SETUP - Must be before dynamic imports
-// ============================================================================
-
-const mockReadFileSync = jest.fn<(path: string, encoding?: string) => string>();
-const mockExistsSync = jest.fn<(path: string) => boolean>();
-
-jest.mock('fs', () => ({
-  readFileSync: mockReadFileSync,
-  existsSync: mockExistsSync,
-}));
-
-const mockIsGodotProject = jest.fn<(path: string) => boolean>();
-const mockGetProjectStructure = jest.fn<(path: string) => { scenes: number; scripts: number; assets: number; other: number }>();
-
-jest.mock('../../utils/FileUtils.js', () => ({
-  isGodotProject: mockIsGodotProject,
-  getProjectStructure: mockGetProjectStructure,
-}));
-
-const mockDetectGodotPath = jest.fn<() => Promise<string | null>>();
-
-jest.mock('../../core/PathManager.js', () => ({
-  detectGodotPath: mockDetectGodotPath,
-  validatePath: jest.fn(() => true),
-  normalizePath: jest.fn((p: string) => p),
-  normalizeHandlerPaths: jest.fn(<T>(args: T) => args),
-  isValidGodotPathSync: jest.fn(() => true),
-  isValidGodotPath: jest.fn(async () => true),
-  getPlatformGodotPaths: jest.fn(() => []),
-  clearPathCache: jest.fn(),
-  getPathCacheStats: jest.fn(() => ({ hits: 0, misses: 0, size: 0 })),
-}));
-
-const mockPoolExecute = jest.fn<(cmd: string, args: string[], opts?: unknown) => Promise<{ stdout: string; stderr: string; exitCode: number | null }>>();
-
-jest.mock('../../core/ProcessPool.js', () => ({
-  getGodotPool: jest.fn(() => ({
-    execute: mockPoolExecute,
-    shutdown: jest.fn(),
-  })),
-}));
-
-// Static import of types (not mocked)
+import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import { RESOURCE_URIS } from '../types.js';
-
-// Import after all mocks are set up (jest.mock is hoisted)
-import { ProjectResourceProvider } from './ProjectResourceProvider.js';
+import { ProjectResourceProvider, ProjectResourceDeps } from './ProjectResourceProvider.js';
 
 // ============================================================================
 // TEST DATA
@@ -98,12 +51,28 @@ export_path="builds/game.x86_64"
 `;
 
 describe('ProjectResourceProvider', () => {
-  let provider: InstanceType<typeof ProjectResourceProvider>;
+  const mockReadFileSync = jest.fn<(path: string, encoding: BufferEncoding) => string>();
+  const mockExistsSync = jest.fn<(path: string) => boolean>();
+  const mockIsGodotProject = jest.fn<(path: string) => boolean>();
+  const mockGetProjectStructure = jest.fn<(path: string) => { scenes: number; scripts: number; assets: number; other: number }>();
+  const mockDetectGodotPath = jest.fn<() => Promise<string | null>>();
+  const mockPoolExecute = jest.fn<(cmd: string, args: string[], opts?: unknown) => Promise<{ stdout: string; stderr: string; exitCode: number | null }>>();
+
+  let deps: ProjectResourceDeps;
+  let provider: ProjectResourceProvider;
   const projectPath = '/mock/project';
 
   beforeEach(() => {
-    provider = new ProjectResourceProvider();
     jest.clearAllMocks();
+    deps = {
+      readFileSync: mockReadFileSync,
+      existsSync: mockExistsSync,
+      isGodotProject: mockIsGodotProject,
+      getProjectStructure: mockGetProjectStructure,
+      detectGodotPath: mockDetectGodotPath,
+      getGodotPool: () => ({ execute: mockPoolExecute }),
+    };
+    provider = new ProjectResourceProvider(deps);
   });
 
   // ==========================================================================

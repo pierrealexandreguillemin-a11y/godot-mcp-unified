@@ -20,8 +20,7 @@ import { createJsonResponse } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
 import { toMcpSchema } from '../../core/ZodSchemas.js';
 import { globalRateLimiter } from '../../core/RateLimiter.js';
-import { detectGodotPath, isValidGodotPath } from '../../core/PathManager.js';
-import { getGodotVersion } from '../../core/GodotExecutor.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import { config } from '../../config/config.js';
 
 /**
@@ -77,7 +76,8 @@ export const systemHealthDefinition: ToolDefinition = {
 };
 
 export const handleSystemHealth = async (
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  ctx: ToolContext = defaultToolContext
 ): Promise<ToolResponse> => {
   try {
     const input = SystemHealthSchema.parse(args);
@@ -122,8 +122,8 @@ export const handleSystemHealth = async (
 
     // Include Godot status if requested
     if (includeGodotStatus) {
-      const godotPath = await detectGodotPath();
-      const godotAvailable = godotPath ? await isValidGodotPath(godotPath) : false;
+      const godotPath = await ctx.detectGodotPath();
+      const godotAvailable = godotPath ? await ctx.isValidGodotPath(godotPath) : false;
 
       result.godot = {
         available: godotAvailable,
@@ -132,7 +132,7 @@ export const handleSystemHealth = async (
 
       if (godotAvailable && godotPath) {
         try {
-          result.godot.version = await getGodotVersion(godotPath);
+          result.godot.version = await ctx.getGodotVersion(godotPath);
         } catch {
           // Version retrieval failed, but Godot might still be available
         }

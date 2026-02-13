@@ -14,10 +14,7 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { executeWithBridge } from '../../bridge/BridgeExecutor.js';
-import { detectGodotPath } from '../../core/PathManager.js';
-import { executeOperation } from '../../core/GodotExecutor.js';
-import { logDebug } from '../../utils/Logger.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   SetTileSchema,
   SetTileInput,
@@ -31,8 +28,8 @@ export const setTileDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(SetTileSchema),
 };
 
-export const handleSetTile = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleSetTile = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(SetTileSchema, preparedArgs);
@@ -60,18 +57,18 @@ export const handleSetTile = async (args: BaseToolArgs): Promise<ToolResponse> =
     ]);
   }
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
 
-  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath);
+  const sceneValidationError = validateScenePath(typedArgs.projectPath, typedArgs.scenePath, ctx);
   if (sceneValidationError) {
     return sceneValidationError;
   }
 
   try {
-    const godotPath = await detectGodotPath();
+    const godotPath = await ctx.detectGodotPath();
     if (!godotPath) {
       return createErrorResponse('Could not find a valid Godot executable path', [
         'Ensure Godot is installed correctly',
@@ -79,7 +76,7 @@ export const handleSetTile = async (args: BaseToolArgs): Promise<ToolResponse> =
       ]);
     }
 
-    logDebug(`Setting tile at (${typedArgs.position.x}, ${typedArgs.position.y}) in ${typedArgs.tilemapNodePath}`);
+    ctx.logDebug(`Setting tile at (${typedArgs.position.x}, ${typedArgs.position.y}) in ${typedArgs.tilemapNodePath}`);
 
     const params: BaseToolArgs = {
       scenePath: typedArgs.scenePath,
@@ -92,7 +89,7 @@ export const handleSetTile = async (args: BaseToolArgs): Promise<ToolResponse> =
     };
 
     // Use bridge if available, fallback to GodotExecutor
-    return await executeWithBridge(
+    return await ctx.executeWithBridge(
       'set_tile',
       {
         scene_path: typedArgs.scenePath,
@@ -104,7 +101,7 @@ export const handleSetTile = async (args: BaseToolArgs): Promise<ToolResponse> =
         alternative_tile: typedArgs.alternativeTile ?? 0,
       },
       async () => {
-        const { stdout, stderr } = await executeOperation(
+        const { stdout, stderr } = await ctx.executeOperation(
           'set_tile',
           params,
           typedArgs.projectPath,

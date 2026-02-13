@@ -17,64 +17,25 @@
  */
 
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
-
-// Define mock functions with proper types BEFORE mock module declarations
-const mockDetectGodotPath = jest.fn<(...args: unknown[]) => Promise<string | null>>();
-const mockValidatePath = jest.fn<(...args: unknown[]) => boolean>();
-const mockNormalizeHandlerPaths = jest.fn((args: Record<string, unknown>) => args);
-const mockNormalizePath = jest.fn((p: string) => p);
-const mockNormalizeParameters = jest.fn((args: Record<string, unknown>) => args);
-const mockConvertCamelToSnakeCase = jest.fn((s: string) => s);
-const mockLogDebug = jest.fn();
-const mockLogError = jest.fn();
-const mockLogInfo = jest.fn();
-const mockIsGodotProject = jest.fn<(...args: unknown[]) => boolean>();
-const mockExistsSync = jest.fn<(...args: unknown[]) => boolean>();
-const mockEnsureDir = jest.fn<(...args: unknown[]) => Promise<void>>();
-const mockWriteFile = jest.fn<(...args: unknown[]) => Promise<void>>();
-
-// Mock all dependencies using unstable_mockModule for ESM
-jest.mock('../../core/PathManager.js', () => ({
-  detectGodotPath: mockDetectGodotPath,
-  validatePath: mockValidatePath,
-  normalizeHandlerPaths: mockNormalizeHandlerPaths,
-  normalizePath: mockNormalizePath,
-}));
-
-jest.mock('../../core/ParameterNormalizer.js', () => ({
-  normalizeParameters: mockNormalizeParameters,
-  convertCamelToSnakeCase: mockConvertCamelToSnakeCase,
-}));
-
-jest.mock('../../utils/Logger.js', () => ({
-  logDebug: mockLogDebug,
-  logError: mockLogError,
-  logInfo: mockLogInfo,
-}));
-
-jest.mock('../../utils/FileUtils.js', () => ({
-  isGodotProject: mockIsGodotProject,
-}));
-
-jest.mock('fs', () => ({
-  existsSync: mockExistsSync,
-}));
-
-jest.mock('fs-extra', () => ({
-  default: {
-    ensureDir: mockEnsureDir,
-    writeFile: mockWriteFile,
-  },
-  ensureDir: mockEnsureDir,
-  writeFile: mockWriteFile,
-}));
-
+import { createMockContext, ToolContext } from '../ToolContext.js';
 import { handleCreateShader } from './CreateShaderTool.js';
 import { handleCreateShaderMaterial } from './CreateShaderMaterialTool.js';
 
 describe('Shader Tools', () => {
+  const mockEnsureDir = jest.fn<() => Promise<void>>();
+  const mockWriteFile = jest.fn<(path: string, data: string, encoding?: string) => Promise<void>>();
+  const mockValidatePath = jest.fn<(path: string) => boolean>();
+  const mockIsGodotProject = jest.fn<(path: string) => boolean>();
+  let ctx: ToolContext;
+
   beforeEach(() => {
     jest.clearAllMocks();
+    ctx = createMockContext({
+      validatePath: mockValidatePath,
+      isGodotProject: mockIsGodotProject,
+      ensureDir: mockEnsureDir,
+      writeFile: mockWriteFile,
+    });
   });
 
   // ============================================================================
@@ -86,7 +47,7 @@ describe('Shader Tools', () => {
         const result = await handleCreateShader({
           shaderPath: 'shaders/test.gdshader',
           shaderType: 'spatial',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('projectPath');
       });
@@ -95,7 +56,7 @@ describe('Shader Tools', () => {
         const result = await handleCreateShader({
           projectPath: '/path/to/project',
           shaderType: 'spatial',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('shaderPath');
       });
@@ -104,13 +65,13 @@ describe('Shader Tools', () => {
         const result = await handleCreateShader({
           projectPath: '/path/to/project',
           shaderPath: 'shaders/test.gdshader',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('shaderType');
       });
 
       it('should return error when all required parameters are missing', async () => {
-        const result = await handleCreateShader({});
+        const result = await handleCreateShader({}, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/Validation failed/i);
       });
@@ -120,7 +81,7 @@ describe('Shader Tools', () => {
           projectPath: '/path/to/project',
           shaderPath: '',
           shaderType: 'spatial',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/shaderPath|cannot be empty|Validation failed/i);
       });
@@ -131,7 +92,7 @@ describe('Shader Tools', () => {
           projectPath: '/non/existent/path',
           shaderPath: 'shaders/test.shader',
           shaderType: 'spatial',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('.gdshader');
       });
@@ -142,7 +103,7 @@ describe('Shader Tools', () => {
           projectPath: '/non/existent/path',
           shaderPath: 'shaders/test.glsl',
           shaderType: 'spatial',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('.gdshader');
       });
@@ -153,7 +114,7 @@ describe('Shader Tools', () => {
           projectPath: '/non/existent/path',
           shaderPath: 'shaders/test',
           shaderType: 'spatial',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('.gdshader');
       });
@@ -163,7 +124,7 @@ describe('Shader Tools', () => {
           projectPath: '/non/existent/path',
           shaderPath: 'shaders/test.gdshader',
           shaderType: 'invalid',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/shaderType|Validation failed/i);
       });
@@ -173,7 +134,7 @@ describe('Shader Tools', () => {
           projectPath: '/non/existent/path',
           shaderPath: 'shaders/test.gdshader',
           shaderType: 'SPATIAL' as 'spatial',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/shaderType|Validation failed/i);
       });
@@ -183,7 +144,7 @@ describe('Shader Tools', () => {
           projectPath: '/path/to/project',
           shaderPath: 123 as unknown as string,
           shaderType: 'spatial',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/shaderPath|string|Validation failed/i);
       });
@@ -194,7 +155,7 @@ describe('Shader Tools', () => {
           shaderPath: 'shaders/test.gdshader',
           shaderType: 'spatial',
           renderMode: 'unshaded' as unknown as string[],
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/renderMode|array|Validation failed/i);
       });
@@ -207,7 +168,7 @@ describe('Shader Tools', () => {
           projectPath: '/path/../../../etc/passwd',
           shaderPath: 'shaders/test.gdshader',
           shaderType: 'spatial',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
       });
 
@@ -218,7 +179,7 @@ describe('Shader Tools', () => {
           projectPath: '/non/existent/path',
           shaderPath: 'shaders/test.gdshader',
           shaderType: 'spatial',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('Not a valid Godot project');
       });
@@ -237,7 +198,7 @@ describe('Shader Tools', () => {
           projectPath: '/path/to/project',
           shaderPath: 'shaders/test.gdshader',
           shaderType: 'spatial',
-        });
+        }, ctx);
         expect(result.isError).toBeUndefined();
         expect(result.content[0].text).toContain('Shader created successfully');
         expect(result.content[0].text).toContain('shaders/test.gdshader');
@@ -249,7 +210,7 @@ describe('Shader Tools', () => {
           projectPath: '/path/to/project',
           shaderPath: 'shaders/test.gdshader',
           shaderType: 'spatial',
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -261,7 +222,7 @@ describe('Shader Tools', () => {
           projectPath: '/path/to/project',
           shaderPath: 'shaders/ui.gdshader',
           shaderType: 'canvas_item',
-        });
+        }, ctx);
         expect(result.isError).toBeUndefined();
         expect(result.content[0].text).toContain('canvas_item');
 
@@ -275,7 +236,7 @@ describe('Shader Tools', () => {
           projectPath: '/path/to/project',
           shaderPath: 'shaders/particles.gdshader',
           shaderType: 'particles',
-        });
+        }, ctx);
         expect(result.isError).toBeUndefined();
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
@@ -288,7 +249,7 @@ describe('Shader Tools', () => {
           projectPath: '/path/to/project',
           shaderPath: 'shaders/sky.gdshader',
           shaderType: 'sky',
-        });
+        }, ctx);
         expect(result.isError).toBeUndefined();
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
@@ -301,7 +262,7 @@ describe('Shader Tools', () => {
           projectPath: '/path/to/project',
           shaderPath: 'shaders/fog.gdshader',
           shaderType: 'fog',
-        });
+        }, ctx);
         expect(result.isError).toBeUndefined();
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
@@ -315,7 +276,7 @@ describe('Shader Tools', () => {
           shaderPath: 'shaders/test.gdshader',
           shaderType: 'spatial',
           renderMode: ['unshaded', 'cull_disabled'],
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -328,7 +289,7 @@ describe('Shader Tools', () => {
           shaderPath: 'shaders/test.gdshader',
           shaderType: 'spatial',
           renderMode: [],
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -341,7 +302,7 @@ describe('Shader Tools', () => {
           shaderPath: 'shaders/test.gdshader',
           shaderType: 'spatial',
           vertexCode: 'VERTEX.y += sin(TIME);',
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -356,7 +317,7 @@ describe('Shader Tools', () => {
           shaderPath: 'shaders/test.gdshader',
           shaderType: 'spatial',
           fragmentCode: 'ALBEDO = vec3(1.0, 0.0, 0.0);',
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -371,7 +332,7 @@ describe('Shader Tools', () => {
           shaderPath: 'shaders/test.gdshader',
           shaderType: 'spatial',
           lightCode: 'DIFFUSE_LIGHT = LIGHT_COLOR * ATTENUATION;',
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -389,7 +350,7 @@ describe('Shader Tools', () => {
           vertexCode: 'VERTEX.y += sin(TIME);',
           fragmentCode: 'ALBEDO = vec3(1.0, 0.0, 0.0);',
           lightCode: 'DIFFUSE_LIGHT = LIGHT_COLOR;',
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -406,7 +367,7 @@ describe('Shader Tools', () => {
           shaderPath: 'shaders/test.gdshader',
           shaderType: 'spatial',
           vertexCode: 'float wave = sin(TIME);\nVERTEX.y += wave;',
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -421,7 +382,7 @@ describe('Shader Tools', () => {
           shaderPath: 'shaders/test.gdshader',
           shaderType: 'spatial',
           fragmentCode: 'vec3 color = vec3(1.0);\nALBEDO = color;',
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -435,7 +396,7 @@ describe('Shader Tools', () => {
           projectPath: '/path/to/project',
           shaderPath: 'shaders/test.gdshader',
           shaderType: 'spatial',
-        });
+        }, ctx);
 
         expect(mockEnsureDir).toHaveBeenCalled();
         expect(mockWriteFile).toHaveBeenCalled();
@@ -458,7 +419,7 @@ describe('Shader Tools', () => {
           projectPath: '/path/to/project',
           shaderPath: 'shaders/test.gdshader',
           shaderType: 'spatial',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('Failed to create shader');
         expect(result.content[0].text).toContain('Permission denied');
@@ -472,7 +433,7 @@ describe('Shader Tools', () => {
           projectPath: '/path/to/project',
           shaderPath: 'shaders/test.gdshader',
           shaderType: 'spatial',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('Failed to create shader');
         expect(result.content[0].text).toContain('Disk full');
@@ -485,7 +446,7 @@ describe('Shader Tools', () => {
           projectPath: '/path/to/project',
           shaderPath: 'shaders/test.gdshader',
           shaderType: 'spatial',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('Unknown error');
       });
@@ -501,7 +462,7 @@ describe('Shader Tools', () => {
         const result = await handleCreateShaderMaterial({
           materialPath: 'materials/test.tres',
           shaderPath: 'shaders/test.gdshader',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('projectPath');
       });
@@ -510,7 +471,7 @@ describe('Shader Tools', () => {
         const result = await handleCreateShaderMaterial({
           projectPath: '/path/to/project',
           shaderPath: 'shaders/test.gdshader',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('materialPath');
       });
@@ -519,13 +480,13 @@ describe('Shader Tools', () => {
         const result = await handleCreateShaderMaterial({
           projectPath: '/path/to/project',
           materialPath: 'materials/test.tres',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('shaderPath');
       });
 
       it('should return error when all required parameters are missing', async () => {
-        const result = await handleCreateShaderMaterial({});
+        const result = await handleCreateShaderMaterial({}, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/Validation failed/i);
       });
@@ -536,7 +497,7 @@ describe('Shader Tools', () => {
           projectPath: '/non/existent/path',
           materialPath: 'materials/test.mat',
           shaderPath: 'shaders/test.gdshader',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('.tres');
       });
@@ -547,7 +508,7 @@ describe('Shader Tools', () => {
           projectPath: '/non/existent/path',
           materialPath: 'materials/test.tscn',
           shaderPath: 'shaders/test.gdshader',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/\.tres|\.res/i);
       });
@@ -558,7 +519,7 @@ describe('Shader Tools', () => {
           projectPath: '/non/existent/path',
           materialPath: 'materials/test',
           shaderPath: 'shaders/test.gdshader',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/\.tres|\.res/i);
       });
@@ -568,7 +529,7 @@ describe('Shader Tools', () => {
           projectPath: '/path/to/project',
           materialPath: 123 as unknown as string,
           shaderPath: 'shaders/test.gdshader',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/materialPath|string|Validation failed/i);
       });
@@ -579,7 +540,7 @@ describe('Shader Tools', () => {
           materialPath: 'materials/test.tres',
           shaderPath: 'shaders/test.gdshader',
           parameters: 'invalid' as unknown as Record<string, unknown>,
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toMatch(/parameters|object|Validation failed/i);
       });
@@ -592,7 +553,7 @@ describe('Shader Tools', () => {
           projectPath: '/path/../../../etc/passwd',
           materialPath: 'materials/test.tres',
           shaderPath: 'shaders/test.gdshader',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
       });
 
@@ -603,7 +564,7 @@ describe('Shader Tools', () => {
           projectPath: '/non/existent/path',
           materialPath: 'materials/test.tres',
           shaderPath: 'shaders/test.gdshader',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('Not a valid Godot project');
       });
@@ -622,7 +583,7 @@ describe('Shader Tools', () => {
           projectPath: '/path/to/project',
           materialPath: 'materials/test.tres',
           shaderPath: 'shaders/test.gdshader',
-        });
+        }, ctx);
         expect(result.isError).toBeUndefined();
         expect(result.content[0].text).toContain('ShaderMaterial created successfully');
         expect(result.content[0].text).toContain('materials/test.tres');
@@ -634,7 +595,7 @@ describe('Shader Tools', () => {
           projectPath: '/path/to/project',
           materialPath: 'materials/test.res',
           shaderPath: 'shaders/test.gdshader',
-        });
+        }, ctx);
         expect(result.isError).toBeUndefined();
         expect(result.content[0].text).toContain('ShaderMaterial created successfully');
       });
@@ -644,7 +605,7 @@ describe('Shader Tools', () => {
           projectPath: '/path/to/project',
           materialPath: 'materials/test.tres',
           shaderPath: 'shaders/test.gdshader',
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -659,7 +620,7 @@ describe('Shader Tools', () => {
           projectPath: '/path/to/project',
           materialPath: 'materials/test.tres',
           shaderPath: 'res://shaders/test.gdshader',
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -677,7 +638,7 @@ describe('Shader Tools', () => {
             speed: 1.5,
             amplitude: 0.3,
           },
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -694,7 +655,7 @@ describe('Shader Tools', () => {
             use_texture: true,
             invert: false,
           },
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -710,7 +671,7 @@ describe('Shader Tools', () => {
           parameters: {
             texture_path: 'res://textures/albedo.png',
           },
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -725,7 +686,7 @@ describe('Shader Tools', () => {
           parameters: {
             uv_offset: { x: 0.5, y: 0.5 },
           },
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -740,7 +701,7 @@ describe('Shader Tools', () => {
           parameters: {
             direction: { x: 1.0, y: 0.0, z: 0.0 },
           },
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -755,7 +716,7 @@ describe('Shader Tools', () => {
           parameters: {
             custom_vector: { x: 1.0, y: 2.0, z: 3.0, w: 4.0 },
           },
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -770,7 +731,7 @@ describe('Shader Tools', () => {
           parameters: {
             albedo_color: { r: 1.0, g: 0.5, b: 0.0 },
           },
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -785,7 +746,7 @@ describe('Shader Tools', () => {
           parameters: {
             emission_color: { r: 0.0, g: 1.0, b: 1.0, a: 0.5 },
           },
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -804,7 +765,7 @@ describe('Shader Tools', () => {
             color: { r: 1.0, g: 0.8, b: 0.6 },
             name: 'my_shader',
           },
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -820,7 +781,7 @@ describe('Shader Tools', () => {
           projectPath: '/path/to/project',
           materialPath: 'materials/test.tres',
           shaderPath: 'shaders/test.gdshader',
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -833,7 +794,7 @@ describe('Shader Tools', () => {
           materialPath: 'materials/test.tres',
           shaderPath: 'shaders/test.gdshader',
           parameters: {},
-        });
+        }, ctx);
 
         const writeCall = mockWriteFile.mock.calls[0] as unknown[];
         const content = writeCall[1] as string;
@@ -845,7 +806,7 @@ describe('Shader Tools', () => {
           projectPath: '/path/to/project',
           materialPath: 'materials/test.tres',
           shaderPath: 'shaders/test.gdshader',
-        });
+        }, ctx);
 
         expect(mockEnsureDir).toHaveBeenCalled();
         expect(mockWriteFile).toHaveBeenCalled();
@@ -868,7 +829,7 @@ describe('Shader Tools', () => {
           projectPath: '/path/to/project',
           materialPath: 'materials/test.tres',
           shaderPath: 'shaders/test.gdshader',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('Failed to create shader material');
         expect(result.content[0].text).toContain('Permission denied');
@@ -882,7 +843,7 @@ describe('Shader Tools', () => {
           projectPath: '/path/to/project',
           materialPath: 'materials/test.tres',
           shaderPath: 'shaders/test.gdshader',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('Failed to create shader material');
         expect(result.content[0].text).toContain('Disk full');
@@ -895,7 +856,7 @@ describe('Shader Tools', () => {
           projectPath: '/path/to/project',
           materialPath: 'materials/test.tres',
           shaderPath: 'shaders/test.gdshader',
-        });
+        }, ctx);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('Unknown error');
       });

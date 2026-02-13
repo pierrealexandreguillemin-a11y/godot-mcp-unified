@@ -9,6 +9,8 @@
  * - stderr with "Failed to" message handling
  * - Error catch blocks
  * - Optional parameter passing
+ *
+ * Uses dependency injection via ToolContext instead of jest.mock().
  */
 
 import { jest } from '@jest/globals';
@@ -19,39 +21,8 @@ import {
   getResponseText,
   isErrorResponse,
 } from '../test-utils.js';
-
-// Define mock functions at module scope BEFORE mock module declarations
-const mockDetectGodotPath = jest.fn<(...args: unknown[]) => Promise<string | null>>();
-const mockExecuteOperation = jest.fn<(...args: unknown[]) => Promise<{ stdout: string; stderr: string }>>();
-
-jest.mock('../../core/PathManager.js', () => ({
-  detectGodotPath: mockDetectGodotPath,
-  validatePath: jest.fn(() => true),
-  normalizePath: jest.fn((p: string) => p),
-  normalizeHandlerPaths: jest.fn(<T,>(args: T) => args),
-  isValidGodotPathSync: jest.fn(() => true),
-  isValidGodotPath: jest.fn(async () => true),
-  getPlatformGodotPaths: jest.fn(() => []),
-  clearPathCache: jest.fn(),
-  getPathCacheStats: jest.fn(() => ({ hits: 0, misses: 0, size: 0 })),
-}));
-
-jest.mock('../../core/GodotExecutor.js', () => ({
-  executeOperation: mockExecuteOperation,
-  getGodotVersion: jest.fn(async () => '4.2.stable'),
-  isGodot44OrLater: jest.fn(() => false),
-}));
-
-// Mock BridgeExecutor to always use fallback (no bridge connected)
-jest.mock('../../bridge/BridgeExecutor.js', () => ({
-  executeWithBridge: jest.fn(async (
-    _action: string,
-    _params: Record<string, unknown>,
-    fallback: () => Promise<unknown>,
-  ) => fallback()),
-  isBridgeAvailable: jest.fn(() => false),
-  tryInitializeBridge: jest.fn(async () => false),
-}));
+import { createMockContext, ToolContext } from '../ToolContext.js';
+import { ToolResponse } from '../../server/types.js';
 
 import { handleCreateUIContainer } from './CreateUIContainerTool.js';
 import { handleCreateControl } from './CreateControlTool.js';
@@ -59,6 +30,14 @@ import { handleCreateControl } from './CreateControlTool.js';
 describe('UI Tools Enhanced Tests', () => {
   let projectPath: string;
   let cleanup: () => void;
+  let ctx: ToolContext;
+
+  // Mock functions that tests need to assert against
+  const mockDetectGodotPath = jest.fn<(...args: unknown[]) => Promise<string | null>>();
+  const mockExecuteOperation = jest.fn<(...args: unknown[]) => Promise<{ stdout: string; stderr: string }>>();
+  const mockValidatePath = jest.fn<(path: string) => boolean>();
+  const mockIsGodotProject = jest.fn<(path: string) => boolean>();
+  const mockExistsSync = jest.fn<(path: string) => boolean>();
 
   beforeEach(() => {
     const temp = createTempProject();
@@ -66,6 +45,24 @@ describe('UI Tools Enhanced Tests', () => {
     cleanup = temp.cleanup;
     mkdirSync(join(projectPath, 'ui'), { recursive: true });
     jest.clearAllMocks();
+
+    // Set sensible defaults
+    mockValidatePath.mockReturnValue(true);
+    mockIsGodotProject.mockReturnValue(true);
+    mockExistsSync.mockReturnValue(true);
+
+    ctx = createMockContext({
+      detectGodotPath: mockDetectGodotPath,
+      executeOperation: mockExecuteOperation,
+      validatePath: mockValidatePath,
+      isGodotProject: mockIsGodotProject,
+      existsSync: mockExistsSync,
+      executeWithBridge: async (
+        _action: string,
+        _params: Record<string, unknown>,
+        fallback: () => Promise<ToolResponse>,
+      ) => fallback(),
+    });
   });
 
   afterEach(() => {
@@ -84,7 +81,7 @@ describe('UI Tools Enhanced Tests', () => {
         scenePath: 'scenes/main.tscn',
         nodeName: 'MainContainer',
         containerType: 'vbox',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Could not find a valid Godot executable path');
@@ -102,7 +99,7 @@ describe('UI Tools Enhanced Tests', () => {
         scenePath: 'scenes/main.tscn',
         nodeName: 'MainMenu',
         containerType: 'vbox',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(false);
       expect(getResponseText(result)).toContain('UI Container created successfully');
@@ -122,7 +119,7 @@ describe('UI Tools Enhanced Tests', () => {
         scenePath: 'scenes/main.tscn',
         nodeName: 'Toolbar',
         containerType: 'hbox',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(false);
       expect(getResponseText(result)).toContain('HBoxContainer');
@@ -141,7 +138,7 @@ describe('UI Tools Enhanced Tests', () => {
         nodeName: 'InventoryGrid',
         containerType: 'grid',
         columns: 4,
-      });
+      }, ctx);
 
       expect(mockExecuteOperation).toHaveBeenCalledWith(
         'create_ui_container',
@@ -166,7 +163,7 @@ describe('UI Tools Enhanced Tests', () => {
         nodeName: 'SizedBox',
         containerType: 'vbox',
         customMinimumSize: { x: 200, y: 100 },
-      });
+      }, ctx);
 
       expect(mockExecuteOperation).toHaveBeenCalledWith(
         'create_ui_container',
@@ -191,7 +188,7 @@ describe('UI Tools Enhanced Tests', () => {
         nodeName: 'FullRect',
         containerType: 'panel',
         anchorsPreset: 'full_rect',
-      });
+      }, ctx);
 
       expect(mockExecuteOperation).toHaveBeenCalledWith(
         'create_ui_container',
@@ -216,7 +213,7 @@ describe('UI Tools Enhanced Tests', () => {
         nodeName: 'Inner',
         containerType: 'hbox',
         parentNodePath: 'OuterContainer',
-      });
+      }, ctx);
 
       expect(mockExecuteOperation).toHaveBeenCalledWith(
         'create_ui_container',
@@ -240,7 +237,7 @@ describe('UI Tools Enhanced Tests', () => {
         scenePath: 'scenes/main.tscn',
         nodeName: 'Container',
         containerType: 'vbox',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Failed to create UI container');
@@ -255,7 +252,7 @@ describe('UI Tools Enhanced Tests', () => {
         scenePath: 'scenes/main.tscn',
         nodeName: 'Container',
         containerType: 'vbox',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Failed to create UI container');
@@ -271,7 +268,7 @@ describe('UI Tools Enhanced Tests', () => {
         scenePath: 'scenes/main.tscn',
         nodeName: 'Container',
         containerType: 'vbox',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Unknown error');
@@ -290,7 +287,7 @@ describe('UI Tools Enhanced Tests', () => {
         scenePath: 'scenes/main.tscn',
         nodeName: 'StartButton',
         controlType: 'button',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Could not find a valid Godot executable path');
@@ -309,7 +306,7 @@ describe('UI Tools Enhanced Tests', () => {
         nodeName: 'PlayButton',
         controlType: 'button',
         text: 'Play',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(false);
       expect(getResponseText(result)).toContain('Control created successfully');
@@ -330,7 +327,7 @@ describe('UI Tools Enhanced Tests', () => {
         nodeName: 'Title',
         controlType: 'label',
         text: 'Game Title',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(false);
       expect(getResponseText(result)).toContain('Label');
@@ -349,7 +346,7 @@ describe('UI Tools Enhanced Tests', () => {
         nodeName: 'Btn',
         controlType: 'button',
         text: 'Click Me',
-      });
+      }, ctx);
 
       expect(mockExecuteOperation).toHaveBeenCalledWith(
         'create_control',
@@ -374,7 +371,7 @@ describe('UI Tools Enhanced Tests', () => {
         nodeName: 'Input',
         controlType: 'line_edit',
         placeholderText: 'Enter name...',
-      });
+      }, ctx);
 
       expect(mockExecuteOperation).toHaveBeenCalledWith(
         'create_control',
@@ -399,7 +396,7 @@ describe('UI Tools Enhanced Tests', () => {
         nodeName: 'Image',
         controlType: 'texture_rect',
         texturePath: 'res://icon.png',
-      });
+      }, ctx);
 
       // Verify texture_path was passed (path may be normalized on Windows)
       const callArgs = mockExecuteOperation.mock.calls[0];
@@ -421,7 +418,7 @@ describe('UI Tools Enhanced Tests', () => {
         nodeName: 'Bg',
         controlType: 'color_rect',
         color: { r: 1.0, g: 0.0, b: 0.5, a: 1.0 },
-      });
+      }, ctx);
 
       expect(mockExecuteOperation).toHaveBeenCalledWith(
         'create_control',
@@ -448,7 +445,7 @@ describe('UI Tools Enhanced Tests', () => {
         minValue: 0,
         maxValue: 100,
         value: 75,
-      });
+      }, ctx);
 
       expect(mockExecuteOperation).toHaveBeenCalledWith(
         'create_control',
@@ -475,7 +472,7 @@ describe('UI Tools Enhanced Tests', () => {
         nodeName: 'InnerButton',
         controlType: 'button',
         parentNodePath: 'Container',
-      });
+      }, ctx);
 
       expect(mockExecuteOperation).toHaveBeenCalledWith(
         'create_control',
@@ -499,7 +496,7 @@ describe('UI Tools Enhanced Tests', () => {
         scenePath: 'scenes/main.tscn',
         nodeName: 'Button',
         controlType: 'button',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Failed to create control');
@@ -514,7 +511,7 @@ describe('UI Tools Enhanced Tests', () => {
         scenePath: 'scenes/main.tscn',
         nodeName: 'Button',
         controlType: 'button',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Failed to create control');
@@ -530,7 +527,7 @@ describe('UI Tools Enhanced Tests', () => {
         scenePath: 'scenes/main.tscn',
         nodeName: 'Button',
         controlType: 'button',
-      });
+      }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Unknown error');

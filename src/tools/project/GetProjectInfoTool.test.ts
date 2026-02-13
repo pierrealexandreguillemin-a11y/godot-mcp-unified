@@ -2,7 +2,9 @@
  * GetProjectInfoTool Unit Tests
  * ISO/IEC 29119 compliant - covers uncovered lines 53, 64-91
  *
- * These tests mock the Godot detection and ProcessPool to exercise:
+ * Uses Dependency Injection via createMockContext instead of jest.mock().
+ *
+ * These tests exercise:
  * - Godot path not found (line 53)
  * - ProcessPool version execution (lines 62-64)
  * - Project structure retrieval (lines 67)
@@ -12,33 +14,10 @@
  */
 
 import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
-import { writeFileSync } from 'fs';
+import { writeFileSync, readFileSync as realReadFileSync } from 'fs';
 import { join } from 'path';
 
-// Define mock functions with proper types BEFORE mock module declarations
-const mockDetectGodotPath = jest.fn<(...args: unknown[]) => Promise<string | null>>();
-const mockGetGodotPool = jest.fn<(...args: unknown[]) => unknown>();
-const mockGetProjectStructure = jest.fn<(...args: unknown[]) => unknown>();
-
-// Mock the Godot-dependent modules
-jest.mock('../../core/PathManager.js', () => ({
-  detectGodotPath: mockDetectGodotPath,
-  validatePath: jest.fn(() => true),
-  normalizePath: jest.fn((p: string) => p),
-  normalizeHandlerPaths: jest.fn((args: Record<string, unknown>) => args),
-}));
-
-jest.mock('../../core/ProcessPool.js', () => ({
-  getGodotPool: mockGetGodotPool,
-}));
-
-jest.mock('../../utils/FileUtils.js', () => ({
-  getProjectStructure: mockGetProjectStructure,
-  isGodotProject: jest.fn(() => true),
-  findGodotProjects: jest.fn(() => []),
-}));
-
-// Import test utilities and module under test (jest.mock is hoisted)
+import { createMockContext } from '../ToolContext.js';
 import { createTempProject, getResponseText, parseJsonResponse, isErrorResponse } from '../test-utils.js';
 import { handleGetProjectInfo } from './GetProjectInfoTool.js';
 
@@ -55,33 +34,72 @@ describe('GetProjectInfoTool', () => {
   let projectPath: string;
   let cleanup: () => void;
 
+  // Re-usable mock functions
+  const mockDetectGodotPath = jest.fn<() => Promise<string | null>>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mockGetGodotPool = jest.fn<() => any>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mockGetProjectStructure = jest.fn<(projectPath: string) => any>();
+  const mockReadFileSync = jest.fn<(path: string, encoding: BufferEncoding) => string>();
+  const mockValidatePath = jest.fn<() => boolean>();
+  const mockIsGodotProject = jest.fn<() => boolean>();
+
   beforeEach(() => {
     const temp = createTempProject();
     projectPath = temp.projectPath;
     cleanup = temp.cleanup;
-    jest.clearAllMocks();
+
+    // Reset all mocks to avoid stale mockReturnValueOnce leaking between tests
+    mockDetectGodotPath.mockReset();
+    mockGetGodotPool.mockReset();
+    mockGetProjectStructure.mockReset();
+    mockReadFileSync.mockReset();
+    mockValidatePath.mockReset();
+    mockIsGodotProject.mockReset();
   });
 
   afterEach(() => {
     cleanup();
   });
 
+  /**
+   * Build a ctx with the shared mocks. Tests can further configure mocks
+   * before calling the handler.
+   */
+  function buildCtx() {
+    return createMockContext({
+      detectGodotPath: mockDetectGodotPath,
+      getGodotPool: mockGetGodotPool,
+      getProjectStructure: mockGetProjectStructure,
+      readFileSync: mockReadFileSync,
+      validatePath: mockValidatePath,
+      isGodotProject: mockIsGodotProject,
+      // executeWithBridge must call fallback so handler main logic runs
+      executeWithBridge: async (_action, _params, fallback) => fallback(),
+    });
+  }
+
   describe('Validation', () => {
     it('should reject missing projectPath', async () => {
-      const result = await handleGetProjectInfo({});
+      const ctx = buildCtx();
+      const result = await handleGetProjectInfo({}, ctx);
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toMatch(/Validation failed|projectPath/i);
     });
 
     it('should reject empty projectPath', async () => {
-      const result = await handleGetProjectInfo({ projectPath: '' });
+      const ctx = buildCtx();
+      const result = await handleGetProjectInfo({ projectPath: '' }, ctx);
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toMatch(/Validation failed/i);
     });
 
     it('should reject non-existent project path', async () => {
-      mockDetectGodotPath.mockResolvedValue(null);
-      const result = await handleGetProjectInfo({ projectPath: '/non/existent/path' });
+      mockValidatePath.mockReturnValue(true);
+      mockIsGodotProject.mockReturnValue(false);
+
+      const ctx = buildCtx();
+      const result = await handleGetProjectInfo({ projectPath: '/non/existent/path' }, ctx);
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toMatch(/not found|does not exist|invalid|Not a valid|Could not find/i);
     });
@@ -89,31 +107,49 @@ describe('GetProjectInfoTool', () => {
 
   describe('Security', () => {
     it('should reject path traversal in projectPath', async () => {
-      const result = await handleGetProjectInfo({ projectPath: '../../../etc' });
+      mockValidatePath.mockReturnValue(false);
+
+      const ctx = buildCtx();
+      const result = await handleGetProjectInfo({ projectPath: '../../../etc' }, ctx);
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toMatch(/path traversal|invalid|not allowed/i);
     });
 
     it('should reject embedded path traversal', async () => {
+      mockValidatePath.mockReturnValue(false);
+
+      const ctx = buildCtx();
       const result = await handleGetProjectInfo({
         projectPath: '/home/user/../../../etc',
-      });
+      }, ctx);
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toMatch(/path traversal|invalid|Not a valid/i);
     });
   });
 
   describe('Happy Path', () => {
+    /**
+     * Helper to configure mocks for happy-path scenarios.
+     * Sets validatePath and isGodotProject to true by default.
+     */
+    function setupHappyPath() {
+      mockValidatePath.mockReturnValue(true);
+      mockIsGodotProject.mockReturnValue(true);
+    }
+
     it('should return error when Godot path not found (line 53)', async () => {
+      setupHappyPath();
       mockDetectGodotPath.mockResolvedValue(null);
 
-      const result = await handleGetProjectInfo({ projectPath });
+      const ctx = buildCtx();
+      const result = await handleGetProjectInfo({ projectPath }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Could not find a valid Godot executable path');
     });
 
     it('should return project info successfully (lines 62-98)', async () => {
+      setupHappyPath();
       mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
 
       const mockPool = {
@@ -132,7 +168,14 @@ describe('GetProjectInfoTool', () => {
         resources: ['resources/theme.tres'],
       });
 
-      const result = await handleGetProjectInfo({ projectPath });
+      // readFileSync reads the real project.godot fixture with config/name="Test Project"
+      mockReadFileSync.mockImplementation((filePath: string) => {
+        // Use the real file system for this test
+        return realReadFileSync(filePath, 'utf8') as string;
+      });
+
+      const ctx = buildCtx();
+      const result = await handleGetProjectInfo({ projectPath }, ctx);
 
       expect(isErrorResponse(result)).toBe(false);
       const data = parseJsonResponse(result) as {
@@ -149,6 +192,7 @@ describe('GetProjectInfoTool', () => {
     });
 
     it('should extract project name from project.godot config (lines 70-78)', async () => {
+      setupHappyPath();
       mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
 
       const mockPool = {
@@ -162,8 +206,13 @@ describe('GetProjectInfoTool', () => {
       mockGetGodotPool.mockReturnValue(mockPool);
       mockGetProjectStructure.mockReturnValue({});
 
-      // The default test project has config/name="Test Project"
-      const result = await handleGetProjectInfo({ projectPath });
+      // Return project.godot content with config/name
+      mockReadFileSync.mockImplementation((filePath: string) => {
+        return realReadFileSync(filePath, 'utf8') as string;
+      });
+
+      const ctx = buildCtx();
+      const result = await handleGetProjectInfo({ projectPath }, ctx);
 
       expect(isErrorResponse(result)).toBe(false);
       const data = parseJsonResponse(result) as { name: string };
@@ -171,6 +220,7 @@ describe('GetProjectInfoTool', () => {
     });
 
     it('should use directory basename when project name extraction fails (lines 79-82)', async () => {
+      setupHappyPath();
       mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
 
       const mockPool = {
@@ -190,7 +240,13 @@ describe('GetProjectInfoTool', () => {
         `; Engine configuration file.\nconfig_version=5\n\n[application]\n`
       );
 
-      const result = await handleGetProjectInfo({ projectPath });
+      // Return the updated file content (no config/name)
+      mockReadFileSync.mockImplementation((filePath: string) => {
+        return realReadFileSync(filePath, 'utf8') as string;
+      });
+
+      const ctx = buildCtx();
+      const result = await handleGetProjectInfo({ projectPath }, ctx);
 
       expect(isErrorResponse(result)).toBe(false);
       const data = parseJsonResponse(result) as { name: string };
@@ -201,6 +257,7 @@ describe('GetProjectInfoTool', () => {
     });
 
     it('should call pool.execute with correct arguments (line 63)', async () => {
+      setupHappyPath();
       mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
 
       const mockExecute = createMockExecute({
@@ -213,7 +270,11 @@ describe('GetProjectInfoTool', () => {
       mockGetGodotPool.mockReturnValue(mockPool);
       mockGetProjectStructure.mockReturnValue({});
 
-      await handleGetProjectInfo({ projectPath });
+      // readFileSync can return empty — basename fallback is fine
+      mockReadFileSync.mockReturnValue('');
+
+      const ctx = buildCtx();
+      await handleGetProjectInfo({ projectPath }, ctx);
 
       expect(mockExecute).toHaveBeenCalledWith(
         '/usr/bin/godot',
@@ -223,6 +284,7 @@ describe('GetProjectInfoTool', () => {
     });
 
     it('should include structure from getProjectStructure (line 67)', async () => {
+      setupHappyPath();
       mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
 
       const mockPool = {
@@ -242,7 +304,11 @@ describe('GetProjectInfoTool', () => {
       };
       mockGetProjectStructure.mockReturnValue(expectedStructure);
 
-      const result = await handleGetProjectInfo({ projectPath });
+      // readFileSync can return empty
+      mockReadFileSync.mockReturnValue('');
+
+      const ctx = buildCtx();
+      const result = await handleGetProjectInfo({ projectPath }, ctx);
 
       expect(isErrorResponse(result)).toBe(false);
       const data = parseJsonResponse(result) as { structure: typeof expectedStructure };
@@ -251,7 +317,13 @@ describe('GetProjectInfoTool', () => {
   });
 
   describe('Error Handling', () => {
+    function setupHappyPath() {
+      mockValidatePath.mockReturnValue(true);
+      mockIsGodotProject.mockReturnValue(true);
+    }
+
     it('should handle Error thrown by pool.execute (lines 99-106)', async () => {
+      setupHappyPath();
       mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
 
       const mockPool = {
@@ -259,7 +331,8 @@ describe('GetProjectInfoTool', () => {
       };
       mockGetGodotPool.mockReturnValue(mockPool);
 
-      const result = await handleGetProjectInfo({ projectPath });
+      const ctx = buildCtx();
+      const result = await handleGetProjectInfo({ projectPath }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Failed to get project info');
@@ -267,6 +340,7 @@ describe('GetProjectInfoTool', () => {
     });
 
     it('should handle non-Error thrown (line 100)', async () => {
+      setupHappyPath();
       mockDetectGodotPath.mockResolvedValue('/usr/bin/godot');
 
       const mockPool = {
@@ -274,7 +348,8 @@ describe('GetProjectInfoTool', () => {
       };
       mockGetGodotPool.mockReturnValue(mockPool);
 
-      const result = await handleGetProjectInfo({ projectPath });
+      const ctx = buildCtx();
+      const result = await handleGetProjectInfo({ projectPath }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Failed to get project info');
@@ -282,9 +357,11 @@ describe('GetProjectInfoTool', () => {
     });
 
     it('should handle detectGodotPath throwing', async () => {
+      setupHappyPath();
       mockDetectGodotPath.mockRejectedValue(new Error('Detection failed'));
 
-      const result = await handleGetProjectInfo({ projectPath });
+      const ctx = buildCtx();
+      const result = await handleGetProjectInfo({ projectPath }, ctx);
 
       expect(isErrorResponse(result)).toBe(true);
       expect(getResponseText(result)).toContain('Failed to get project info');

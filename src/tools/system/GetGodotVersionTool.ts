@@ -6,11 +6,10 @@
  * ISO/IEC 25010 compliant - data integrity
  */
 
-import { ToolDefinition, ToolResponse } from '../../server/types.js';
+import { ToolDefinition, ToolResponse, BaseToolArgs } from '../../server/types.js';
 import { createSuccessResponse } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import { getGodotVersion } from '../../core/GodotExecutor.js';
-import { detectGodotPath } from '../../core/PathManager.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import { GetGodotVersionSchema, toMcpSchema } from '../../core/ZodSchemas.js';
 
 export const getGodotVersionDefinition: ToolDefinition = {
@@ -19,9 +18,9 @@ export const getGodotVersionDefinition: ToolDefinition = {
   inputSchema: toMcpSchema(GetGodotVersionSchema),
 };
 
-export const handleGetGodotVersion = async (): Promise<ToolResponse> => {
+export const handleGetGodotVersion = async (_args?: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
   try {
-    const godotPath = await detectGodotPath();
+    const godotPath = await ctx.detectGodotPath();
     if (!godotPath) {
       return createErrorResponse('Could not find a valid Godot executable path', [
         'Ensure Godot is installed correctly',
@@ -29,7 +28,7 @@ export const handleGetGodotVersion = async (): Promise<ToolResponse> => {
       ]);
     }
 
-    const version = await getGodotVersion(godotPath);
+    const version = await ctx.getGodotVersion(godotPath);
     return createSuccessResponse(version);
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

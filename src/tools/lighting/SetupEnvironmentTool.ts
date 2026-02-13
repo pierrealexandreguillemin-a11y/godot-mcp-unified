@@ -13,9 +13,8 @@ import {
   createSuccessResponse,
 } from '../BaseToolHandler.js';
 import { createErrorResponse } from '../../utils/ErrorHandler.js';
-import * as fs from 'fs-extra';
 import * as path from 'path';
-import { logDebug } from '../../utils/Logger.js';
+import { ToolContext, defaultToolContext } from '../ToolContext.js';
 import {
   SetupEnvironmentSchema,
   SetupEnvironmentInput,
@@ -47,8 +46,8 @@ const tonemapModeMap: Record<string, number> = {
   aces: 3,
 };
 
-export const handleSetupEnvironment = async (args: BaseToolArgs): Promise<ToolResponse> => {
-  const preparedArgs = prepareToolArgs(args);
+export const handleSetupEnvironment = async (args: BaseToolArgs, ctx: ToolContext = defaultToolContext): Promise<ToolResponse> => {
+  const preparedArgs = prepareToolArgs(args, ctx);
 
   // Zod validation
   const validation = safeValidateInput(SetupEnvironmentSchema, preparedArgs);
@@ -67,7 +66,7 @@ export const handleSetupEnvironment = async (args: BaseToolArgs): Promise<ToolRe
     ]);
   }
 
-  const projectValidationError = validateProjectPath(typedArgs.projectPath);
+  const projectValidationError = validateProjectPath(typedArgs.projectPath, ctx);
   if (projectValidationError) {
     return projectValidationError;
   }
@@ -144,10 +143,10 @@ export const handleSetupEnvironment = async (args: BaseToolArgs): Promise<ToolRe
     const envFullPath = path.join(typedArgs.projectPath, typedArgs.environmentPath);
     const envDir = path.dirname(envFullPath);
 
-    await fs.ensureDir(envDir);
-    await fs.writeFile(envFullPath, envContent, 'utf-8');
+    await ctx.ensureDir(envDir);
+    await ctx.writeFile(envFullPath, envContent, 'utf-8');
 
-    logDebug(`Created environment at ${typedArgs.environmentPath}`);
+    ctx.logDebug(`Created environment at ${typedArgs.environmentPath}`);
 
     const features: string[] = [];
     if (typedArgs.glowEnabled) features.push('Glow');

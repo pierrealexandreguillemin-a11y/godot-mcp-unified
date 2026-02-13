@@ -2,9 +2,11 @@
  * PathManager Unit Tests
  * ISO/IEC 29119 compliant test structure
  * Tests for path validation, normalization, and Godot executable detection
+ *
+ * Uses jest.unstable_mockModule + dynamic import for ESM compatibility
  */
 
-import { jest } from '@jest/globals';
+import { jest, describe, it, expect, beforeAll, beforeEach, afterEach } from '@jest/globals';
 
 // Create mock functions at module scope
 const mockExistsSync = jest.fn();
@@ -24,39 +26,49 @@ const mockGetGodotPool = jest.fn().mockReturnValue({
   execute: jest.fn(),
 });
 
-// Mock dependencies before imports (jest.mock is hoisted)
-jest.mock('fs', () => ({
+// Register mocks at top level BEFORE any import of PathManager
+jest.unstable_mockModule('fs', () => ({
   existsSync: mockExistsSync,
 }));
 
-jest.mock('../utils/Logger', () => ({
+jest.unstable_mockModule('../utils/Logger', () => ({
   logDebug: jest.fn(),
   logInfo: jest.fn(),
   logWarn: jest.fn(),
   logError: jest.fn(),
 }));
 
-jest.mock('./LruCache', () => ({
+jest.unstable_mockModule('./LruCache', () => ({
   LruCache: jest.fn().mockImplementation(() => mockCache),
-  __mockCache: mockCache,
 }));
 
-jest.mock('./ProcessPool.js', () => ({
+jest.unstable_mockModule('./ProcessPool.js', () => ({
   getGodotPool: mockGetGodotPool,
 }));
 
-// Static import - jest.mock is hoisted above this by Jest
-import {
-  validatePath,
-  normalizePath,
-  isValidGodotPathSync,
-  isValidGodotPath,
-  getPlatformGodotPaths,
-  detectGodotPath,
-  normalizeHandlerPaths,
-  clearPathCache,
-  getPathCacheStats,
-} from './PathManager.js';
+// Module references populated by beforeAll (dynamic import)
+let validatePath: typeof import('./PathManager.js')['validatePath'];
+let normalizePath: typeof import('./PathManager.js')['normalizePath'];
+let isValidGodotPathSync: typeof import('./PathManager.js')['isValidGodotPathSync'];
+let isValidGodotPath: typeof import('./PathManager.js')['isValidGodotPath'];
+let getPlatformGodotPaths: typeof import('./PathManager.js')['getPlatformGodotPaths'];
+let detectGodotPath: typeof import('./PathManager.js')['detectGodotPath'];
+let normalizeHandlerPaths: typeof import('./PathManager.js')['normalizeHandlerPaths'];
+let clearPathCache: typeof import('./PathManager.js')['clearPathCache'];
+let getPathCacheStats: typeof import('./PathManager.js')['getPathCacheStats'];
+
+beforeAll(async () => {
+  const mod = await import('./PathManager.js');
+  validatePath = mod.validatePath;
+  normalizePath = mod.normalizePath;
+  isValidGodotPathSync = mod.isValidGodotPathSync;
+  isValidGodotPath = mod.isValidGodotPath;
+  getPlatformGodotPaths = mod.getPlatformGodotPaths;
+  detectGodotPath = mod.detectGodotPath;
+  normalizeHandlerPaths = mod.normalizeHandlerPaths;
+  clearPathCache = mod.clearPathCache;
+  getPathCacheStats = mod.getPathCacheStats;
+});
 
 describe('PathManager', () => {
   const originalPlatform = process.platform;

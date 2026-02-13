@@ -11,7 +11,7 @@
  * - godot://script/errors - Script compilation errors
  */
 
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync as _readFileSync, existsSync as _existsSync } from 'fs';
 import { relative } from 'path';
 import {
   ResourceProvider,
@@ -23,12 +23,33 @@ import {
   validateScriptUri,
   validatePathWithinProject,
 } from '../types.js';
-import { isGodotProject } from '../../utils/FileUtils.js';
-import { parseTscn, TscnNode } from '../../core/TscnParser.js';
-import { findFilePaths, findFiles } from '../utils/fileScanner.js';
+import { isGodotProject as _isGodotProject } from '../../utils/FileUtils.js';
+import type { TscnNode } from '../../core/TscnParser.js';
+import { parseTscn as _parseTscn } from '../../core/TscnParser.js';
+import { findFilePaths as _findFilePaths, findFiles as _findFiles } from '../utils/fileScanner.js';
+
+export interface SceneScriptResourceDeps {
+  readFileSync: (path: string, encoding: BufferEncoding) => string;
+  existsSync: (path: string) => boolean;
+  isGodotProject: (path: string) => boolean;
+  parseTscn: (content: string) => { nodes: TscnNode[] };
+  findFiles: (dir: string, extensions: string[]) => Array<{ path: string; relativePath: string; ext: string; size: number; modified: Date }>;
+  findFilePaths: (dir: string, extensions: string[]) => string[];
+}
+
+const defaultSceneScriptResourceDeps: SceneScriptResourceDeps = {
+  readFileSync: (path: string, encoding: BufferEncoding) => _readFileSync(path, encoding) as string,
+  existsSync: _existsSync,
+  isGodotProject: _isGodotProject,
+  parseTscn: _parseTscn,
+  findFiles: _findFiles,
+  findFilePaths: _findFilePaths,
+};
 
 export class SceneScriptResourceProvider implements ResourceProvider {
   prefix = 'scene-script';
+
+  constructor(private deps: SceneScriptResourceDeps = defaultSceneScriptResourceDeps) {}
 
   handlesUri(uri: string): boolean {
     return (
@@ -62,12 +83,12 @@ export class SceneScriptResourceProvider implements ResourceProvider {
       },
     ];
 
-    if (!projectPath || !isGodotProject(projectPath)) {
+    if (!projectPath || !this.deps.isGodotProject(projectPath)) {
       return resources;
     }
 
     // Add individual scene resources (limit to 50)
-    const sceneFiles = findFilePaths(projectPath, ['.tscn']);
+    const sceneFiles = this.deps.findFilePaths(projectPath, ['.tscn']);
     for (const scenePath of sceneFiles.slice(0, 50)) {
       const relativePath = relative(projectPath, scenePath).replace(/\\/g, '/');
       resources.push({
@@ -85,7 +106,7 @@ export class SceneScriptResourceProvider implements ResourceProvider {
     }
 
     // Add individual script resources (limit to 50)
-    const scriptFiles = findFilePaths(projectPath, ['.gd']);
+    const scriptFiles = this.deps.findFilePaths(projectPath, ['.gd']);
     for (const scriptPath of scriptFiles.slice(0, 50)) {
       const relativePath = relative(projectPath, scriptPath).replace(/\\/g, '/');
       resources.push({
@@ -145,7 +166,7 @@ export class SceneScriptResourceProvider implements ResourceProvider {
   }
 
   private async listAllScenes(projectPath: string): Promise<ResourceContent | null> {
-    if (!projectPath || !isGodotProject(projectPath)) {
+    if (!projectPath || !this.deps.isGodotProject(projectPath)) {
       return {
         uri: RESOURCE_URIS.SCENES,
         mimeType: 'application/json',
@@ -153,7 +174,7 @@ export class SceneScriptResourceProvider implements ResourceProvider {
       };
     }
 
-    const sceneFiles = findFiles(projectPath, ['.tscn']);
+    const sceneFiles = this.deps.findFiles(projectPath, ['.tscn']);
     const scenes = sceneFiles.map((f) => ({
       path: `res://${f.relativePath}`,
       relativePath: f.relativePath,
@@ -169,7 +190,7 @@ export class SceneScriptResourceProvider implements ResourceProvider {
   }
 
   private async listAllScripts(projectPath: string): Promise<ResourceContent | null> {
-    if (!projectPath || !isGodotProject(projectPath)) {
+    if (!projectPath || !this.deps.isGodotProject(projectPath)) {
       return {
         uri: RESOURCE_URIS.SCRIPTS,
         mimeType: 'application/json',
@@ -177,13 +198,13 @@ export class SceneScriptResourceProvider implements ResourceProvider {
       };
     }
 
-    const scriptFiles = findFiles(projectPath, ['.gd']);
+    const scriptFiles = this.deps.findFiles(projectPath, ['.gd']);
     const scripts = scriptFiles.map((f) => {
       // Try to extract class_name and extends
       let className: string | null = null;
       let extendsClass: string | null = null;
       try {
-        const content = readFileSync(f.path, 'utf-8');
+        const content = this.deps.readFileSync(f.path, 'utf-8');
         const classMatch = content.match(/^class_name\s+(\w+)/m);
         if (classMatch) className = classMatch[1];
         const extendsMatch = content.match(/^extends\s+(\w+)/m);
@@ -218,12 +239,12 @@ export class SceneScriptResourceProvider implements ResourceProvider {
     if (!fullPath) {
       return this.createErrorContent(`${RESOURCE_URIS.SCENE}${scenePath}`, 'Path traversal detected');
     }
-    if (!existsSync(fullPath)) {
+    if (!this.deps.existsSync(fullPath)) {
       return null;
     }
 
     try {
-      const content = readFileSync(fullPath, 'utf-8');
+      const content = this.deps.readFileSync(fullPath, 'utf-8');
       return {
         uri: `${RESOURCE_URIS.SCENE}${scenePath}`,
         mimeType: 'text/x-godot-scene',
@@ -243,13 +264,13 @@ export class SceneScriptResourceProvider implements ResourceProvider {
     if (!fullPath) {
       return this.createErrorContent(`${RESOURCE_URIS.SCENE}${scenePath}/tree`, 'Path traversal detected');
     }
-    if (!existsSync(fullPath)) {
+    if (!this.deps.existsSync(fullPath)) {
       return null;
     }
 
     try {
-      const content = readFileSync(fullPath, 'utf-8');
-      const doc = parseTscn(content);
+      const content = this.deps.readFileSync(fullPath, 'utf-8');
+      const doc = this.deps.parseTscn(content);
       const nodes = doc.nodes;
 
       // Build hierarchical structure
@@ -305,12 +326,12 @@ export class SceneScriptResourceProvider implements ResourceProvider {
     if (!fullPath) {
       return this.createErrorContent(`${RESOURCE_URIS.SCRIPT}${scriptPath}`, 'Path traversal detected');
     }
-    if (!existsSync(fullPath)) {
+    if (!this.deps.existsSync(fullPath)) {
       return null;
     }
 
     try {
-      const content = readFileSync(fullPath, 'utf-8');
+      const content = this.deps.readFileSync(fullPath, 'utf-8');
       return {
         uri: `${RESOURCE_URIS.SCRIPT}${scriptPath}`,
         mimeType: getMimeType(scriptPath),

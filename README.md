@@ -369,5 +369,5 @@ ollama rm nom_modele
 ---
 
 *Derniere mise a jour: 11 Fevrier 2026*
-*godot-mcp-unified v0.9.3 - 83 outils + 20 resources + 20 prompts*
+*godot-mcp-unified v0.9.0 - 83 outils + 20 resources + 20 prompts*
 *Coverage: 85% | Tests: 3170+ (69 suites) | ISO 25010/29119/5055/27001 compliant*

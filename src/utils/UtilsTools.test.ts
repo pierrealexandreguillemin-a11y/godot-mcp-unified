@@ -81,8 +81,8 @@ describe('StructuredLogger', () => {
         colorize: false,
       });
       testLogger.info('test message');
-      expect(consoleLogSpy).toHaveBeenCalled();
-      const output = consoleLogSpy.mock.calls[0][0];
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      const output = consoleErrorSpy.mock.calls[0][0];
       expect(output).toContain('[TEST]');
     });
 
@@ -92,8 +92,8 @@ describe('StructuredLogger', () => {
         json: true,
       });
       testLogger.info('test message');
-      expect(consoleLogSpy).toHaveBeenCalled();
-      const output = consoleLogSpy.mock.calls[0][0];
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      const output = consoleErrorSpy.mock.calls[0][0];
       // Should be valid JSON
       expect(() => JSON.parse(output)).not.toThrow();
     });
@@ -107,8 +107,8 @@ describe('StructuredLogger', () => {
         prefix: '',
       });
       testLogger.info('no timestamp');
-      expect(consoleLogSpy).toHaveBeenCalled();
-      const output = consoleLogSpy.mock.calls[0][0];
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      const output = consoleErrorSpy.mock.calls[0][0];
       // Should not contain ISO timestamp format
       expect(output).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
     });
@@ -142,23 +142,23 @@ describe('StructuredLogger', () => {
 
     it('should log info messages', () => {
       testLogger.info('info message');
-      expect(consoleLogSpy).toHaveBeenCalled();
-      expect(consoleLogSpy.mock.calls[0][0]).toContain('INFO');
-      expect(consoleLogSpy.mock.calls[0][0]).toContain('info message');
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      expect(consoleErrorSpy.mock.calls[0][0]).toContain('INFO');
+      expect(consoleErrorSpy.mock.calls[0][0]).toContain('info message');
     });
 
     it('should log debug messages', () => {
       testLogger.debug('debug message');
-      expect(consoleLogSpy).toHaveBeenCalled();
-      expect(consoleLogSpy.mock.calls[0][0]).toContain('DEBUG');
-      expect(consoleLogSpy.mock.calls[0][0]).toContain('debug message');
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      expect(consoleErrorSpy.mock.calls[0][0]).toContain('DEBUG');
+      expect(consoleErrorSpy.mock.calls[0][0]).toContain('debug message');
     });
 
     it('should log trace messages', () => {
       testLogger.trace('trace message');
-      expect(consoleLogSpy).toHaveBeenCalled();
-      expect(consoleLogSpy.mock.calls[0][0]).toContain('TRACE');
-      expect(consoleLogSpy.mock.calls[0][0]).toContain('trace message');
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      expect(consoleErrorSpy.mock.calls[0][0]).toContain('TRACE');
+      expect(consoleErrorSpy.mock.calls[0][0]).toContain('trace message');
     });
   });
 
@@ -174,7 +174,7 @@ describe('StructuredLogger', () => {
       testLogger.debug('should not appear');
       testLogger.trace('should not appear');
 
-      expect(consoleLogSpy).not.toHaveBeenCalled();
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
     });
 
     it('should log messages at or above configured level', () => {
@@ -203,9 +203,8 @@ describe('StructuredLogger', () => {
       testLogger.debug('debug');
       testLogger.trace('trace');
 
-      // error and warn go to stderr, info/debug/trace go to stdout
-      expect(consoleErrorSpy).toHaveBeenCalledTimes(2);
-      expect(consoleLogSpy).toHaveBeenCalledTimes(3);
+      // MCP: ALL logs go to stderr (stdout reserved for protocol)
+      expect(consoleErrorSpy).toHaveBeenCalledTimes(5);
     });
 
     it('should only log errors when level is ERROR', () => {
@@ -237,8 +236,8 @@ describe('StructuredLogger', () => {
     it('should include context in log output', () => {
       testLogger.info('message with context', { userId: 123, action: 'test' });
 
-      expect(consoleLogSpy).toHaveBeenCalled();
-      const output = JSON.parse(consoleLogSpy.mock.calls[0][0]);
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      const output = JSON.parse(consoleErrorSpy.mock.calls[0][0]);
       expect(output.context).toBeDefined();
       expect(output.context.userId).toBe(123);
       expect(output.context.action).toBe('test');
@@ -259,8 +258,8 @@ describe('StructuredLogger', () => {
     it('should include timestamp in ISO format', () => {
       testLogger.info('timestamped message');
 
-      expect(consoleLogSpy).toHaveBeenCalled();
-      const output = JSON.parse(consoleLogSpy.mock.calls[0][0]);
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      const output = JSON.parse(consoleErrorSpy.mock.calls[0][0]);
       expect(output.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
     });
   });
@@ -275,8 +274,8 @@ describe('StructuredLogger', () => {
       const childLogger = parentLogger.child({ module: 'auth' });
       childLogger.info('child message');
 
-      expect(consoleLogSpy).toHaveBeenCalled();
-      const output = JSON.parse(consoleLogSpy.mock.calls[0][0]);
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      const output = JSON.parse(consoleErrorSpy.mock.calls[0][0]);
       expect(output.context.module).toBe('auth');
     });
 
@@ -289,8 +288,8 @@ describe('StructuredLogger', () => {
       const childLogger = parentLogger.child({ module: 'auth' });
       childLogger.info('message', { requestId: 'abc123' });
 
-      expect(consoleLogSpy).toHaveBeenCalled();
-      const output = JSON.parse(consoleLogSpy.mock.calls[0][0]);
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      const output = JSON.parse(consoleErrorSpy.mock.calls[0][0]);
       expect(output.context.module).toBe('auth');
       expect(output.context.requestId).toBe('abc123');
     });
@@ -305,8 +304,8 @@ describe('StructuredLogger', () => {
       const grandchildLogger = childLogger.child({ operation: 'login' });
       grandchildLogger.info('nested message');
 
-      expect(consoleLogSpy).toHaveBeenCalled();
-      const output = JSON.parse(consoleLogSpy.mock.calls[0][0]);
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      const output = JSON.parse(consoleErrorSpy.mock.calls[0][0]);
       expect(output.context.module).toBe('auth');
       expect(output.context.operation).toBe('login');
     });
@@ -323,8 +322,8 @@ describe('StructuredLogger', () => {
       const duration = timer.end();
 
       expect(duration).toBeGreaterThanOrEqual(0);
-      expect(consoleLogSpy).toHaveBeenCalled();
-      const output = JSON.parse(consoleLogSpy.mock.calls[0][0]);
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      const output = JSON.parse(consoleErrorSpy.mock.calls[0][0]);
       expect(output.message).toContain('operation completed');
       expect(output.context.duration).toBeDefined();
     });
@@ -355,8 +354,8 @@ describe('StructuredLogger', () => {
       const timer = testLogger.startTimer('db query');
       timer.end({ rowCount: 100 });
 
-      expect(consoleLogSpy).toHaveBeenCalled();
-      const output = JSON.parse(consoleLogSpy.mock.calls[0][0]);
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      const output = JSON.parse(consoleErrorSpy.mock.calls[0][0]);
       expect(output.context.rowCount).toBe(100);
       expect(output.context.duration).toBeDefined();
     });
@@ -382,11 +381,11 @@ describe('StructuredLogger', () => {
       });
 
       testLogger.info('should not appear');
-      expect(consoleLogSpy).not.toHaveBeenCalled();
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
 
       testLogger.setLevel(LogLevel.INFO);
       testLogger.info('should appear');
-      expect(consoleLogSpy).toHaveBeenCalled();
+      expect(consoleErrorSpy).toHaveBeenCalled();
     });
 
     it('should check if level is enabled', () => {
@@ -409,8 +408,8 @@ describe('StructuredLogger', () => {
 
       testLogger.info('message', { key: 'value', count: 42 });
 
-      expect(consoleLogSpy).toHaveBeenCalled();
-      const output = consoleLogSpy.mock.calls[0][0];
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      const output = consoleErrorSpy.mock.calls[0][0];
       expect(output).toContain('key="value"');
       expect(output).toContain('count=42');
     });
@@ -424,8 +423,8 @@ describe('StructuredLogger', () => {
 
       testLogger.info('message', { nullVal: null });
 
-      expect(consoleLogSpy).toHaveBeenCalled();
-      const output = consoleLogSpy.mock.calls[0][0];
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      const output = consoleErrorSpy.mock.calls[0][0];
       expect(output).toContain('nullVal=null');
     });
 
@@ -438,8 +437,8 @@ describe('StructuredLogger', () => {
 
       testLogger.info('message', { undefinedVal: undefined });
 
-      expect(consoleLogSpy).toHaveBeenCalled();
-      const output = consoleLogSpy.mock.calls[0][0];
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      const output = consoleErrorSpy.mock.calls[0][0];
       expect(output).toContain('undefinedVal=undefined');
     });
 
@@ -452,8 +451,8 @@ describe('StructuredLogger', () => {
 
       testLogger.info('message', { active: true, disabled: false });
 
-      expect(consoleLogSpy).toHaveBeenCalled();
-      const output = consoleLogSpy.mock.calls[0][0];
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      const output = consoleErrorSpy.mock.calls[0][0];
       expect(output).toContain('active=true');
       expect(output).toContain('disabled=false');
     });
@@ -467,8 +466,8 @@ describe('StructuredLogger', () => {
 
       testLogger.info('message', { items: [1, 2, 3, 4, 5] });
 
-      expect(consoleLogSpy).toHaveBeenCalled();
-      const output = consoleLogSpy.mock.calls[0][0];
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      const output = consoleErrorSpy.mock.calls[0][0];
       expect(output).toContain('[5 items]');
     });
 
@@ -481,8 +480,8 @@ describe('StructuredLogger', () => {
 
       testLogger.info('message', { obj: { nested: 'value' } });
 
-      expect(consoleLogSpy).toHaveBeenCalled();
-      const output = consoleLogSpy.mock.calls[0][0];
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      const output = consoleErrorSpy.mock.calls[0][0];
       expect(output).toContain('{"nested":"value"}');
     });
   });
@@ -540,13 +539,13 @@ describe('Logger (backward compatibility)', () => {
       // Set logger to DEBUG level to ensure messages appear
       logger.setLevel(LogLevel.DEBUG);
       log('debug', 'debug message');
-      expect(consoleLogSpy).toHaveBeenCalled();
+      expect(consoleErrorSpy).toHaveBeenCalled();
     });
 
     it('should log info messages', () => {
       logger.setLevel(LogLevel.INFO);
       log('info', 'info message');
-      expect(consoleLogSpy).toHaveBeenCalled();
+      expect(consoleErrorSpy).toHaveBeenCalled();
     });
 
     it('should log warn messages', () => {
@@ -567,9 +566,8 @@ describe('Logger (backward compatibility)', () => {
         log(level, `${level} test`);
       }
 
-      // debug and info go to stdout, warn and error go to stderr
-      expect(consoleLogSpy).toHaveBeenCalled();
-      expect(consoleErrorSpy).toHaveBeenCalled();
+      // MCP: ALL logs go to stderr (stdout reserved for protocol)
+      expect(consoleErrorSpy).toHaveBeenCalledTimes(4);
     });
   });
 
@@ -634,7 +632,7 @@ describe('Edge Cases and Error Handling', () => {
     });
 
     testLogger.info('');
-    expect(consoleLogSpy).toHaveBeenCalled();
+    expect(consoleErrorSpy).toHaveBeenCalled();
   });
 
   it('should handle empty context object', () => {
@@ -644,8 +642,8 @@ describe('Edge Cases and Error Handling', () => {
     });
 
     testLogger.info('message', {});
-    expect(consoleLogSpy).toHaveBeenCalled();
-    const output = JSON.parse(consoleLogSpy.mock.calls[0][0]);
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    const output = JSON.parse(consoleErrorSpy.mock.calls[0][0]);
     expect(output.context).toBeUndefined();
   });
 
@@ -656,9 +654,9 @@ describe('Edge Cases and Error Handling', () => {
     });
 
     testLogger.info('Special chars: "quotes", \\backslash, \nnewline');
-    expect(consoleLogSpy).toHaveBeenCalled();
+    expect(consoleErrorSpy).toHaveBeenCalled();
     // Should still be valid JSON
-    expect(() => JSON.parse(consoleLogSpy.mock.calls[0][0])).not.toThrow();
+    expect(() => JSON.parse(consoleErrorSpy.mock.calls[0][0])).not.toThrow();
   });
 
   it('should handle very long messages', () => {
@@ -670,8 +668,8 @@ describe('Edge Cases and Error Handling', () => {
 
     const longMessage = 'x'.repeat(10000);
     testLogger.info(longMessage);
-    expect(consoleLogSpy).toHaveBeenCalled();
-    expect(consoleLogSpy.mock.calls[0][0]).toContain(longMessage);
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    expect(consoleErrorSpy.mock.calls[0][0]).toContain(longMessage);
   });
 
   it('should handle circular references gracefully in JSON mode', () => {
@@ -685,7 +683,7 @@ describe('Edge Cases and Error Handling', () => {
     const obj: Record<string, unknown> = { name: 'test' };
     // Don't actually add circular reference as it would throw
     testLogger.info('message', { simple: obj });
-    expect(consoleLogSpy).toHaveBeenCalled();
+    expect(consoleErrorSpy).toHaveBeenCalled();
   });
 
   it('should handle Error with no stack', () => {

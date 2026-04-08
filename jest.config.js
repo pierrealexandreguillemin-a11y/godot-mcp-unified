@@ -22,6 +22,7 @@ export default {
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/**/*.test.ts',
+    '!src/**/*.test.*.ts',
     '!src/**/*.spec.ts',
     '!src/test/**',
     '!src/index.ts',

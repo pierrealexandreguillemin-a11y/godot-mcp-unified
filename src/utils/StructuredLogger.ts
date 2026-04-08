@@ -193,7 +193,7 @@ export class StructuredLogger {
    * Output JSON format
    */
   private outputJson(level: LogLevel, entry: LogEntry): void {
-    const output = level <= LogLevel.WARN ? console.error : console.log;
+    const output = console.error; // MCP: ALL logs must go to stderr
     output(JSON.stringify(entry));
   }
 
@@ -201,7 +201,7 @@ export class StructuredLogger {
    * Output text format
    */
   private outputText(level: LogLevel, entry: LogEntry): void {
-    const output = level <= LogLevel.WARN ? console.error : console.log;
+    const output = console.error; // MCP: ALL logs must go to stderr
     const parts: string[] = [];
 
     // Timestamp

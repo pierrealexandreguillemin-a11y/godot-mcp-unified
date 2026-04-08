@@ -50,7 +50,7 @@ class DebugStreamServerImpl {
     this.lastErrorIndex = 0;
 
     try {
-      this.wss = new WebSocketServer({ port, host: 'localhost' });
+      this.wss = new WebSocketServer({ port, host: '127.0.0.1' });
 
       this.wss.on('connection', (ws: WebSocket) => {
         logDebug(`Debug stream: Client connected (total: ${this.clients.size + 1})`);

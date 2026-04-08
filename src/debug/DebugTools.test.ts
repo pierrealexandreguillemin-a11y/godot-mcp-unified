@@ -346,7 +346,7 @@ describe('DebugStreamServer', () => {
     it('should accept WebSocket connections', (done) => {
       debugStreamServer.start(testPort);
 
-      const ws = new WebSocket(`ws://localhost:${testPort}`);
+      const ws = new WebSocket(`ws://127.0.0.1:${testPort}`);
 
       ws.on('open', () => {
         expect(debugStreamServer.getStatus().clientCount).toBe(1);
@@ -365,7 +365,7 @@ describe('DebugStreamServer', () => {
     it('should send welcome message on connection', (done) => {
       debugStreamServer.start(testPort);
 
-      const ws = new WebSocket(`ws://localhost:${testPort}`);
+      const ws = new WebSocket(`ws://127.0.0.1:${testPort}`);
 
       ws.on('message', (data) => {
         const message = JSON.parse(data.toString());
@@ -387,7 +387,7 @@ describe('DebugStreamServer', () => {
     it('should update lastMessageTime when broadcasting to clients', (done) => {
       debugStreamServer.start(testPort);
 
-      const ws = new WebSocket(`ws://localhost:${testPort}`);
+      const ws = new WebSocket(`ws://127.0.0.1:${testPort}`);
       let messageCount = 0;
 
       ws.on('open', () => {
@@ -421,7 +421,7 @@ describe('DebugStreamServer', () => {
     it('should decrement client count on disconnect', (done) => {
       debugStreamServer.start(testPort);
 
-      const ws = new WebSocket(`ws://localhost:${testPort}`);
+      const ws = new WebSocket(`ws://127.0.0.1:${testPort}`);
 
       ws.on('open', () => {
         expect(debugStreamServer.getStatus().clientCount).toBe(1);
@@ -446,8 +446,8 @@ describe('DebugStreamServer', () => {
 
       // Allow server to fully start before connecting clients
       setTimeout(() => {
-        const ws1 = new WebSocket(`ws://localhost:${testPort}`);
-        const ws2 = new WebSocket(`ws://localhost:${testPort}`);
+        const ws1 = new WebSocket(`ws://127.0.0.1:${testPort}`);
+        const ws2 = new WebSocket(`ws://127.0.0.1:${testPort}`);
 
         let connectedCount = 0;
 
@@ -487,8 +487,8 @@ describe('DebugStreamServer', () => {
 
       // Allow server to fully start before connecting clients
       setTimeout(() => {
-        const ws1 = new WebSocket(`ws://localhost:${testPort}`);
-        const ws2 = new WebSocket(`ws://localhost:${testPort}`);
+        const ws1 = new WebSocket(`ws://127.0.0.1:${testPort}`);
+        const ws2 = new WebSocket(`ws://127.0.0.1:${testPort}`);
 
         let connectedCount = 0;
         const receivedMessages: string[][] = [[], []];
@@ -613,7 +613,7 @@ describe('DebugStreamServer', () => {
     it('should serialize DebugMessage to JSON', (done) => {
       debugStreamServer.start(testPort);
 
-      const ws = new WebSocket(`ws://localhost:${testPort}`);
+      const ws = new WebSocket(`ws://127.0.0.1:${testPort}`);
 
       ws.on('message', (data) => {
         const parsed = JSON.parse(data.toString());
@@ -630,7 +630,7 @@ describe('DebugStreamServer', () => {
     it('should handle special characters in content', (done) => {
       debugStreamServer.start(testPort);
 
-      const ws = new WebSocket(`ws://localhost:${testPort}`);
+      const ws = new WebSocket(`ws://127.0.0.1:${testPort}`);
 
       ws.on('open', () => {
         debugStreamServer.broadcast({

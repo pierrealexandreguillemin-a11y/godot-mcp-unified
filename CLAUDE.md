@@ -58,3 +58,8 @@ src/
 ## CI/CD
 
 GitHub Actions on push/PR to `master`. Matrix: Ubuntu + Windows, Node 20 + 22. Steps: build, lint, typecheck, test:coverage, security audit.
+
+
+## Wiki
+
+Syntheses wiki : `C:\Dev\wiki\topics\game-dev\` et `C:\Dev\wiki\entities\godot-mcp-unified.md`
